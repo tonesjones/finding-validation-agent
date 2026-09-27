@@ -8,3 +8,8 @@ private-evidence/
 *.token
 *.env
 .env
+
+# Real PoC/scanner data - never commit
+data/
+output/
+.pytest_cache/
