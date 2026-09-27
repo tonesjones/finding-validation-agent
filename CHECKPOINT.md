@@ -1,6 +1,15 @@
 # Checkpoint
 
-Last updated: 2026-09-27. Update this file at every commit that changes status.
+Last updated: 2026-09-27 (end of session 1). Update this file at every commit that changes status.
+
+## Resume here
+
+- Branch `feat/cli-assess` (PR #4, open) is checked out locally; PRs #1-#3 are merged into `main`.
+- **Next action:** run the Codex assessment (see `CLAUDE.md`), `--limit 1` first, then the full run
+  (132 model calls). The Codex CLI was just updated because its default model (`gpt-6-sol`) was rejected
+  for ChatGPT-account logins; if that recurs, pass `--model <name>` (list models with `/model` in `codex`).
+- Then review the run against the PoC ledger: agreement per result bucket, any model `refutes` on a PoC
+  `confirmed` row, rejected (invented) citations, and cost/time. Write findings here and merge PR #4.
 
 ## Built (package `fva`, Python >= 3.10, tests: `python -m pytest`)
 
