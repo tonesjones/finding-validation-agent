@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fva"
+version = "0.2.0.dev0"
+description = "Finding Validation Agent: evidence-backed verdicts for SAST/SCA findings"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["fva*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,22 @@
+{
+  "profile": {"profile_id": "demo-local", "name": "Demo app, local start", "source_commit": "abc123",
+              "language_packs": ["node"], "base_url": "http://127.0.0.1:3000"},
+  "finding": {"finding_id": "f-1", "run_id": "r-1", "source_tool": "sarif:ExampleScanner",
+              "source_finding_id": "0F3A-Case-Sensitive-ID", "rule_id": "js/sql-injection", "cwe": ["CWE-89"],
+              "title": "SQL injection", "severity": "high", "finding_type": "sast",
+              "location": {"path": "routes/login.ts", "start_line": 34},
+              "raw_evidence_ref": "raw:sha256:0000000000000000000000000000000000000000000000000000000000000000#/runs/0/results/0"},
+  "evidence": [
+    {"evidence_id": "e-neg", "finding_ids": ["f-1"], "evidence_type": "negative_control", "method": "http_probe",
+     "stance": "supports", "summary": "Invalid credentials returned 401.", "deployment_profile_id": "demo-local",
+     "collected_at": "2026-09-27T12:00:00Z"},
+    {"evidence_id": "e-att", "finding_ids": ["f-1"], "evidence_type": "runtime_probe", "method": "http_probe",
+     "stance": "supports", "summary": "Tautology payload returned 200 and an admin session ([REDACTED] token).",
+     "detail_ref": "receipts/login-sqli.json", "deployment_profile_id": "demo-local",
+     "collected_at": "2026-09-27T12:00:01Z", "tool_versions": {"runtime_image": "demo@1.0"}}
+  ],
+  "verdict": {"verdict_id": "v-1", "finding_id": "f-1", "deployment_profile_id": "demo-local",
+              "verdict": "confirmed", "reason_codes": ["RUNTIME_CONFIRMED"], "confidence": "high",
+              "evidence_ids": ["e-neg", "e-att"], "narrative": "Control rejected; payload authenticated as admin.",
+              "decided_at": "2026-09-27T12:05:00Z", "decided_by": {"method": "rules", "ruleset_version": "0"}}
+}

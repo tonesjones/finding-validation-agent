@@ -1,0 +1,3 @@
+Issue ID,Rule,Name,Sev,Kind,File,Line,CWE
+ id-with-space ,R1,Weak hash,Moderate,sast,src/app.py,10,"CWE-327, CWE-328"
+ID-2,R2,Debug on,Low,sast,settings.py,,
