@@ -43,14 +43,30 @@ def test_claude_code_uses_stdout(tmp_path, monkeypatch):
 
 
 @pytest.mark.skipif(os.name == "nt", reason="shebang stand-ins are POSIX-only")
-def test_cli_failure_is_loud(tmp_path, monkeypatch):
-    bindir = _exe(tmp_path, "codex", "import sys; sys.stderr.write('not logged in'); sys.exit(2)")
+def test_cli_failure_shows_tail_and_saves_log(tmp_path, monkeypatch):
+    bindir = _exe(tmp_path, "codex", "import sys; sys.stderr.write('echo of prompt\\n' * 500 + 'ERROR: not logged in'); sys.exit(2)")
     monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("FVA_CLI_LOG_DIR", str(tmp_path / "logs"))
     with pytest.raises(RuntimeError, match="not logged in"):
         CodexCliClient().complete("s", "u")
+    assert "not logged in" in next((tmp_path / "logs").glob("*.log")).read_text()
 
 
 def test_missing_cli(monkeypatch):
     monkeypatch.setenv("PATH", "")
     with pytest.raises(SystemExit, match="not found"):
         CodexCliClient()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="shebang stand-ins are POSIX-only")
+def test_model_flag_passed_before_stdin_marker(tmp_path, monkeypatch):
+    bindir = _exe(tmp_path, "codex", f"""
+import sys
+args = sys.argv[1:]
+assert args[-3:] == ["-m", "some-model", "-"], args
+sys.stdin.read()
+open(args[args.index("--output-last-message") + 1], "w").write('{{"claims": []}}')
+""")
+    monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
+    c = CodexCliClient(model="some-model")
+    assert c.model_id == "codex-cli:some-model" and c.complete("s", "u") == '{"claims": []}'

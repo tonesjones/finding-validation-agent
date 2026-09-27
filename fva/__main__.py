@@ -22,9 +22,9 @@ def _profile(name: str):
 def _client(name: str, model: str | None):
     from fva.reasoning import model as m
     if name == "codex":
-        return m.CodexCliClient()
+        return m.CodexCliClient(model=model)
     if name == "claude-code":
-        return m.ClaudeCodeClient()
+        return m.ClaudeCodeClient(model=model)
     if name == "anthropic":
         return m.AnthropicClient(model_id=model or "claude-sonnet-5")
     if name == "local":
@@ -41,7 +41,7 @@ def main(argv=None):
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("assess", help="collect evidence and model assessments for findings")
     a.add_argument("--client", default="codex", choices=["codex", "claude-code", "anthropic", "local", "none"])
-    a.add_argument("--model", help="model id for anthropic/local clients")
+    a.add_argument("--model", help="model to use (passed to the codex/claude CLI, or the API/local client)")
     a.add_argument("--profile", default="juiceshop", choices=sorted(PROFILES))
     a.add_argument("--source", required=True, help="path to the pinned source checkout")
     a.add_argument("--findings", default="data/polaris-export/page-*.json",

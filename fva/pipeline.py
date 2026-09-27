@@ -125,7 +125,7 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
                                       also_covers=tuple(g.finding_id for g in group[1:]))
             except Exception as e:  # keep going; record the failure
                 stats["errors"] += 1
-                as_out.write(json.dumps({"cluster": list(map(str, k)), "error": str(e)[:500],
+                as_out.write(json.dumps({"cluster": list(map(str, k)), "error": str(e)[-2000:],
                                          "source_finding_ids": [g.source_finding_id for g in group]}) + "\n")
                 log(f"[{i}/{len(keys)}] ERROR {e}")
                 continue

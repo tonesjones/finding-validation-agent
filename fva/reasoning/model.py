@@ -84,9 +84,15 @@ class _CliClient:
     default_cmd = ""
     model_id = "cli"
 
-    def __init__(self, command: str | None = None, timeout: int = 600):
+    model_flag = "-m"
+
+    def __init__(self, command: str | None = None, timeout: int = 600, model: str | None = None):
         cmd = command or os.environ.get(self.env_var) or self.default_cmd
         self._argv = shlex.split(cmd, posix=(os.name != "nt"))
+        if model:  # insert right after the subcommand words, before the trailing '-' (stdin) if present
+            at = len(self._argv) - 1 if self._argv[-1] == "-" else len(self._argv)
+            self._argv[at:at] = [self.model_flag, model]
+            self.model_id = f"{self.model_id}:{model}"
         exe = shutil.which(self._argv[0])
         if exe is None:
             raise SystemExit(f"'{self._argv[0]}' not found on PATH (set {self.env_var} to override)")
@@ -98,7 +104,13 @@ class _CliClient:
         r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
                            cwd=workdir, timeout=self._timeout)
         if r.returncode != 0:
-            raise RuntimeError(f"{Path(argv[0]).name} exited {r.returncode}: {r.stderr.strip()[:500]}")
+            log_dir = Path(os.environ.get("FVA_CLI_LOG_DIR", "data/logs"))
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log = log_dir / f"{Path(argv[0]).stem}-{workdir.name}.log"
+            log.write_text(f"argv: {argv}\nexit: {r.returncode}\n--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}",
+                           encoding="utf-8")
+            tail = "\n".join(((r.stderr or "") + "\n" + (r.stdout or "")).strip().splitlines()[-12:])
+            raise RuntimeError(f"{Path(argv[0]).name} exited {r.returncode} (full log: {log}):\n{tail}")
         out_file = workdir / "last_message.txt"
         return out_file.read_text(encoding="utf-8") if out_file.exists() else r.stdout
 
@@ -122,3 +134,4 @@ class ClaudeCodeClient(_CliClient):
     env_var = "FVA_CLAUDE_CMD"
     default_cmd = "claude -p --output-format text"
     model_id = "claude-code-cli"
+    model_flag = "--model"
