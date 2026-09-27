@@ -60,3 +60,65 @@ class ScriptedClient:
     def complete(self, system: str, user: str, *, max_tokens: int = 2000) -> str:
         self.prompts.append((system, user))
         return self._responses.pop(0)
+
+
+# ------------------------------------------------------------------------------------------
+# Subscription-backed CLI clients (run on the user's machine where the CLI is logged in)
+# ------------------------------------------------------------------------------------------
+import shlex
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+
+class _CliClient:
+    """Runs a local agent CLI non-interactively in an EMPTY temp directory, prompt on stdin.
+
+    The empty working directory means the agent has no repository to browse: it sees only
+    the redacted prompt we send. Override the command with an env var if your CLI version
+    uses different flags (the first run doubles as a smoke test).
+    """
+
+    env_var = ""
+    default_cmd = ""
+    model_id = "cli"
+
+    def __init__(self, command: str | None = None, timeout: int = 600):
+        cmd = command or os.environ.get(self.env_var) or self.default_cmd
+        self._argv = shlex.split(cmd, posix=(os.name != "nt"))
+        exe = shutil.which(self._argv[0])
+        if exe is None:
+            raise SystemExit(f"'{self._argv[0]}' not found on PATH (set {self.env_var} to override)")
+        self._argv[0] = exe
+        self._timeout = timeout
+
+    def _run(self, prompt: str, workdir: Path) -> str:
+        argv = [a.replace("{out}", str(workdir / "last_message.txt")) for a in self._argv]
+        r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8",
+                           cwd=workdir, timeout=self._timeout)
+        if r.returncode != 0:
+            raise RuntimeError(f"{Path(argv[0]).name} exited {r.returncode}: {r.stderr.strip()[:500]}")
+        out_file = workdir / "last_message.txt"
+        return out_file.read_text(encoding="utf-8") if out_file.exists() else r.stdout
+
+    def complete(self, system: str, user: str, *, max_tokens: int = 2000) -> str:
+        prompt = f"{system}\n\n---\n\n{user}\n\nRespond with the JSON object only. Do not run commands or read files."
+        with tempfile.TemporaryDirectory(prefix="fva-model-") as d:
+            return self._run(prompt, Path(d))
+
+
+class CodexCliClient(_CliClient):
+    """OpenAI Codex CLI on a ChatGPT/Codex subscription login: `codex exec`, read-only sandbox."""
+
+    env_var = "FVA_CODEX_CMD"
+    default_cmd = "codex exec --skip-git-repo-check --sandbox read-only --output-last-message {out} -"
+    model_id = "codex-cli"
+
+
+class ClaudeCodeClient(_CliClient):
+    """Claude Code on a Claude subscription login: `claude -p` (print mode), no tools."""
+
+    env_var = "FVA_CLAUDE_CMD"
+    default_cmd = "claude -p --output-format text"
+    model_id = "claude-code-cli"

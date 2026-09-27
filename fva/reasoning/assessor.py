@@ -143,9 +143,12 @@ def _parse(text: str) -> dict:
 
 def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, profile_id: str,
            evidence: list[EvidenceRecord] = (), sites: list[tuple[str, int]] = (),
-           cache_dir: Path | None = None) -> AssessmentResult:
+           cache_dir: Path | None = None, also_covers: tuple[str, ...] = ()) -> AssessmentResult:
+    """`also_covers`: ids of other findings at the same code/advisory; the evidence covers them too."""
     evidence = list(evidence)
     prompt = build_prompt(f, idx, evidence, list(sites))
+    if also_covers:
+        prompt += f"\n\nNOTE: {len(also_covers)} other scanner finding(s) report this same location/advisory; your claims apply to all of them."
     key = hashlib.sha256("\0".join([PROMPT_VERSION, client.model_id, f.finding_id, source_content_sha256,
                                     hashlib.sha256(prompt.encode()).hexdigest()]).encode()).hexdigest()
     cached = False
@@ -172,7 +175,7 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
         lines.append(f"- [{c['stance']}] {c['statement']} ({cites})"
                      + (f" -> {c['suggested_reason_code']}" if c["suggested_reason_code"] else ""))
     ev = EvidenceRecord(
-        evidence_id=str(uuid.uuid5(_NS, key)), finding_ids=(f.finding_id,),
+        evidence_id=str(uuid.uuid5(_NS, key)), finding_ids=(f.finding_id, *also_covers),
         evidence_type=EvidenceType.model_assessment, method=f"llm:{client.model_id}:{PROMPT_VERSION}",
         stance=stance, summary=redact("\n".join(lines)), deployment_profile_id=profile_id,
         collected_at=datetime.now(timezone.utc),
