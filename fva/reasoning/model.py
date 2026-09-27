@@ -95,7 +95,7 @@ class _CliClient:
 
     def _run(self, prompt: str, workdir: Path) -> str:
         argv = [a.replace("{out}", str(workdir / "last_message.txt")) for a in self._argv]
-        r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8",
+        r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
                            cwd=workdir, timeout=self._timeout)
         if r.returncode != 0:
             raise RuntimeError(f"{Path(argv[0]).name} exited {r.returncode}: {r.stderr.strip()[:500]}")

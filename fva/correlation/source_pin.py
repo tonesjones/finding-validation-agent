@@ -34,10 +34,10 @@ def _git(root: Path, *args: str) -> str | None:
     try:
         # --no-optional-locks: never write .git/index (we must not leave lock files in user repos)
         r = subprocess.run(["git", "--no-optional-locks", "-C", str(root), *args],
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     except (OSError, subprocess.TimeoutExpired):
         return None
-    return r.stdout.strip() if r.returncode == 0 else None
+    return (r.stdout or "").strip() if r.returncode == 0 else None
 
 
 def iter_files(root: Path, excludes=DEFAULT_EXCLUDES):
