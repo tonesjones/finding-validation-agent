@@ -22,7 +22,14 @@ def vd(verdict, codes, eids):
 
 
 def test_confirmed_ok():
-    check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1",)), {"e1": ev("e1", Stance.supports)})
+    check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1",)),
+                  {"e1": ev("e1", Stance.supports, et=EvidenceType.runtime_probe)})
+
+
+@pytest.mark.parametrize("et", [EvidenceType.static_source, EvidenceType.reachability, EvidenceType.model_assessment])
+def test_static_or_model_support_cannot_confirm(et):
+    with pytest.raises(InvariantError, match="runtime"):
+        check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1",)), {"e1": ev("e1", Stance.supports, et=et)})
 
 
 def test_confirmed_needs_supporting_evidence():
@@ -39,7 +46,8 @@ def test_conflict_forces_needs_review():
 
 def test_reason_code_must_match_verdict():
     with pytest.raises(InvariantError):
-        check_verdict(vd(VerdictValue.confirmed, ("TEST_ONLY",), ("e1",)), {"e1": ev("e1", Stance.supports)})
+        check_verdict(vd(VerdictValue.confirmed, ("TEST_ONLY",), ("e1",)),
+                      {"e1": ev("e1", Stance.supports, et=EvidenceType.runtime_probe)})
 
 
 def test_unknown_reason_code():
@@ -50,7 +58,7 @@ def test_unknown_reason_code():
 def test_evidence_must_cover_finding():
     with pytest.raises(InvariantError):
         check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1",)),
-                      {"e1": ev("e1", Stance.supports, fids=("other",))})
+                      {"e1": ev("e1", Stance.supports, fids=("other",), et=EvidenceType.runtime_probe)})
 
 
 def test_verdict_needs_evidence():
@@ -65,5 +73,5 @@ def test_runtime_evidence_needs_profile():
 
 
 def test_one_probe_many_findings():
-    e = ev("e1", Stance.supports, fids=("f1", "f2", "f3"))
+    e = ev("e1", Stance.supports, fids=("f1", "f2", "f3"), et=EvidenceType.runtime_probe)
     check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1",)), {"e1": e})

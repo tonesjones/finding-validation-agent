@@ -75,6 +75,8 @@ class EvidenceType(str, Enum):
     negative_control = "negative_control"
     advisory_precondition = "advisory_precondition"
     imported_assessment = "imported_assessment"  # carried over from a prior tool/PoC, unverified here
+    model_assessment = "model_assessment"  # LLM claim with verified citations; never sufficient to confirm
+    human_review = "human_review"
 
 
 # --------------------------------------------------------------------------- run
@@ -180,6 +182,7 @@ class DeploymentProfile(_Model):
     deployed_surfaces: tuple[Surface, ...] = (Surface.production_candidate, Surface.dependency)
     extra_path_rules: tuple[tuple[str, Surface], ...] = ()  # app-specific glob -> surface
     base_url: str | None = None
+    entrypoints: tuple[str, ...] = ()  # repo-relative files where execution starts (server + client)
 
 
 # ----------------------------------------------------------------------- verdict

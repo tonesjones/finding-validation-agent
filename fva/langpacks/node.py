@@ -2,10 +2,16 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 from fva.langpacks.base import DeclaredDependency, InstalledPackage
 from fva.schemas import Surface as S
+
+
+_IMPORT_RE = re.compile(
+    r"""(?:\bimport\s+(?:[\w*{}\s,$]+?\s+from\s+)?|\bexport\s+[\w*{}\s,$]+?\s+from\s+|\brequire\s*\(\s*|\bimport\s*\(\s*)(['"`])([^'"`\n]+)\1""")
+_EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json")
 
 
 class NodePack:
@@ -25,6 +31,7 @@ class NodePack:
         ("**/*.spec.tsx", S.test),
         ("**/*.test.tsx", S.test),
     )
+    source_suffixes = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs")
     manifest_files = ("package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml")
 
     def parse_manifest(self, path: Path) -> list[DeclaredDependency]:
@@ -68,3 +75,38 @@ class NodePack:
             if meta.get("name") and meta.get("version"):
                 out.append(InstalledPackage(meta["name"], meta["version"], "npm", rel))
         return out
+
+    # ---- import graph -------------------------------------------------------------------
+    def imports(self, text: str) -> list[tuple[str, int]]:
+        """(specifier, 1-based line) for static/dynamic imports, re-exports and require()."""
+        out = []
+        for m in _IMPORT_RE.finditer(text):
+            out.append((m.group(2), text.count("\n", 0, m.start()) + 1))
+        return out
+
+    @staticmethod
+    def package_of(spec: str) -> str | None:
+        """Bare specifier -> package name ('@scope/pkg/sub' -> '@scope/pkg'); None for relative/builtin."""
+        if spec.startswith((".", "/")) or spec.startswith("node:"):
+            return None
+        parts = spec.split("/")
+        return "/".join(parts[:2]) if spec.startswith("@") else parts[0]
+
+    def resolve_local(self, spec: str, from_file: str, files: set[str]) -> str | None:
+        if not spec.startswith("."):
+            return None
+        base = Path(from_file).parent.joinpath(spec).as_posix()
+        norm = []
+        for part in base.split("/"):
+            if part == "..":
+                if norm:
+                    norm.pop()
+            elif part not in ("", "."):
+                norm.append(part)
+        base = "/".join(norm)
+        for cand in (base, *(base + e for e in _EXTS), *(f"{base}/index{e}" for e in _EXTS)):
+            if cand in files:
+                return cand
+        if base.endswith(".js"):  # TS projects import './x.js' that resolves to ./x.ts
+            return self.resolve_local(spec[:-3], from_file, files)
+        return None
