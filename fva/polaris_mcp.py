@@ -75,6 +75,25 @@ class PolarisMCP:
         return self._rpc("tools/call", {"name": tool, "arguments": args})
 
 
+def export_issues(client: PolarisMCP, out: Path, **scope) -> int:
+    """Save every list_issues page (raw) as page-0001.json, ... Returns issue count."""
+    cursor, page, total = None, 0, 0
+    while True:
+        args = dict(scope, first=10, includeOccurrenceProperties=True, includeContext=True,
+                    includeTriageProperties=True)
+        if cursor:
+            args["cursor"] = cursor
+        res = client.call("list_issues", **args)
+        page += 1
+        (out / f"page-{page:04d}.json").write_text(json.dumps(res, indent=1), encoding="utf-8")
+        data = json.loads(res["content"][0]["text"]).get("data", {})
+        items = data.get("_items", [])
+        total += len(items)
+        cursor = items[-1].get("_cursor") if items else None
+        if not items or len(items) < 10 or not cursor:
+            return total
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="python -m fva.polaris_mcp")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -88,7 +107,17 @@ def main(argv=None):
     pr.add_argument("--issue", action="append", required=True)
     pr.add_argument("--component", action="append", default=[], help="component name to look up")
     pr.add_argument("--out", default="data/polaris-samples")
+    ex = sub.add_parser("export", help="page through list_issues and save raw pages")
+    ex.add_argument("--project", required=True)
+    ex.add_argument("--branch")
+    ex.add_argument("--out", default="data/polaris-export")
     a = ap.parse_args(argv)
+    if a.cmd == "export":
+        out = Path(a.out)
+        out.mkdir(parents=True, exist_ok=True)
+        n = export_issues(PolarisMCP(), out, projectId=a.project, **({"branchId": a.branch} if a.branch else {}))
+        print(f"saved {n} issues -> {out}")
+        return
     if a.cmd == "probe":
         out = Path(a.out)
         out.mkdir(parents=True, exist_ok=True)

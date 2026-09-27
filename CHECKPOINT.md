@@ -18,7 +18,8 @@ Last updated: 2026-09-27. Update this file at every commit that changes status.
 | Source pinning | `fva/correlation/source_pin.py` | git or archive import; CRLF-neutral content hash; tracked files only; never writes the git index |
 | File/line correlation | `fva/correlation/locate.py` | 524/524 PoC SAST findings located exactly; redacted snippets |
 | Dependency reconciliation | `fva/correlation/dependency.py` | reproduces all 18 PoC version-drift rows |
-| Polaris MCP client | `fva/polaris_mcp.py` | read-only allowlist; `sample` and `probe` commands; token from `POLARIS_ACCESS_TOKEN` or `data/.polaris-token` |
+| Polaris MCP client | `fva/polaris_mcp.py` | read-only allowlist; `sample`, `probe`, `export` commands; token from `POLARIS_ACCESS_TOKEN` or `data/.polaris-token` |
+| Polaris raw-issue adapter | `fva/adapters/polaris.py` (`load_mcp`) | reads get_issue / list_issues responses; package identity from `component-origin-external-id`; drops internal links/tenant id |
 
 ## Decisions
 
@@ -34,12 +35,18 @@ Last updated: 2026-09-27. Update this file at every commit that changes status.
 - SCA returns a reachability label only (`REACHABLE`/`UNDETERMINED`), plus the real package id
   (`component-origin-external-id`, e.g. `jsonwebtoken/0.4.0`, namespace `npmjs`), fix version, CVSS and upgrade guidance.
 - Server exposes 10 tools; `list_component_versions` is undocumented in the product docs.
+- Reachability evidence is not exposed: only the label and `reachabilityEvidenceCount`. Issue-level and
+  component-level labels can disagree (multer: REACHABLE vs UNDETERMINED). Treat the label as a scanner hint.
+- `includeComponentLocations` returns only the manifest declaration line (e.g. `package.json:135`); match
+  type `FILE_DEPENDENCY_DIRECT` confirms Polaris scanned declared ranges, not the resolved install.
+- Live export (2026-09-27) vs PoC ledger: all 570 ids present with identical core fields; 3 new SCA issues;
+  4 reachability labels changed. Polaris package identity reproduces every hand-written name alias.
+- Raw responses contain internal service URLs and the tenant id in `context._links`; never commit raw responses.
+- Cloud workspace can now reach `poc.polaris.blackduck.com` (allowlisted 2026-09-27).
 
 ## Open / next
 
-1. Run `python -m fva.polaris_mcp probe` for component locations and reachability evidence (in progress).
-2. Polaris adapter: read raw MCP `get_issue` responses; use `component-origin-external-id` for package identity.
-3. Reachability layer: built-in checks (import usage, route wiring) + model evidence with verified citations.
-4. Runtime harness: allowlist and approval gate before any probe.
-5. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
-6. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
+1. Reachability layer: built-in checks (import usage, route wiring) + model evidence with verified citations.
+2. Runtime harness: allowlist and approval gate before any probe.
+3. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
+4. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
