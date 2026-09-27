@@ -4,7 +4,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from fva import reason_codes
-from fva.schemas import EvidenceRecord, Stance, Verdict, VerdictValue
+from fva.schemas import EvidenceRecord, EvidenceType, Stance, Verdict, VerdictValue
+
+# Evidence types that may carry a confirmation. Static claims and model output never can.
+CONFIRMING_TYPES = {EvidenceType.runtime_probe, EvidenceType.negative_control, EvidenceType.human_review,
+                    EvidenceType.imported_assessment}
 
 _REQUIRED_STANCE = {
     VerdictValue.confirmed: Stance.supports,
@@ -37,6 +41,9 @@ def check_verdict(v: Verdict, evidence: Mapping[str, EvidenceRecord]) -> None:
         return
     if Stance.supports in stances and Stance.refutes in stances:
         raise InvariantError("conflicting evidence must be needs_review (CONFLICTING_EVIDENCE)")
+    if v.verdict is VerdictValue.confirmed and not any(
+            r.stance is Stance.supports and r.evidence_type in CONFIRMING_TYPES for r in cited):
+        raise InvariantError("confirmed requires supporting runtime, negative-control or human evidence")
     need = _REQUIRED_STANCE[v.verdict]
     if need not in stances:
         raise InvariantError(f"{v.verdict.value} requires at least one '{need.value}' evidence record")

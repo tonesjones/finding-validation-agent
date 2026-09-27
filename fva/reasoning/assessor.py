@@ -1,0 +1,181 @@
+"""LLM assessment -> `model_assessment` evidence with verified citations.
+
+Rules enforced in code (not trusted to the prompt):
+* every citation must point at an existing line of the pinned source, and its quote must
+  appear on that line (+/-2, whitespace-insensitive, compared on redacted text);
+* a claim whose citations all fail is rejected; a claim with no citations is kept as neutral;
+* suggested reason codes must exist in the vocabulary and match the claim's stance;
+* the model's evidence can never by itself justify `confirmed` (see fva.invariants).
+Only redacted code is ever sent to the model.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+
+from fva import reason_codes
+from fva.correlation.locate import SourceIndex
+from fva.redact import CREDENTIAL_CWES, redact
+from fva.schemas import EvidenceRecord, EvidenceType, Finding, FindingType, Stance, VerdictValue
+
+PROMPT_VERSION = "assess-v1"
+_NS = uuid.UUID("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d")
+CONTEXT_LINES = 15
+
+SYSTEM = """You are a security reviewer validating ONE static-analysis or dependency finding against source code.
+You do not decide the final verdict. You make specific, checkable claims.
+
+Rules:
+- Every claim must cite exact code: repo-relative path, 1-based line number, and a short verbatim quote from that line.
+- Only cite code shown to you. Never invent files, lines, or quotes. Values shown as [REDACTED] stay redacted.
+- stance: "supports" (the issue is real here), "refutes" (not present / not applicable here),
+  "non_security" (real but not a security issue), "neutral" (context only).
+- If you cannot tell, say so with a neutral claim. Uncertainty is acceptable; guessing is not.
+- suggested_reason_code must be one of the codes listed, or null.
+
+Reply with JSON only:
+{"claims":[{"statement":"...","stance":"supports|refutes|non_security|neutral",
+ "suggested_reason_code":"CODE or null","citations":[{"path":"...","line":123,"quote":"..."}]}],
+ "confidence":"high|medium|low"}"""
+
+
+@dataclass
+class AssessmentResult:
+    finding_id: str
+    evidence: EvidenceRecord
+    accepted: list[dict] = field(default_factory=list)
+    rejected: list[dict] = field(default_factory=list)
+    cached: bool = False
+
+
+def _window(idx: SourceIndex, path: str, line: int, redact_all: bool) -> str:
+    lines = idx.lines(path)
+    lo, hi = max(1, line - CONTEXT_LINES), min(len(lines), line + CONTEXT_LINES)
+    return "\n".join(f"{n:5d}| {redact(lines[n - 1].rstrip(), all_strings=redact_all)}" for n in range(lo, hi + 1))
+
+
+def build_prompt(f: Finding, idx: SourceIndex, evidence: list[EvidenceRecord], sites: list[tuple[str, int]]) -> str:
+    redact_all = bool(set(f.cwe) & CREDENTIAL_CWES)
+    parts = [f"FINDING\n  tool: {f.source_tool}\n  rule: {f.rule_id}\n  title: {f.title}\n  cwe: {', '.join(f.cwe) or '-'}\n"
+             f"  severity: {f.severity.value}\n  type: {f.finding_type.value}"]
+    if f.description:
+        parts.append("DESCRIPTION\n" + f.description[:2000])
+    if f.package:
+        m = f.scanner_metadata
+        parts.append(f"PACKAGE {f.package.name} {f.package.version} ({f.package.ecosystem or '?'}) advisory {f.package.advisory_id}"
+                     + (f"\n  fix: {m['fix_guidance']}" if m.get("fix_guidance") else ""))
+    if evidence:
+        parts.append("EXISTING EVIDENCE\n" + "\n".join(f"- [{e.evidence_type.value}/{e.stance.value}] {e.summary[:600]}"
+                                                        for e in evidence))
+    shown = []
+    if f.finding_type is FindingType.sast and f.location and f.location.start_line and f.location.path in idx.files:
+        shown.append((f.location.path, f.location.start_line))
+    shown += [s for s in sites if s[0] in idx.files][:5]
+    for path, line in shown:
+        parts.append(f"CODE {path} (around line {line})\n" + _window(idx, path, line, redact_all))
+    allowed = ", ".join(sorted(reason_codes.CODES))
+    parts.append(f"ALLOWED REASON CODES\n{allowed}")
+    return "\n\n".join(parts)
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def verify_citation(c: dict, idx: SourceIndex, redact_all: bool) -> bool:
+    path, line, quote = c.get("path"), c.get("line"), _norm(str(c.get("quote", "")))
+    if not isinstance(path, str) or path not in idx.files or not isinstance(line, int) or line < 1 or len(quote) < 3:
+        return False
+    lines = idx.lines(path)
+    if line > len(lines):
+        return False
+    for n in range(max(1, line - 2), min(len(lines), line + 2) + 1):
+        if quote in _norm(redact(lines[n - 1], all_strings=redact_all)):
+            return True
+    return False
+
+
+_STANCE_VERDICT = {Stance.supports: VerdictValue.confirmed, Stance.refutes: VerdictValue.not_applicable,
+                   Stance.non_security: VerdictValue.valid_non_security, Stance.neutral: VerdictValue.needs_review}
+
+
+def _check_claims(raw: dict, idx: SourceIndex, redact_all: bool):
+    accepted, rejected = [], []
+    for c in raw.get("claims") or []:
+        try:
+            stance = Stance(c.get("stance"))
+        except ValueError:
+            rejected.append({**c, "_why": "invalid stance"})
+            continue
+        cites = c.get("citations") or []
+        good = [x for x in cites if verify_citation(x, idx, redact_all)]
+        if cites and not good:
+            rejected.append({**c, "_why": "no citation verified"})
+            continue
+        code = c.get("suggested_reason_code")
+        if code and (code not in reason_codes.CODES or reason_codes.CODES[code].verdict != _STANCE_VERDICT[stance]):
+            code = None
+        accepted.append({"statement": str(c.get("statement", ""))[:500],
+                         "stance": stance.value if good else Stance.neutral.value,
+                         "suggested_reason_code": code, "citations": good,
+                         "dropped_citations": len(cites) - len(good)})
+    return accepted, rejected
+
+
+def _aggregate(accepted: list[dict]) -> Stance:
+    st = {Stance(c["stance"]) for c in accepted} - {Stance.neutral}
+    if len(st) == 1:
+        return st.pop()
+    return Stance.neutral  # none, or conflicting directions
+
+
+def _parse(text: str) -> dict:
+    m = re.search(r"\{.*\}", text, re.S)
+    if not m:
+        raise ValueError("model returned no JSON object")
+    return json.loads(m.group(0))
+
+
+def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, profile_id: str,
+           evidence: list[EvidenceRecord] = (), sites: list[tuple[str, int]] = (),
+           cache_dir: Path | None = None) -> AssessmentResult:
+    evidence = list(evidence)
+    prompt = build_prompt(f, idx, evidence, list(sites))
+    key = hashlib.sha256("\0".join([PROMPT_VERSION, client.model_id, f.finding_id, source_content_sha256,
+                                    hashlib.sha256(prompt.encode()).hexdigest()]).encode()).hexdigest()
+    cached = False
+    cache_file = cache_dir / f"{key}.json" if cache_dir else None
+    if cache_file and cache_file.exists():
+        text, cached = cache_file.read_text(encoding="utf-8"), True
+    else:
+        text = client.complete(SYSTEM, prompt)
+        if cache_file:
+            cache_file.parent.mkdir(parents=True, exist_ok=True)
+            cache_file.write_text(text, encoding="utf-8")
+    redact_all = bool(set(f.cwe) & CREDENTIAL_CWES)
+    try:
+        raw = _parse(text)
+        accepted, rejected = _check_claims(raw, idx, redact_all)
+        conf = raw.get("confidence") if raw.get("confidence") in ("high", "medium", "low") else "low"
+    except (ValueError, json.JSONDecodeError) as e:
+        accepted, rejected, conf = [], [{"_why": f"unparseable response: {e}"}], "low"
+    stance = _aggregate(accepted)
+    lines = [f"model {client.model_id} ({PROMPT_VERSION}), self-reported confidence {conf}; "
+             f"{len(accepted)} claim(s) accepted, {len(rejected)} rejected"]
+    for c in accepted:
+        cites = ", ".join(f"{x['path']}:{x['line']}" for x in c["citations"]) or "no citation"
+        lines.append(f"- [{c['stance']}] {c['statement']} ({cites})"
+                     + (f" -> {c['suggested_reason_code']}" if c["suggested_reason_code"] else ""))
+    ev = EvidenceRecord(
+        evidence_id=str(uuid.uuid5(_NS, key)), finding_ids=(f.finding_id,),
+        evidence_type=EvidenceType.model_assessment, method=f"llm:{client.model_id}:{PROMPT_VERSION}",
+        stance=stance, summary=redact("\n".join(lines)), deployment_profile_id=profile_id,
+        collected_at=datetime.now(timezone.utc),
+        tool_versions={"agent_model": client.model_id, "prompt_version": PROMPT_VERSION,
+                       "source_content_sha256": source_content_sha256})
+    return AssessmentResult(f.finding_id, ev, accepted, rejected, cached)

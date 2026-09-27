@@ -29,6 +29,13 @@ NAME_ALIASES: dict[tuple[str, str], str] = {
 }
 
 
+def package_name(f: Finding) -> str | None:
+    """Ecosystem package name for a finding (applies scanner-name aliases)."""
+    if f.package is None:
+        return None
+    return NAME_ALIASES.get((f.source_tool, f.package.name), f.package.name)
+
+
 @dataclass(frozen=True)
 class DependencyResult:
     finding_id: str
@@ -45,7 +52,7 @@ def reconcile(f: Finding, inventory: list[InstalledPackage]) -> DependencyResult
     by_name: dict[str, list[InstalledPackage]] = {}
     for p in inventory:
         by_name.setdefault(p.name, []).append(p)
-    name = NAME_ALIASES.get((f.source_tool, f.package.name), f.package.name)
+    name = package_name(f)
     if name not in by_name:
         # Absence is only trusted when the name is known to be an ecosystem name (aliased, or the
         # scanner declared an ecosystem). A raw vendor spelling we can't map stays unresolved.

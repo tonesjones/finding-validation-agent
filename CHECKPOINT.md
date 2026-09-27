@@ -19,6 +19,8 @@ Last updated: 2026-09-27. Update this file at every commit that changes status.
 | File/line correlation | `fva/correlation/locate.py` | 524/524 PoC SAST findings located exactly; redacted snippets |
 | Dependency reconciliation | `fva/correlation/dependency.py` | reproduces all 18 PoC version-drift rows |
 | Polaris MCP client | `fva/polaris_mcp.py` | read-only allowlist; `sample`, `probe`, `export` commands; token from `POLARIS_ACCESS_TOKEN` or `data/.polaris-token` |
+| Static reachability | `fva/correlation/reachability.py` | import graph from profile entrypoints (SAST); package import sites in shipped vs test code (SCA); never `supports` |
+| Model assessment | `fva/reasoning/` | swappable clients (Anthropic, OpenAI-compatible local, scripted); redacted prompts; citations verified against pinned source; cached by prompt/model/source hash |
 | Polaris raw-issue adapter | `fva/adapters/polaris.py` (`load_mcp`) | reads get_issue / list_issues responses; package identity from `component-origin-external-id`; drops internal links/tenant id |
 
 ## Decisions
@@ -27,6 +29,8 @@ Last updated: 2026-09-27. Update this file at every commit that changes status.
 - The model never produces `confirmed` on its own; it emits cited evidence, rules decide verdicts.
 - Model step must be swappable for a local model.
 - Confidence is `high | medium | low`.
+- `confirmed` requires `supports` evidence from runtime probes, negative controls, human review or an imported
+  assessment. Static reachability and model output can never confirm (enforced in `fva/invariants.py`).
 - Real scanner data, lockfiles, tokens and PoC outputs live in `data/` (git-ignored). Only sanitized fixtures are committed.
 
 ## Findings about Polaris MCP (from live samples, 2026-09-27)
@@ -44,9 +48,17 @@ Last updated: 2026-09-27. Update this file at every commit that changes status.
 - Raw responses contain internal service URLs and the tenant id in `context._links`; never commit raw responses.
 - Cloud workspace can now reach `poc.polaris.blackduck.com` (allowlisted 2026-09-27).
 
+## Juice Shop reachability results (2026-09-27)
+
+- Import graph from `server.ts`, `app.ts`, `frontend/src/main.ts`: 640 code files, 285 reachable.
+- All 85 production SAST code findings sit in the entrypoint graph; the other 30 are non-code (e.g. `data/static/users.yml`).
+- All 12 vulnerable SCA packages are imported by reachable code, so import-level reachability does not separate
+  Juice Shop's SCA findings. The PoC separated them by version drift (built) and advisory preconditions (model step).
+
 ## Open / next
 
-1. Reachability layer: built-in checks (import usage, route wiring) + model evidence with verified citations.
+1. Run the model assessor live on Juice Shop production findings and measure agreement with the PoC ledger
+   (needs `ANTHROPIC_API_KEY` or a local model endpoint). Cluster findings that share a sink before calling the model.
 2. Runtime harness: allowlist and approval gate before any probe.
 3. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
 4. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.

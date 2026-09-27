@@ -25,6 +25,7 @@ JUICESHOP_PROFILE = DeploymentProfile(
     language_packs=("node",),
     extra_path_rules=(("data/static/codefixes/*", Surface.fixture),),
     base_url="http://127.0.0.1:3000",
+    entrypoints=("server.ts", "app.ts", "frontend/src/main.ts"),
 )
 
 _STANCE = {VerdictValue.confirmed: Stance.supports, VerdictValue.not_applicable: Stance.refutes,
