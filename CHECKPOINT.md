@@ -8,6 +8,7 @@ Last updated: 2026-09-27 (end of session 1). Update this file at every commit th
 - **Next action:** run the Codex assessment (see `CLAUDE.md`), `--limit 1` first, then the full run
   (132 model calls). The Codex CLI was just updated because its default model (`gpt-6-sol`) was rejected
   for ChatGPT-account logins; if that recurs, pass `--model <name>` (list models with `/model` in `codex`).
+- **Before the full run, build model routing (below)** so the Codex run uses Luna and Sol per the policy.
 - Then review the run against the PoC ledger: agreement per result bucket, any model `refutes` on a PoC
   `confirmed` row, rejected (invented) citations, and cost/time. Write findings here and merge PR #4.
 
@@ -59,6 +60,30 @@ Last updated: 2026-09-27 (end of session 1). Update this file at every commit th
 - Raw responses contain internal service URLs and the tenant id in `context._links`; never commit raw responses.
 - `list_issues` returns no issue-type info; `export` fetches it once per `weaknessId` into `types.json`.
 - Cloud workspace can now reach `poc.polaris.blackduck.com` (allowlisted 2026-09-27).
+
+## Operating model and model routing (decided 2026-09-27, to build next)
+
+Roles: Claude (Opus) is VP of engineering: sets policy, reviews combined runs, spot-checks claims, owns the
+final review. Codex runs the assessments on the user's subscription: **GPT-6 Luna** (junior, low cost, bulk
+first pass) and **GPT-6 Sol** (senior, judgment and security-sensitive calls). Routing mirrors the user's
+Codex `tokenomics` skill (copy in `data/codex-tokenomics-skill.md`, not committed):
+
+- `codex exec` fixes the model at launch, so routing happens in fva per model call (`-m <model>`), not inside
+  the skill. Tell Codex not to delegate or spawn children inside an assessment call.
+- **Luna first** (clear, bounded, low ambiguity): dead code / no-effect / quality CWEs (e.g. 398, 561, 563),
+  hard-coded credential vs label checks, other low/medium non-injection findings.
+- **Sol first** (security-sensitive or judgment-bearing): injection and code execution (e.g. CWE-78, 79, 89, 94,
+  943), SSRF (918), authn/authz and JWT (284, 285, 287, 347, 639, 862, 863), crypto (320, 326, 327),
+  SCA advisory-precondition questions, and any critical-severity finding.
+- **Escalate Luna -> Sol once** when Luna is mismatched: citations rejected, unparseable output, conflicting
+  claims, low self-reported confidence, or Luna `refutes` a high/critical finding. No further retries.
+- **Astra** is never automatic; only on an explicit flag for a specific hard cluster.
+- Record who did the work: `tool_versions.agent_model` from the model Codex reports running (its header
+  line `model: ...`), not just the requested one; plus `routing_tier` and `routing_reason`. Cache keys already
+  include the model, so tiers never mix.
+- Model names configurable: `FVA_MODEL_JUNIOR` (default `gpt-6-luna`), `FVA_MODEL_SENIOR` (default `gpt-6-sol`).
+- Review metrics for the VP review: per-tier agreement with the PoC, escalation rate and reasons, rejected
+  citations per tier, calls and time per tier.
 
 ## Juice Shop reachability results (2026-09-27)
 

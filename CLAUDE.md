@@ -20,6 +20,9 @@ python -m fva assess --dry-run --source "C:\TestCode\Juiceshop 20.2.0"          
 python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # ids: data/LOCAL-NOTES.md
 ```
 
+Roles: you (Claude) act as VP of engineering and own final review; Codex does the assessment work with
+GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment). Routing policy: `CHECKPOINT.md`.
+
 Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
 Runs write to `data/runs/<timestamp>-<client>/` (`summary.json`, `assessments.jsonl`, `evidence.jsonl`).
 Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/`.
