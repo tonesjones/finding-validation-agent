@@ -4,11 +4,13 @@ Last updated: 2026-09-27 (session 2). Update this file at every commit that chan
 
 ## Resume here
 
-- Branch `feat/cli-assess` (PR #4, open): routing built, first full routed Codex run done and reviewed
-  (see "First routed run review" below). PR #4 not merged yet: user to decide after reading the review.
-- **Next action:** the fixes in "Open / next" items 1-4 (structured output, stance semantics, credential
-  routing, SCA advisory context), then re-run and compare against run `data/runs/20260927-full-routed/`.
-- Review script (local, not committed): `python data/review/review_run.py <run_dir>`.
+- Branch `feat/cli-assess` (PR #4, open): routing built, reviewed, then compared against Sol-only.
+  **Decision (2026-09-28): Sol-only is the default**; Luna/Sol routing is opt-in with `--route`.
+  PR #4 not merged yet: the user decides.
+- **Next action:** "Open / next" items 1-2 (stance semantics, SCA advisory context), then a Sol-only re-run
+  compared against `data/runs/20260928-ab-sol/` (baseline for the current prompt).
+- Review scripts (local, not committed): `python data/review/review_run.py <run_dir>`,
+  `python data/review/compare_ab.py <routed_run> <sol_run>`.
 
 ## Built (package `fva`, Python >= 3.10, tests: `python -m pytest`)
 
@@ -63,7 +65,7 @@ Last updated: 2026-09-27 (session 2). Update this file at every commit that chan
 ## Operating model and model routing (decided 2026-09-27, built in session 2: `fva/reasoning/routing.py`)
 
 Built as specified below, with these implementation decisions:
-- Routing is on for `--client codex` unless `--model` or `--no-route` is given; `--astra <source_finding_id>`
+- Superseded default: routing was on for codex at first; since 2026-09-28 it is opt-in (`--route`). `--astra <source_finding_id>`
   (repeatable) sends that cluster to Astra. A cluster goes to Sol if any member would.
 - Added to the Sol list from the Juice Shop dry run: CWE-345 (`jwt_untrusted_decode`), CWE-613
   (`jwt_revoke_missing`), CWE-676 (`unsafe_eval`), CWE-95. High severity with an unlisted CWE also goes to Sol;
@@ -134,21 +136,38 @@ Luna 89 calls / 660 s (7.4 s avg), Sol 82 calls / 725 s (8.8 s avg). Codex heade
 - Codex output shows an encoding artifact (`expression�s`): the last-message file is probably not UTF-8 on
   Windows. It affects statement text only, not citation checks.
 
+## Luna vs Sol comparison (2026-09-28, `data/runs/20260928-ab-routed/` vs `20260928-ab-sol/`)
+
+Both runs used schema-enforced output and no credential low-confidence escalation, with the same prompt (assess-v1).
+- The fixes worked: escalations fell from 40 to 8 (6 low confidence, 2 conflicting claims), with 0 unparseable
+  and 0 rejected citations in either run.
+- **Tokens:** on the 89 Luna-first clusters, Luna averaged about 8.6k tokens per call and Sol about 3.9k.
+  Whole run: routed 139 calls / 1.27M tokens vs Sol-only 131 calls / 0.83M (-35%).
+- **Time:** about equal (Luna 8.1 s, Sol 8.6 s per fresh call); routed 20 min wall, Sol-only about 19 min.
+- **Quality on Luna-first clusters:** PoC agreement routed 8 vs Sol 10 (4 vs 6 excluding runtime-only classes).
+  Of 36 stance differences, 24 are quality findings where both tiers are inconsistent (stance semantics,
+  item 1 below); the credential differences split 5 to routed, 6 to Sol.
+- **Decision:** Sol-only by default. Luna saves no tokens (Codex counts include reasoning; Luna reasons longer)
+  and loses a little agreement. Revisit only if Luna's per-token quota price is under ~45% of Sol's, or
+  after the prompt changes.
+
 ## Open / next
 
-1. Structured output: pass `codex exec --output-schema <file>` so Luna cannot emit broken JSON (9 escalations).
-2. Stance semantics: tell the model that restating the scanner's sink is `neutral`, and that a real quality
+Done 2026-09-28: structured output (`--output-schema`), no low-confidence escalation for credential CWEs,
+token accounting per call and tier, Sol-only default.
+
+1. Stance semantics: tell the model that restating the scanner's sink is `neutral`, and that a real quality
    issue is `non_security`. Consider aggregation where a cited refutation of the precondition beats a
-   restated sink. Bump `PROMPT_VERSION`.
-3. Credential CWEs: skip the "low confidence" escalation (or skip the model call) because they are runtime-decided.
-4. SCA prompts: include advisory text, affected function, and config/usage sites so precondition checks are possible.
-5. Runtime harness: allowlist and approval gate before any probe.
-6. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
-7. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
-8. Evaluate Jev (TypeSafe AI, early access since 2026-09-15) as a routing/triage classifier, not an assessor.
+   restated sink. Bump `PROMPT_VERSION`. This is the main remaining source of disagreement.
+2. Credential CWEs: consider skipping the model call entirely, because they are runtime-decided.
+3. SCA prompts: include advisory text, affected function, and config/usage sites so precondition checks are possible.
+4. Runtime harness: allowlist and approval gate before any probe.
+5. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
+6. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
+7. Evaluate Jev (TypeSafe AI, early access since 2026-09-15) as a routing/triage classifier, not an assessor.
    Jev returns typed choices with calibrated confidence and no text, so it cannot produce the cited claims the
    assessor requires, and its output is never evidence. Candidate uses: a Choice per cluster of
-   skip-model / Luna / Sol, or predicting "Luna will escalate" (40/89 escalated in the first run).
+   skip-model / Sol (Luna is no longer the default), or flagging clusters that need no model call.
    Test: score Jev's calibration against the 130 PoC-labelled clusters before wiring it in.
    Gate: SaaS only, and its data retention, training use and input limits are undocumented. Complete a vendor
    data-handling review before sending anything, even redacted code (CLAUDE.md: only redacted code leaves the machine).
