@@ -6,20 +6,26 @@ import fva.__main__ as cli
 
 
 def args(**kw):
-    base = dict(client="codex", model=None, dry_run=False, route=False, astra=None)
+    base = dict(client="codex", model=None, dry_run=False, no_route=False, astra=None)
     return argparse.Namespace(**{**base, **kw})
 
 
 @pytest.fixture
 def made(monkeypatch):
+    for v in ("FVA_MODEL_JUNIOR", "FVA_MODEL_SENIOR"):
+        monkeypatch.delenv(v, raising=False)
     calls = []
     monkeypatch.setattr(cli, "_client", lambda name, model: calls.append((name, model)) or type("C", (), {"model_id": f"{name}:{model}"})())
     return calls
 
 
-def test_codex_defaults_to_sol_only(made, monkeypatch):
-    monkeypatch.delenv("FVA_MODEL_SENIOR", raising=False)
+def test_codex_routes_by_default(made):
     r = cli._router(args())
+    assert r.routed and [m for _, m in made] == ["gpt-6-luna", "gpt-6-sol"]
+
+
+def test_no_route_uses_sol(made):
+    r = cli._router(args(no_route=True))
     assert not r.routed and made == [("codex", "gpt-6-sol")]
 
 
@@ -28,14 +34,12 @@ def test_explicit_model_wins(made):
     assert made == [("codex", "gpt-6-luna")]
 
 
-def test_route_builds_both_tiers(made, monkeypatch):
-    monkeypatch.delenv("FVA_MODEL_JUNIOR", raising=False)
-    monkeypatch.delenv("FVA_MODEL_SENIOR", raising=False)
-    r = cli._router(args(route=True))
-    assert r.routed and [m for _, m in made] == ["gpt-6-luna", "gpt-6-sol"]
+def test_other_clients_are_not_routed(made):
+    assert not cli._router(args(client="claude-code")).routed and made == [("claude-code", None)]
 
 
-@pytest.mark.parametrize("kw", [dict(route=True, model="x"), dict(route=True, client="claude-code"), dict(astra=["id"])])
-def test_invalid_combinations(made, kw):
+@pytest.mark.parametrize("kw", [dict(astra=["id"], no_route=True), dict(astra=["id"], model="x"),
+                                dict(astra=["id"], client="claude-code")])
+def test_astra_needs_routing(made, kw):
     with pytest.raises(SystemExit):
         cli._router(args(**kw))

@@ -13,8 +13,8 @@ $env:FVA_JUICESHOP_SRC = "C:\TestCode\Juiceshop 20.2.0"   # enables the Juice Sh
 
 # Evidence + model assessment for the Juice Shop reference case
 python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0" --limit 1   # smoke test
-python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0"             # full run (GPT-6 Sol)
-python -m fva assess --client codex --route --source "C:\TestCode\Juiceshop 20.2.0"     # Luna/Sol routing (opt-in)
+python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0"             # full run (Luna/Sol routing)
+python -m fva assess --client codex --no-route --source "C:\TestCode\Juiceshop 20.2.0"  # GPT-6 Sol for every cluster
 python -m fva assess --dry-run --source "C:\TestCode\Juiceshop 20.2.0"                  # prompts only
 
 # Polaris (read-only MCP). Token: $env:POLARIS_ACCESS_TOKEN or data\.polaris-token
@@ -22,8 +22,8 @@ python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # i
 ```
 
 Roles: you (Claude) act as VP of engineering and own final review; Codex does the assessment work with
-GPT-6 Sol by default; Luna/Sol routing is opt-in (`--route`) after Sol-only won
-the 2026-09-28 comparison. Routing policy and results: `CHECKPOINT.md`.
+GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment), routed per cluster by
+default (about 66% of Sol-only cost at list prices). Routing policy and results: `CHECKPOINT.md`.
 
 Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
 Runs write to `data/runs/<timestamp>-<client>/` (`summary.json`, `assessments.jsonl`, `evidence.jsonl`).

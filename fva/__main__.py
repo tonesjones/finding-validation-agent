@@ -37,17 +37,16 @@ def _client(name: str, model: str | None):
 
 
 def _router(args):
-    """One model per run by default (codex: the senior model, GPT-6 Sol); Luna/Sol routing only with --route.
-    Sol-only won the 2026-09-28 comparison: fewer tokens, same time, no loss of agreement (CHECKPOINT.md)."""
+    """Luna/Sol routing for codex by default; one model with --model or --no-route (codex: GPT-6 Sol).
+    Routing costs about 66% of Sol-only at list prices (Luna is 1/20 of Sol per token), see CHECKPOINT.md."""
     from fva.reasoning.routing import JUNIOR, SENIOR, Router, model_name
-    if args.route and (args.client != "codex" or args.model):
-        raise SystemExit("--route needs --client codex and no --model")
+    routed = args.client == "codex" and not args.model and not args.no_route
     astra = set(args.astra or ())
-    if astra and not args.route:
-        raise SystemExit("--astra needs --route")
+    if astra and not routed:
+        raise SystemExit("--astra needs routing: --client codex without --model/--no-route")
     if args.dry_run:  # no model calls; a routed plan needs only the policy
-        return Router({}, astra_ids=astra) if args.route else Router.single(_client("none", None))
-    if not args.route:
+        return Router({}, astra_ids=astra) if routed else Router.single(_client("none", None))
+    if not routed:
         model = args.model or (model_name(SENIOR) if args.client == "codex" else None)
         return Router.single(_client(args.client, model))
     make = lambda m: _client("codex", m)
@@ -69,10 +68,10 @@ def main(argv=None):
     a.add_argument("--cache", default="data/cache/model")
     a.add_argument("--limit", type=int, help="assess only the first N clusters (smoke test)")
     a.add_argument("--dry-run", action="store_true", help="write prompts only; no model calls")
-    a.add_argument("--route", action="store_true",
-                   help="codex: route clusters Luna/Sol with one escalation (default: Sol for every cluster)")
+    a.add_argument("--no-route", action="store_true",
+                   help="codex: GPT-6 Sol for every cluster instead of Luna/Sol routing (--model also disables routing)")
     a.add_argument("--astra", action="append", metavar="SOURCE_FINDING_ID",
-                   help="with --route: send the cluster containing this scanner finding id to GPT-6 Astra (repeatable)")
+                   help="send the cluster containing this scanner finding id to GPT-6 Astra (repeatable; needs routing)")
     args = ap.parse_args(argv)
 
     from fva import pipeline

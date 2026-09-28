@@ -5,10 +5,11 @@ Last updated: 2026-09-27 (session 2). Update this file at every commit that chan
 ## Resume here
 
 - Branch `feat/cli-assess` (PR #4, open): routing built, reviewed, then compared against Sol-only.
-  **Decision (2026-09-28): Sol-only is the default**; Luna/Sol routing is opt-in with `--route`.
-  PR #4 not merged yet: the user decides.
-- **Next action:** "Open / next" items 1-2 (stance semantics, SCA advisory context), then a Sol-only re-run
-  compared against `data/runs/20260928-ab-sol/` (baseline for the current prompt).
+  **Decision (2026-09-28, revised on list prices): Luna/Sol routing is the default** for codex; `--no-route`
+  or `--model` runs one model. PR #4 not merged yet: the user decides.
+- **Next action:** "Open / next" items 1-2 (stance semantics, SCA advisory context), then a routed re-run
+  compared against `data/runs/20260928-ab-routed/` (baseline for the current prompt; Sol-only baseline
+  `data/runs/20260928-ab-sol/`).
 - Review scripts (local, not committed): `python data/review/review_run.py <run_dir>`,
   `python data/review/compare_ab.py <routed_run> <sol_run>`.
 
@@ -65,7 +66,7 @@ Last updated: 2026-09-27 (session 2). Update this file at every commit that chan
 ## Operating model and model routing (decided 2026-09-27, built in session 2: `fva/reasoning/routing.py`)
 
 Built as specified below, with these implementation decisions:
-- Superseded default: routing was on for codex at first; since 2026-09-28 it is opt-in (`--route`). `--astra <source_finding_id>`
+- Routing is on for `--client codex` unless `--model` or `--no-route` (Sol for every cluster) is given; `--astra <source_finding_id>`
   (repeatable) sends that cluster to Astra. A cluster goes to Sol if any member would.
 - Added to the Sol list from the Juice Shop dry run: CWE-345 (`jwt_untrusted_decode`), CWE-613
   (`jwt_revoke_missing`), CWE-676 (`unsafe_eval`), CWE-95. High severity with an unlisted CWE also goes to Sol;
@@ -147,14 +148,21 @@ Both runs used schema-enforced output and no credential low-confidence escalatio
 - **Quality on Luna-first clusters:** PoC agreement routed 8 vs Sol 10 (4 vs 6 excluding runtime-only classes).
   Of 36 stance differences, 24 are quality findings where both tiers are inconsistent (stance semantics,
   item 1 below); the credential differences split 5 to routed, 6 to Sol.
-- **Decision:** Sol-only by default. Luna saves no tokens (Codex counts include reasoning; Luna reasons longer)
-  and loses a little agreement. Revisit only if Luna's per-token quota price is under ~45% of Sol's, or
-  after the prompt changes.
+- **First decision (on tokens alone):** Sol-only, because Luna used about 2.2x the tokens (Codex counts include
+  reasoning, and Luna reasons longer). The recorded revisit condition was "Luna under ~45% of Sol per token".
+- **Revised decision (list prices given by the user):** Sol costs $2 per 1M input and $10 per 1M output
+  tokens; Luna costs $0.10 and $0.50, so Luna is 1/20 of Sol. Routed then costs **66% of Sol-only**
+  at any input/output split: $1.10-5.50 vs $1.66-8.29 for the run, depending on split. **Routing is the
+  default again.** The quality gap (2 of 89 clusters) is within noise; recheck it after the stance-semantics fix.
+- Cost caveat: Codex's `tokens used` footer is a total with no input/output split, and it appears to exclude
+  cached input. `codex exec --json` gives an exact split (`input_tokens`, `cached_input_tokens`,
+  `output_tokens`) but does not report the model, which the routing policy requires us to record.
+  Exact dollar accounting is open item 8.
 
 ## Open / next
 
 Done 2026-09-28: structured output (`--output-schema`), no low-confidence escalation for credential CWEs,
-token accounting per call and tier, Sol-only default.
+token accounting per call and tier, routed vs Sol-only comparison (routing stays the default on price).
 
 1. Stance semantics: tell the model that restating the scanner's sink is `neutral`, and that a real quality
    issue is `non_security`. Consider aggregation where a cited refutation of the precondition beats a
@@ -167,7 +175,10 @@ token accounting per call and tier, Sol-only default.
 7. Evaluate Jev (TypeSafe AI, early access since 2026-09-15) as a routing/triage classifier, not an assessor.
    Jev returns typed choices with calibrated confidence and no text, so it cannot produce the cited claims the
    assessor requires, and its output is never evidence. Candidate uses: a Choice per cluster of
-   skip-model / Sol (Luna is no longer the default), or flagging clusters that need no model call.
+   skip-model / Luna / Sol, or predicting which Luna answers will escalate (8 of 89 after the fixes).
    Test: score Jev's calibration against the 130 PoC-labelled clusters before wiring it in.
    Gate: SaaS only, and its data retention, training use and input limits are undocumented. Complete a vendor
    data-handling review before sending anything, even redacted code (CLAUDE.md: only redacted code leaves the machine).
+8. Exact cost accounting: record input, cached-input and output tokens per call and a per-run dollar estimate
+   from configured prices. Either run `codex exec --json` and get the model some other way, or find a flag
+   that prints both the model and the split.
