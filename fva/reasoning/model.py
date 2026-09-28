@@ -65,6 +65,7 @@ class ScriptedClient:
 # ------------------------------------------------------------------------------------------
 # Subscription-backed CLI clients (run on the user's machine where the CLI is logged in)
 # ------------------------------------------------------------------------------------------
+import re
 import shlex
 import shutil
 import subprocess
@@ -85,6 +86,7 @@ class _CliClient:
     model_id = "cli"
 
     model_flag = "-m"
+    last_reported_model: str | None = None  # parsed from the CLI's own `model: <name>` header line
 
     def __init__(self, command: str | None = None, timeout: int = 600, model: str | None = None):
         cmd = command or os.environ.get(self.env_var) or self.default_cmd
@@ -111,11 +113,14 @@ class _CliClient:
                            encoding="utf-8")
             tail = "\n".join(((r.stderr or "") + "\n" + (r.stdout or "")).strip().splitlines()[-12:])
             raise RuntimeError(f"{Path(argv[0]).name} exited {r.returncode} (full log: {log}):\n{tail}")
+        m = re.search(r"^model:\s*(\S+)", f"{r.stderr}\n{r.stdout}", re.M)
+        self.last_reported_model = m.group(1) if m else None
         out_file = workdir / "last_message.txt"
         return out_file.read_text(encoding="utf-8") if out_file.exists() else r.stdout
 
     def complete(self, system: str, user: str, *, max_tokens: int = 2000) -> str:
-        prompt = f"{system}\n\n---\n\n{user}\n\nRespond with the JSON object only. Do not run commands or read files."
+        prompt = (f"{system}\n\n---\n\n{user}\n\nRespond with the JSON object only. Do not run commands or read files. "
+                  "Do not delegate or spawn sub-agents; answer this yourself.")
         with tempfile.TemporaryDirectory(prefix="fva-model-") as d:
             return self._run(prompt, Path(d))
 

@@ -36,6 +36,21 @@ def _client(name: str, model: str | None):
     raise SystemExit(f"unknown client {name}")
 
 
+def _router(args):
+    """Luna/Sol routing for codex (see CHECKPOINT.md); a fixed model otherwise or with --model / --no-route."""
+    from fva.reasoning.routing import JUNIOR, SENIOR, Router, model_name
+    routed = args.client == "codex" and not args.model and not args.no_route
+    astra = set(args.astra or ())
+    if astra and not routed:
+        raise SystemExit("--astra needs routing: --client codex without --model/--no-route")
+    if args.dry_run:  # no model calls; a routed plan needs only the policy
+        return Router({}, astra_ids=astra) if routed else Router.single(_client("none", None))
+    if not routed:
+        return Router.single(_client(args.client, args.model))
+    make = lambda m: _client("codex", m)
+    return Router({JUNIOR: make(model_name(JUNIOR)), SENIOR: make(model_name(SENIOR))}, make=make, astra_ids=astra)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="python -m fva")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -51,11 +66,15 @@ def main(argv=None):
     a.add_argument("--cache", default="data/cache/model")
     a.add_argument("--limit", type=int, help="assess only the first N clusters (smoke test)")
     a.add_argument("--dry-run", action="store_true", help="write prompts only; no model calls")
+    a.add_argument("--no-route", action="store_true",
+                   help="codex: use the CLI's default model instead of Luna/Sol routing (--model also disables it)")
+    a.add_argument("--astra", action="append", metavar="SOURCE_FINDING_ID",
+                   help="send the cluster containing this scanner finding id to GPT-6 Astra (repeatable)")
     args = ap.parse_args(argv)
 
     from fva import pipeline
     out = Path(args.out or f"data/runs/{datetime.now():%Y%m%d-%H%M%S}-{args.client}")
-    client = _client("none" if args.dry_run else args.client, args.model)
+    client = _router(args)
     lock = Path(args.lockfile) if args.lockfile and Path(args.lockfile).exists() else None
     summary = pipeline.run(findings_spec=args.findings, source_root=Path(args.source), profile=_profile(args.profile),
                            client=client, out_dir=out, lockfile=lock, cache_dir=Path(args.cache),

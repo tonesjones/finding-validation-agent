@@ -51,6 +51,9 @@ class AssessmentResult:
     accepted: list[dict] = field(default_factory=list)
     rejected: list[dict] = field(default_factory=list)
     cached: bool = False
+    confidence: str = "low"
+    unparseable: bool = False
+    agent_model: str = ""  # model the client reported running (e.g. Codex's `model:` header), else its id
 
 
 def _window(idx: SourceIndex, path: str, line: int, redact_all: bool) -> str:
@@ -143,8 +146,10 @@ def _parse(text: str) -> dict:
 
 def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, profile_id: str,
            evidence: list[EvidenceRecord] = (), sites: list[tuple[str, int]] = (),
-           cache_dir: Path | None = None, also_covers: tuple[str, ...] = ()) -> AssessmentResult:
-    """`also_covers`: ids of other findings at the same code/advisory; the evidence covers them too."""
+           cache_dir: Path | None = None, also_covers: tuple[str, ...] = (),
+           routing: dict[str, str] | None = None) -> AssessmentResult:
+    """`also_covers`: ids of other findings at the same code/advisory; the evidence covers them too.
+    `routing`: routing_tier / routing_reason recorded in tool_versions (not part of the cache key)."""
     evidence = list(evidence)
     prompt = build_prompt(f, idx, evidence, list(sites))
     if also_covers:
@@ -153,20 +158,27 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
                                     hashlib.sha256(prompt.encode()).hexdigest()]).encode()).hexdigest()
     cached = False
     cache_file = cache_dir / f"{key}.json" if cache_dir else None
+    meta_file = cache_dir / f"{key}.meta.json" if cache_dir else None
+    agent_model = client.model_id
     if cache_file and cache_file.exists():
         text, cached = cache_file.read_text(encoding="utf-8"), True
+        if meta_file.exists():
+            agent_model = json.loads(meta_file.read_text(encoding="utf-8")).get("agent_model") or agent_model
     else:
         text = client.complete(SYSTEM, prompt)
+        agent_model = getattr(client, "last_reported_model", None) or agent_model
         if cache_file:
             cache_file.parent.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(text, encoding="utf-8")
+            meta_file.write_text(json.dumps({"agent_model": agent_model}), encoding="utf-8")
     redact_all = bool(set(f.cwe) & CREDENTIAL_CWES)
+    unparseable = False
     try:
         raw = _parse(text)
         accepted, rejected = _check_claims(raw, idx, redact_all)
         conf = raw.get("confidence") if raw.get("confidence") in ("high", "medium", "low") else "low"
     except (ValueError, json.JSONDecodeError) as e:
-        accepted, rejected, conf = [], [{"_why": f"unparseable response: {e}"}], "low"
+        accepted, rejected, conf, unparseable = [], [{"_why": f"unparseable response: {e}"}], "low", True
     stance = _aggregate(accepted)
     lines = [f"model {client.model_id} ({PROMPT_VERSION}), self-reported confidence {conf}; "
              f"{len(accepted)} claim(s) accepted, {len(rejected)} rejected"]
@@ -179,6 +191,7 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
         evidence_type=EvidenceType.model_assessment, method=f"llm:{client.model_id}:{PROMPT_VERSION}",
         stance=stance, summary=redact("\n".join(lines)), deployment_profile_id=profile_id,
         collected_at=datetime.now(timezone.utc),
-        tool_versions={"agent_model": client.model_id, "prompt_version": PROMPT_VERSION,
-                       "source_content_sha256": source_content_sha256})
-    return AssessmentResult(f.finding_id, ev, accepted, rejected, cached)
+        tool_versions={"agent_model": agent_model, "requested_model": client.model_id,
+                       "prompt_version": PROMPT_VERSION, "source_content_sha256": source_content_sha256,
+                       **(routing or {})})
+    return AssessmentResult(f.finding_id, ev, accepted, rejected, cached, conf, unparseable, agent_model)

@@ -1,16 +1,14 @@
 # Checkpoint
 
-Last updated: 2026-09-27 (end of session 1). Update this file at every commit that changes status.
+Last updated: 2026-09-27 (session 2). Update this file at every commit that changes status.
 
 ## Resume here
 
-- Branch `feat/cli-assess` (PR #4, open) is checked out locally; PRs #1-#3 are merged into `main`.
-- **Next action:** run the Codex assessment (see `CLAUDE.md`), `--limit 1` first, then the full run
-  (132 model calls). The Codex CLI was just updated because its default model (`gpt-6-sol`) was rejected
-  for ChatGPT-account logins; if that recurs, pass `--model <name>` (list models with `/model` in `codex`).
-- **Before the full run, build model routing (below)** so the Codex run uses Luna and Sol per the policy.
-- Then review the run against the PoC ledger: agreement per result bucket, any model `refutes` on a PoC
-  `confirmed` row, rejected (invented) citations, and cost/time. Write findings here and merge PR #4.
+- Branch `feat/cli-assess` (PR #4, open): routing built, first full routed Codex run done and reviewed
+  (see "First routed run review" below). PR #4 not merged yet: user to decide after reading the review.
+- **Next action:** the fixes in "Open / next" items 1-4 (structured output, stance semantics, credential
+  routing, SCA advisory context), then re-run and compare against run `data/runs/20260927-full-routed/`.
+- Review script (local, not committed): `python data/review/review_run.py <run_dir>`.
 
 ## Built (package `fva`, Python >= 3.10, tests: `python -m pytest`)
 
@@ -32,6 +30,7 @@ Last updated: 2026-09-27 (end of session 1). Update this file at every commit th
 | Static reachability | `fva/correlation/reachability.py` | import graph from profile entrypoints (SAST); package import sites in shipped vs test code (SCA); never `supports` |
 | Model assessment | `fva/reasoning/` | swappable clients (Anthropic, OpenAI-compatible local, scripted); redacted prompts; citations verified against pinned source; cached by prompt/model/source hash |
 | Batch pipeline + CLI | `fva/pipeline.py`, `python -m fva assess` | boundary -> locate -> dependency -> reachability -> model, one model call per cluster (same sink/advisory); `--dry-run` writes prompts only |
+| Model routing | `fva/reasoning/routing.py` | Luna/Sol per cluster, one escalation, `--astra`, `--no-route`; tier and reported model in `tool_versions` |
 | Subscription CLI clients | `fva/reasoning/model.py` | `CodexCliClient` (`codex exec`), `ClaudeCodeClient` (`claude -p`); run in an empty temp dir; commands overridable via `FVA_CODEX_CMD` / `FVA_CLAUDE_CMD` |
 | Polaris raw-issue adapter | `fva/adapters/polaris.py` (`load_mcp`) | reads get_issue / list_issues responses; package identity from `component-origin-external-id`; drops internal links/tenant id |
 
@@ -61,7 +60,19 @@ Last updated: 2026-09-27 (end of session 1). Update this file at every commit th
 - `list_issues` returns no issue-type info; `export` fetches it once per `weaknessId` into `types.json`.
 - Cloud workspace can now reach `poc.polaris.blackduck.com` (allowlisted 2026-09-27).
 
-## Operating model and model routing (decided 2026-09-27, to build next)
+## Operating model and model routing (decided 2026-09-27, built in session 2: `fva/reasoning/routing.py`)
+
+Built as specified below, with these implementation decisions:
+- Routing is on for `--client codex` unless `--model` or `--no-route` is given; `--astra <source_finding_id>`
+  (repeatable) sends that cluster to Astra. A cluster goes to Sol if any member would.
+- Added to the Sol list from the Juice Shop dry run: CWE-345 (`jwt_untrusted_decode`), CWE-613
+  (`jwt_revoke_missing`), CWE-676 (`unsafe_eval`), CWE-95. High severity with an unlisted CWE also goes to Sol;
+  listed Luna CWEs stay on Luna at any severity below critical (escalation covers a Luna `refutes`).
+- Codex CLI errors are not escalated (infrastructure, not model mismatch); they are recorded as errors.
+- Only the final answer goes to `evidence.jsonl`; Luna's escalated attempt is kept in `assessments.jsonl` `attempts`.
+- `agent_model` comes from Codex's `model:` header and is cached in `<key>.meta.json` beside the answer.
+- Juice Shop first pass: 131 clusters -> 89 Luna, 42 Sol (`--dry-run` writes `routing.jsonl`).
+
 
 Roles: Claude (Opus) is VP of engineering: sets policy, reviews combined runs, spot-checks claims, owns the
 final review. Codex runs the assessments on the user's subscription: **GPT-6 Luna** (junior, low cost, bulk
@@ -92,10 +103,45 @@ Codex `tokenomics` skill (copy in `data/codex-tokenomics-skill.md`, not committe
 - All 12 vulnerable SCA packages are imported by reachable code, so import-level reachability does not separate
   Juice Shop's SCA findings. The PoC separated them by version drift (built) and advisory preconditions (model step).
 
+## First routed run review (2026-09-27, `data/runs/20260927-full-routed/`)
+
+Run: 573 findings -> 131 clusters (130 in the PoC ledger, 1 new SCA), 0 errors, 23 min wall.
+Luna 89 calls / 660 s (7.4 s avg), Sol 82 calls / 725 s (8.8 s avg). Codex header confirmed the model on every call.
+
+- **Safety holds.** 1 model `refutes` on a PoC-confirmed cluster: `jwt_revoke_missing` at `lib/insecurity.ts:53`.
+  Sol's claim is accurate for the flagged `denyAll` line; the PoC confirmed the weakness via `isAuthorized`.
+  Runtime evidence would conflict and force needs_review, so the invariants cover it. Invented citations:
+  Luna 1, Sol 0 (the other 9 Luna rejections were unparseable output).
+- **Raw agreement is low (Luna 7/49, Sol 28/81) but mostly a vocabulary mismatch, not wrong answers:**
+  - Quality findings (42): models almost never say `non_security`. They say `supports` (the quality issue exists)
+    or `refutes` (18). Spot check: `lib/utils.ts:247` `void Promise.resolve(fn(...)).catch(next)`, where Luna's
+    refutation is correct; Polaris `no_effect` is wrong there, and the PoC label was generous.
+  - Credentials (40): 30 end `neutral`. Correct behaviour: credential CWEs redact all literals, and "active"
+    was proven at runtime in the PoC. Static and model evidence cannot decide these.
+  - `true_positive_runtime_exploited` SCA (5) -> neutral: expected, runtime-only.
+- **Real gaps:**
+  - SCA advisory preconditions: 0/6 `component_present_but_cve_precondition_absent` refuted (all neutral).
+    This was the model step's intended job; the prompt lacks advisory detail and config/usage context.
+  - Sink restatement cancels refutations: `routes/captcha.ts:22` `unsafe_eval`. Sol cited that the eval input
+    is built from fixed operators (correct refutation), but also "supports: eval is used", and the aggregator
+    turned the pair into `neutral`.
+  - Context window: `data-export.component.ts:58` Sol `supports` XSS while its own claim says the source is
+    unknown (it is the server's captcha image, a trusted source). Reverse tabnabbing (4, Luna) `supports`
+    where the PoC found it mitigated.
+- **Escalation cost vs value:** 40/89 Luna calls escalated (30 low confidence, 9 unparseable, 1 bad citation).
+  Sol changed the answer in 11 (10 neutral->refutes, 1 ->non_security) and stayed neutral in 29, 19 of them
+  credentials that no model can decide. Escalations were about 25% of run time.
+- Codex output shows an encoding artifact (`expression�s`): the last-message file is probably not UTF-8 on
+  Windows. It affects statement text only, not citation checks.
+
 ## Open / next
 
-1. Run `python -m fva assess --client codex` on Juice Shop (573 findings -> 143 assessed in 132 clusters after
-   rules) on the user's machine, then review the run here against the PoC ledger.
-2. Runtime harness: allowlist and approval gate before any probe.
-3. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
-4. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
+1. Structured output: pass `codex exec --output-schema <file>` so Luna cannot emit broken JSON (9 escalations).
+2. Stance semantics: tell the model that restating the scanner's sink is `neutral`, and that a real quality
+   issue is `non_security`. Consider aggregation where a cited refutation of the precondition beats a
+   restated sink. Bump `PROMPT_VERSION`.
+3. Credential CWEs: skip the "low confidence" escalation (or skip the model call) because they are runtime-decided.
+4. SCA prompts: include advisory text, affected function, and config/usage sites so precondition checks are possible.
+5. Runtime harness: allowlist and approval gate before any probe.
+6. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
+7. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
