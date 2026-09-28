@@ -70,3 +70,44 @@ open(args[args.index("--output-last-message") + 1], "w").write('{{"claims": []}}
     monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
     c = CodexCliClient(model="some-model")
     assert c.model_id == "codex-cli:some-model" and c.complete("s", "u") == '{"claims": []}'
+
+
+def _fake_codex(monkeypatch, stderr, reply='{"claims": [], "confidence": "low"}'):
+    import shutil
+    import subprocess
+    seen = {}
+
+    def run(argv, **kw):
+        seen["argv"] = argv
+        out = argv[argv.index("--output-last-message") + 1]
+        open(out, "w", encoding="utf-8").write(reply)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr=stderr)
+    monkeypatch.setattr(shutil, "which", lambda name: name)
+    monkeypatch.setattr(subprocess, "run", run)
+    return seen
+
+
+def test_codex_enforces_schema_and_parses_model_and_tokens(monkeypatch):
+    from fva.reasoning.model import SCHEMA_FILE
+    seen = _fake_codex(monkeypatch, "workdir: x\nmodel: gpt-6-luna\n\x1b[2mtokens used\x1b[0m\n11,513\n")
+    c = CodexCliClient(model="gpt-6-luna")
+    c.complete("s", "u")
+    argv = seen["argv"]
+    assert argv[argv.index("--output-schema") + 1] == str(SCHEMA_FILE) and json.loads(SCHEMA_FILE.read_text())
+    assert c.last_reported_model == "gpt-6-luna" and c.last_tokens == 11513 and c.cache_tag == "schema-v1"
+
+
+def test_codex_without_footer_resets_previous_values(monkeypatch):
+    _fake_codex(monkeypatch, "model: gpt-6-sol\ntokens used\n900\n")
+    c = CodexCliClient()
+    c.complete("s", "u")
+    _fake_codex(monkeypatch, "")
+    c.complete("s", "u")
+    assert c.last_reported_model is None and c.last_tokens is None
+
+
+def test_custom_codex_command_without_schema_has_no_cache_tag(monkeypatch):
+    import shutil
+    monkeypatch.setattr(shutil, "which", lambda name: name)
+    monkeypatch.setenv("FVA_CODEX_CMD", "codex exec --output-last-message {out} -")
+    assert CodexCliClient().cache_tag == ""

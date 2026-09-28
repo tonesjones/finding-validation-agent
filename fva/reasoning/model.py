@@ -72,6 +72,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+SCHEMA_FILE = Path(__file__).with_name("assessment.schema.json")  # reply shape, for CLIs that enforce one
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
 
 class _CliClient:
     """Runs a local agent CLI non-interactively in an EMPTY temp directory, prompt on stdin.
@@ -87,6 +90,7 @@ class _CliClient:
 
     model_flag = "-m"
     last_reported_model: str | None = None  # parsed from the CLI's own `model: <name>` header line
+    last_tokens: int | None = None  # parsed from the CLI's `tokens used` footer, when it prints one
 
     def __init__(self, command: str | None = None, timeout: int = 600, model: str | None = None):
         cmd = command or os.environ.get(self.env_var) or self.default_cmd
@@ -102,7 +106,9 @@ class _CliClient:
         self._timeout = timeout
 
     def _run(self, prompt: str, workdir: Path) -> str:
-        argv = [a.replace("{out}", str(workdir / "last_message.txt")) for a in self._argv]
+        argv = [a.replace("{out}", str(workdir / "last_message.txt")).replace("{schema}", str(SCHEMA_FILE))
+                for a in self._argv]
+        self.last_reported_model = self.last_tokens = None
         r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
                            cwd=workdir, timeout=self._timeout)
         if r.returncode != 0:
@@ -113,8 +119,11 @@ class _CliClient:
                            encoding="utf-8")
             tail = "\n".join(((r.stderr or "") + "\n" + (r.stdout or "")).strip().splitlines()[-12:])
             raise RuntimeError(f"{Path(argv[0]).name} exited {r.returncode} (full log: {log}):\n{tail}")
-        m = re.search(r"^model:\s*(\S+)", f"{r.stderr}\n{r.stdout}", re.M)
+        log = _ANSI.sub("", f"{r.stderr}\n{r.stdout}")
+        m = re.search(r"^model:\s*(\S+)", log, re.M)
         self.last_reported_model = m.group(1) if m else None
+        t = re.search(r"^tokens used\s*\n\s*([\d,]+)", log, re.M)
+        self.last_tokens = int(t.group(1).replace(",", "")) if t else None
         out_file = workdir / "last_message.txt"
         return out_file.read_text(encoding="utf-8") if out_file.exists() else r.stdout
 
@@ -126,11 +135,17 @@ class _CliClient:
 
 
 class CodexCliClient(_CliClient):
-    """OpenAI Codex CLI on a ChatGPT/Codex subscription login: `codex exec`, read-only sandbox."""
+    """OpenAI Codex CLI on a ChatGPT/Codex subscription login: `codex exec`, read-only sandbox,
+    final reply constrained to the assessment JSON schema."""
 
     env_var = "FVA_CODEX_CMD"
-    default_cmd = "codex exec --skip-git-repo-check --sandbox read-only --output-last-message {out} -"
+    default_cmd = ("codex exec --skip-git-repo-check --sandbox read-only --output-schema {schema} "
+                   "--output-last-message {out} -")
     model_id = "codex-cli"
+
+    @property
+    def cache_tag(self) -> str:
+        return "schema-v1" if any("{schema}" in a for a in self._argv) else ""
 
 
 class ClaudeCodeClient(_CliClient):

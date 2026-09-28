@@ -142,8 +142,13 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
             res = routed.result
             for a in routed.attempts:
                 t = stats["tiers"].setdefault(a["tier"], {"calls": 0, "cached": 0, "seconds": 0.0, "rejected": 0,
-                                                           "stance": {}, "agent_models": {}})
+                                                           "tokens": 0, "tokens_unknown": 0, "stance": {},
+                                                           "agent_models": {}})
                 t["calls"] += 1
+                if a["tokens"] is None:
+                    t["tokens_unknown"] += 1
+                else:
+                    t["tokens"] += a["tokens"]
                 t["cached"] += a["cached"]
                 t["seconds"] = round(t["seconds"] + a["seconds"], 1)
                 t["rejected"] += a["rejected"]

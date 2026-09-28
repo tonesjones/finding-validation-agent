@@ -54,6 +54,7 @@ class AssessmentResult:
     confidence: str = "low"
     unparseable: bool = False
     agent_model: str = ""  # model the client reported running (e.g. Codex's `model:` header), else its id
+    tokens: int | None = None  # tokens the client reported for the call (from cache meta on a cache hit)
 
 
 def _window(idx: SourceIndex, path: str, line: int, redact_all: bool) -> str:
@@ -154,23 +155,27 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
     prompt = build_prompt(f, idx, evidence, list(sites))
     if also_covers:
         prompt += f"\n\nNOTE: {len(also_covers)} other scanner finding(s) report this same location/advisory; your claims apply to all of them."
-    key = hashlib.sha256("\0".join([PROMPT_VERSION, client.model_id, f.finding_id, source_content_sha256,
-                                    hashlib.sha256(prompt.encode()).hexdigest()]).encode()).hexdigest()
+    # cache_tag: output-mode changes that alter answers without changing the prompt (e.g. an enforced schema)
+    parts = [PROMPT_VERSION, client.model_id, f.finding_id, source_content_sha256,
+             hashlib.sha256(prompt.encode()).hexdigest()] + ([client.cache_tag] if getattr(client, "cache_tag", "") else [])
+    key = hashlib.sha256("\0".join(parts).encode()).hexdigest()
     cached = False
     cache_file = cache_dir / f"{key}.json" if cache_dir else None
     meta_file = cache_dir / f"{key}.meta.json" if cache_dir else None
-    agent_model = client.model_id
+    meta = {"agent_model": client.model_id, "tokens": None}
     if cache_file and cache_file.exists():
         text, cached = cache_file.read_text(encoding="utf-8"), True
         if meta_file.exists():
-            agent_model = json.loads(meta_file.read_text(encoding="utf-8")).get("agent_model") or agent_model
+            meta.update({k: v for k, v in json.loads(meta_file.read_text(encoding="utf-8")).items() if v})
     else:
         text = client.complete(SYSTEM, prompt)
-        agent_model = getattr(client, "last_reported_model", None) or agent_model
+        meta = {"agent_model": getattr(client, "last_reported_model", None) or client.model_id,
+                "tokens": getattr(client, "last_tokens", None)}
         if cache_file:
             cache_file.parent.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(text, encoding="utf-8")
-            meta_file.write_text(json.dumps({"agent_model": agent_model}), encoding="utf-8")
+            meta_file.write_text(json.dumps(meta), encoding="utf-8")
+    agent_model = meta["agent_model"]
     redact_all = bool(set(f.cwe) & CREDENTIAL_CWES)
     unparseable = False
     try:
@@ -194,4 +199,5 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
         tool_versions={"agent_model": agent_model, "requested_model": client.model_id,
                        "prompt_version": PROMPT_VERSION, "source_content_sha256": source_content_sha256,
                        **(routing or {})})
-    return AssessmentResult(f.finding_id, ev, accepted, rejected, cached, conf, unparseable, agent_model)
+    return AssessmentResult(f.finding_id, ev, accepted, rejected, cached, conf, unparseable, agent_model,
+                            meta["tokens"])

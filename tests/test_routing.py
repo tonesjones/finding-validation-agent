@@ -82,6 +82,16 @@ def test_escalates_once_to_senior(tmp_path, idx, junior, severity, why):
     assert r.result.evidence.tool_versions["routing_tier"] == SENIOR
 
 
+def test_low_confidence_credential_is_not_escalated(tmp_path, idx):
+    r, _, s = routed(tmp_path, idx, "CWE-798", "medium", [reply(conf="low")])
+    assert r.tier == JUNIOR and not s.prompts
+
+
+def test_credential_still_escalates_on_rejected_citation(tmp_path, idx):
+    r, _, s = routed(tmp_path, idx, "CWE-798", "medium", [reply(quote="invented", conf="low")], [reply()])
+    assert r.tier == SENIOR and r.attempts[0]["escalate"] == "citations rejected"
+
+
 def test_junior_refuting_low_finding_is_not_escalated(tmp_path, idx):
     r, _, s = routed(tmp_path, idx, "CWE-563", "low", [reply("refutes")])
     assert r.tier == JUNIOR and not s.prompts
@@ -95,7 +105,7 @@ def test_senior_first_never_escalates(tmp_path, idx):
 def test_reported_model_survives_cache(tmp_path, idx):
     class Reporting(ScriptedClient):
         def complete(self, system, user, **kw):
-            self.last_reported_model = "gpt-6-luna"
+            self.last_reported_model, self.last_tokens = "gpt-6-luna", 12345
             return super().complete(system, user, **kw)
     j = Reporting([reply("non_security")], "codex-cli:gpt-6-luna")
     router, f = Router({JUNIOR: j, SENIOR: ScriptedClient([])}), finding(tmp_path, "CWE-563", "low")
@@ -103,6 +113,7 @@ def test_reported_model_survives_cache(tmp_path, idx):
     first, second = router.assess([f], idx, **kw), router.assess([f], idx, **kw)
     assert second.result.cached and second.result.agent_model == first.result.agent_model == "gpt-6-luna"
     assert second.result.evidence.tool_versions["requested_model"] == "codex-cli:gpt-6-luna"
+    assert second.result.tokens == first.result.tokens == 12345 and second.attempts[0]["tokens"] == 12345
 
 
 def test_escalation_reason_none_for_good_answer(tmp_path, idx):

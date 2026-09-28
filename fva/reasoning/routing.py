@@ -63,7 +63,9 @@ def escalation_reason(res: assessor.AssessmentResult, group: list[Finding]) -> s
         return "citations rejected"
     if len({c["stance"] for c in res.accepted} - {Stance.neutral.value}) > 1:
         return "conflicting claims"
-    if res.confidence == "low":
+    # credential literals are redacted and "active" is decided at runtime, so a senior is no surer (run 1: 19/19
+    # credential escalations stayed neutral)
+    if res.confidence == "low" and not all(set(f.cwe) & CREDENTIAL_CWES for f in group):
         return "low confidence"
     if res.evidence.stance is Stance.refutes and max(_RANK[f.severity] for f in group) >= _RANK[Severity.high]:
         return "refutes high/critical"
@@ -111,7 +113,7 @@ class Router:
         t0 = time.time()
         res = assessor.assess(lead, idx, client, routing={"routing_tier": tier, "routing_reason": reason}, **kw)
         attempts.append({"tier": tier, "model": client.model_id, "agent_model": res.agent_model,
-                         "seconds": round(time.time() - t0, 1), "cached": res.cached,
+                         "seconds": round(time.time() - t0, 1), "cached": res.cached, "tokens": res.tokens,
                          "stance": res.evidence.stance.value, "confidence": res.confidence,
                          "rejected": len(res.rejected)})
         return res
