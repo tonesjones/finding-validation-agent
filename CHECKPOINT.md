@@ -1,6 +1,6 @@
 # Checkpoint
 
-Last updated: 2026-09-27 (session 2). Update this file at every commit that changes status.
+Last updated: 2026-09-28 (end of session 2). Update this file at every commit that changes status.
 
 ## Resume here
 
@@ -11,7 +11,10 @@ Last updated: 2026-09-27 (session 2). Update this file at every commit that chan
   compared against `data/runs/20260928-ab-routed/` (baseline for the current prompt; Sol-only baseline
   `data/runs/20260928-ab-sol/`).
 - Review scripts (local, not committed): `python data/review/review_run.py <run_dir>`,
-  `python data/review/compare_ab.py <routed_run> <sol_run>`.
+  `python data/review/compare_ab.py <routed_run> <sol_run>`,
+  `python data/review/measure_usage.py <dry_run_dir> <n>` (exact token split via `codex exec --json`).
+- Caveat: the per-call `tokens` field in run summaries is Codex's footer count, not total usage; use
+  `measure_usage.py` figures for cost (item 8).
 
 ## Built (package `fva`, Python >= 3.10, tests: `python -m pytest`)
 
