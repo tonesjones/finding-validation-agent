@@ -142,22 +142,28 @@ Luna 89 calls / 660 s (7.4 s avg), Sol 82 calls / 725 s (8.8 s avg). Codex heade
 Both runs used schema-enforced output and no credential low-confidence escalation, with the same prompt (assess-v1).
 - The fixes worked: escalations fell from 40 to 8 (6 low confidence, 2 conflicting claims), with 0 unparseable
   and 0 rejected citations in either run.
-- **Tokens:** on the 89 Luna-first clusters, Luna averaged about 8.6k tokens per call and Sol about 3.9k.
-  Whole run: routed 139 calls / 1.27M tokens vs Sol-only 131 calls / 0.83M (-35%).
+- **Footer token counts (not comparable across models):** Luna averaged about 8.6k per call and Sol about 3.9k.
+  Whole run: routed 139 calls / 1.27M vs Sol-only 131 calls / 0.83M. See the measured split below: the footer
+  appears to count only uncached input plus output, so it tracks cache hits, not model effort.
 - **Time:** about equal (Luna 8.1 s, Sol 8.6 s per fresh call); routed 20 min wall, Sol-only about 19 min.
 - **Quality on Luna-first clusters:** PoC agreement routed 8 vs Sol 10 (4 vs 6 excluding runtime-only classes).
   Of 36 stance differences, 24 are quality findings where both tiers are inconsistent (stance semantics,
   item 1 below); the credential differences split 5 to routed, 6 to Sol.
-- **First decision (on tokens alone):** Sol-only, because Luna used about 2.2x the tokens (Codex counts include
-  reasoning, and Luna reasons longer). The recorded revisit condition was "Luna under ~45% of Sol per token".
-- **Revised decision (list prices given by the user):** Sol costs $2 per 1M input and $10 per 1M output
-  tokens; Luna costs $0.10 and $0.50, so Luna is 1/20 of Sol. Routed then costs **66% of Sol-only**
-  at any input/output split: $1.10-5.50 vs $1.66-8.29 for the run, depending on split. **Routing is the
-  default again.** The quality gap (2 of 89 clusters) is within noise; recheck it after the stance-semantics fix.
-- Cost caveat: Codex's `tokens used` footer is a total with no input/output split, and it appears to exclude
-  cached input. `codex exec --json` gives an exact split (`input_tokens`, `cached_input_tokens`,
-  `output_tokens`) but does not report the model, which the routing policy requires us to record.
-  Exact dollar accounting is open item 8.
+- **Prices (per 1M tokens, given by the user 2026-09-28):** Sol $2 input / $0.20 cached input ($0.01 on some
+  tier setups) / $10 output. Luna $0.10 / $0.01 / $0.50.
+- **Measured usage** (`codex exec --json`, the same 8 current prompts through both models,
+  `data/review/usage-sample.json`): per call, Luna 23,969 input (20,224 cached), 205 output; Sol 24,236 input
+  (21,344 cached), 238 output; 0 reasoning tokens for both. About 20k of the input is Codex's own
+  system prompt, served from cache; our prompt is about 3-4k.
+- **Cost:** Luna 0.068 cents per call; Sol 1.22 cents (standard cache price) or 0.81 cents (low-tier cache).
+  Run of 131 clusters: routed (89 Luna + 50 Sol calls) $0.67 vs Sol-only $1.60 (42%), or $0.47 vs $1.06 (44%)
+  on the low-tier cache price.
+- **Decision history:** Sol-only was chosen first on footer token counts, with the explanation that "Luna
+  reasons longer". That explanation was wrong: measured reasoning tokens are 0 and input is nearly identical.
+  **Routing is the default**, at about 42-44% of Sol-only cost. The quality gap (2 of 89 clusters) is within
+  noise; recheck it after the stance-semantics fix.
+- Codex overhead dominates: about 20k of the ~24k input per call is Codex's system prompt, not ours.
+  A direct API client would cut input about 6x (see item 9).
 
 ## Open / next
 
@@ -180,5 +186,7 @@ token accounting per call and tier, routed vs Sol-only comparison (routing stays
    Gate: SaaS only, and its data retention, training use and input limits are undocumented. Complete a vendor
    data-handling review before sending anything, even redacted code (CLAUDE.md: only redacted code leaves the machine).
 8. Exact cost accounting: record input, cached-input and output tokens per call and a per-run dollar estimate
-   from configured prices. Either run `codex exec --json` and get the model some other way, or find a flag
-   that prints both the model and the split.
+   from configured prices. The current `tokens` field is Codex's footer, which is not total usage (see the
+   comparison above). `codex exec --json` has the split but not the model name; find a way to get both.
+9. Consider an API client for GPT-6 (OpenAI-compatible) to drop Codex's ~20k-token system prompt per call. Only
+   worth it if API billing is acceptable versus the subscription, because at list prices a run already costs under $1.

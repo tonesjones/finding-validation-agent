@@ -23,7 +23,7 @@ python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # i
 
 Roles: you (Claude) act as VP of engineering and own final review; Codex does the assessment work with
 GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment), routed per cluster by
-default (about 66% of Sol-only cost at list prices). Routing policy and results: `CHECKPOINT.md`.
+default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `CHECKPOINT.md`.
 
 Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
 Runs write to `data/runs/<timestamp>-<client>/` (`summary.json`, `assessments.jsonl`, `evidence.jsonl`).

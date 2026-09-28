@@ -38,7 +38,7 @@ def _client(name: str, model: str | None):
 
 def _router(args):
     """Luna/Sol routing for codex by default; one model with --model or --no-route (codex: GPT-6 Sol).
-    Routing costs about 66% of Sol-only at list prices (Luna is 1/20 of Sol per token), see CHECKPOINT.md."""
+    Routing costs about 42-44% of Sol-only at list prices (measured 2026-09-28), see CHECKPOINT.md."""
     from fva.reasoning.routing import JUNIOR, SENIOR, Router, model_name
     routed = args.client == "codex" and not args.model and not args.no_route
     astra = set(args.astra or ())
