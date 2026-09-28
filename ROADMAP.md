@@ -42,6 +42,9 @@
 - [ ] Measure precision improvement, unresolved rate, and incorrect demotions.
 - [ ] Measure scanner-gap discoveries separately.
 - [ ] Document model, prompt, tool, source, and runtime versions for reproducibility.
+- [ ] Evaluate TypeSafe AI's Jev (typed decisions with calibrated confidence, no text) as a triage and routing
+      step: skip / junior / senior per cluster, or predict junior escalation. Never as evidence, because Jev
+      produces no citations. Gate: vendor data-handling review before sending even redacted code.
 
 ## Not now
 

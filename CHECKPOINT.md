@@ -145,3 +145,10 @@ Luna 89 calls / 660 s (7.4 s avg), Sol 82 calls / 725 s (8.8 s avg). Codex heade
 5. Runtime harness: allowlist and approval gate before any probe.
 6. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
 7. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
+8. Evaluate Jev (TypeSafe AI, early access since 2026-09-15) as a routing/triage classifier, not an assessor.
+   Jev returns typed choices with calibrated confidence and no text, so it cannot produce the cited claims the
+   assessor requires, and its output is never evidence. Candidate uses: a Choice per cluster of
+   skip-model / Luna / Sol, or predicting "Luna will escalate" (40/89 escalated in the first run).
+   Test: score Jev's calibration against the 130 PoC-labelled clusters before wiring it in.
+   Gate: SaaS only, and its data retention, training use and input limits are undocumented. Complete a vendor
+   data-handling review before sending anything, even redacted code (CLAUDE.md: only redacted code leaves the machine).
