@@ -4,9 +4,13 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 
 ## Resume here
 
-- PR #4 (`feat/cli-assess`) is merged into `claude/eloquent-euler-yxb16x` (PR #5), together with v0.4. PR #4 history:: routing built, reviewed, then compared against Sol-only.
-  **Decision (2026-09-28, revised on list prices): Luna/Sol routing is the default** for codex; `--no-route`
-  or `--model` runs one model. PR #4 not merged yet: the user decides.
+- PRs #4, #5 and #6 are merged into `main` (v0.4 + routing). **Luna/Sol routing is the default** for codex;
+  `--no-route` or `--model` runs one model.
+- 2026-10-01 (branch `claude/stoic-shannon-3wy7sq`): scanner mix without DAST, `likely` verdict, triage worksheet
+  and review re-import (see "Scanner mix and write-back" below). Not yet run on the real Juice Shop export:
+  run `assess` locally, then `python -m fva worksheet <run_dir>`.
+- First real worksheet (`data/runs/20261001-153602-codex/`): 573 rows, 499 issues; 430 not_applicable,
+  42 likely, 99 needs_review, 2 valid_non_security. Next: `python -m fva score <run_dir>` (added 2026-10-01).
 - **Next action:** "Open / next" items 1-2 (stance semantics, SCA advisory context), then a routed re-run
   compared against `data/runs/20260928-ab-routed/` (baseline for the current prompt; Sol-only baseline
   `data/runs/20260928-ab-sol/`).
@@ -21,8 +25,11 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 | Area | Module | Status |
 |---|---|---|
 | Canonical schemas | `fva/schemas.py` | IngestionRun, Finding, EvidenceRecord (many findings per record), DeploymentProfile, Verdict (append-only, `supersedes`) |
-| Reason codes | `fva/reason_codes.py` | Vocabulary v1: 22 codes; 16 map 1:1 from the Juice Shop PoC classifications |
-| Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review |
+| Reason codes | `fva/reason_codes.py` | Vocabulary v1: 26 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer); 16 map 1:1 from the PoC |
+| Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence |
+| Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
+| Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
+| Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; `import-review` -> `human_review` evidence, superseding verdicts, agreement score |
 | Severity tables | `fva/severity.py` | SARIF level, CVSS bands, vendor strings; unknown strings fail loudly |
 | Raw provenance | `fva/provenance.py` | content-addressed refs `raw:sha256:<hex>#<pointer>` |
 | Redaction | `fva/redact.py` | tokens, JWTs, cookies, cloud keys, secret assignments; all literals for credential CWEs |
@@ -47,6 +54,12 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 | DAST evidence | `fva/correlation/dast_evidence.py` | only high-confidence links `support`; no DAST hit = no evidence; reason code `DAST_OBSERVED` |
 
 ## Decisions
+
+- 2026-10-01: Not every customer has DAST (non-web apps: SAST+SCA only). Added verdict `likely` (static evidence,
+  never confirmed); a reviewer's sign-off in the worksheet confirms it.
+- 2026-10-01: Polaris MCP is read-only, so results cannot go back through it. Now: triage worksheet (mainly the
+  record for testing fva). Later (v0.8): separate, approval-gated Polaris REST writer with its own token.
+  Triage status labels in `fva/export/polaris_triage_map.py` are ASSUMED until checked against Polaris docs.
 
 - SAST engine is Polaris only (no Semgrep/CodeQL).
 - The model never produces `confirmed` on its own; it emits cited evidence, rules decide verdicts.
@@ -173,6 +186,22 @@ Both runs used schema-enforced output and no credential low-confidence escalatio
   noise; recheck it after the stance-semantics fix.
 - Codex overhead dominates: about 20k of the ~24k input per call is Codex's system prompt, not ours.
   A direct API client would cut input about 6x (see item 9).
+
+## Work laptop: LiteLLM gateway instead of personal Codex (noted 2026-10-01, not built)
+
+After the move to the company's enterprise GitHub, personal Codex is not available. The company LiteLLM gateway
+(models hosted on Vertex, Bedrock, etc.) replaces it.
+- Known on the gateway: **GPT-5.6 Luna and GPT-5.6 Sol**. GPT-6 is not confirmed yet (maybe later).
+  Alternatives: Claude Opus / Sonnet / Haiku.
+- Plan: add `--client litellm` (OpenAI-compatible `/chat/completions`, reuse `OpenAICompatibleClient`), with
+  routing on as for codex; URL/key from `FVA_LITELLM_URL` / `FVA_LITELLM_KEY` (never logged); tiers via
+  `FVA_MODEL_JUNIOR` / `FVA_MODEL_SENIOR` / `FVA_MODEL_ASTRA` set to the gateway's aliases.
+- Needs: JSON-schema `response_format` with a fallback, real `usage` tokens + dollar estimate (closes item 8),
+  retry/backoff on 429/5xx, corporate CA bundle support.
+- Gains: no ~20k-token Codex system prompt (item 9), model name from the response, company-approved data path.
+- Before relying on it: re-run the routed A/B against the PoC ledger on the gateway models (Luna/Sol results
+  from GPT-6 do not carry over), and confirm gateway logging/retention in the data-handling sign-off.
+- Ask the gateway owner: exact model aliases, and whether JSON-schema output is enabled per model.
 
 ## Open / next
 

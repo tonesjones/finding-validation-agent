@@ -49,6 +49,12 @@ _CODES = [
     ReasonCode("PROBE_DID_NOT_REPRODUCE", V.needs_review, "A safe probe did not reproduce; not proof of absence."),
     ReasonCode("CONFLICTING_EVIDENCE", V.needs_review, "Evidence points in both directions."),
     ReasonCode("INSUFFICIENT_EVIDENCE", V.needs_review, "Not enough evidence to decide."),
+    # likely (v1 append, 2026-10-01): static evidence only; a human or runtime record is needed to confirm
+    ReasonCode("STATIC_REACHABLE_SINK", V.likely, "Shipped, reachable sink with a cited static argument; no runtime proof."),
+    ReasonCode("VULNERABLE_VERSION_IMPORTED", V.likely, "Vulnerable version installed and imported by shipped, reachable code; not executed."),
+    # human review via the triage worksheet (v1 append, 2026-10-01)
+    ReasonCode("REVIEWER_CONFIRMED", V.confirmed, "A named reviewer confirmed the issue from the evidence packet."),
+    ReasonCode("REVIEWER_NOT_APPLICABLE", V.not_applicable, "A named reviewer judged the issue not applicable to the shipped app."),
 ]
 
 CODES: dict[str, ReasonCode] = {c.code: c for c in _CODES}

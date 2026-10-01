@@ -86,3 +86,9 @@ def test_string_live_localhost_validation():
 def test_live_localhost_rejects_non_http_scheme():
     with pytest.raises(RuntimeModeError):
         check("live-localhost", "file:///etc/passwd")
+
+
+def test_default_depends_on_scanner_mix():
+    from fva.runtime_mode import default_for
+    assert default_for(["sast", "sca"]) is RuntimeMode.none
+    assert default_for(["dast", "sast", "sca"]) is RuntimeMode.dast_evidence

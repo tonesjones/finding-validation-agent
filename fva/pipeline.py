@@ -3,6 +3,9 @@
 Stages per finding: deployment boundary -> source location -> dependency reconciliation
 -> static reachability -> model assessment (one model call per cluster of findings that
 share the same code location or advisory).
+
+Any scanner mix works: SAST+SCA only (non-web apps, no DAST) skips DAST linking and runtime
+evidence; DAST findings, when present, are linked to SAST sinks and grouped, never sent to the model.
 """
 from __future__ import annotations
 
@@ -15,12 +18,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fva.adapters import polaris
-from fva.correlation import dependency, locate, reachability
+from fva import runtime_mode
+from fva.correlation import dast_evidence, dependency, grouping, locate, package_link, reachability, runtime_link
 from fva.correlation.source_pin import iter_files, pin
 from fva.langpacks import REGISTRY
 from fva.reasoning import assessor
 from fva.reasoning.routing import Router
-from fva.schemas import DeploymentProfile, Finding, FindingType, Surface
+from fva.schemas import DeploymentProfile, Finding, FindingType, RuntimeMode, Surface
 from fva.surface import classify_finding, is_deployed
 
 
@@ -29,6 +33,11 @@ def load_findings(spec: str) -> list[Finding]:
     if len(paths) == 1 and paths[0].endswith((".jsonl", ".csv")):
         return polaris.load(Path(paths[0]))[1]
     return polaris.load_mcp(paths)[1]
+
+
+def scanner_mix(findings: list[Finding]) -> list[str]:
+    """Scanner types present in this run, e.g. ["sast", "sca"] for a non-web app without DAST."""
+    return sorted({f.finding_type.value for f in findings})
 
 
 def cluster_key(f: Finding) -> tuple:
@@ -44,6 +53,7 @@ class Batch:
     skipped: dict[str, int]
     pre_evidence: dict[str, list]  # finding_id -> evidence records
     sites: dict[tuple, list[tuple[str, int]]]
+    disposition: dict[str, str]  # finding_id -> "assess" or the skip reason (e.g. "surface:test")
 
 
 def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfile, lockfile: Path | None,
@@ -59,11 +69,16 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
             direct = {d.name for d in REGISTRY["node"].parse_manifest(mf) if d.scope == "runtime"}
     clusters: OrderedDict = OrderedDict()
     skipped: dict[str, int] = {}
-    pre, sites = {}, {}
+    pre, sites, disp = {}, {}, {}
+
+    def skip(f: Finding, why: str):
+        skipped[why] = skipped.get(why, 0) + 1
+        disp[f.finding_id] = why
+
     for f in findings:
         surf = classify_finding(f, profile)
         if not is_deployed(surf, profile):
-            skipped[f"surface:{surf.value}"] = skipped.get(f"surface:{surf.value}", 0) + 1
+            skip(f, f"surface:{surf.value}")
             continue
         ev = []
         if f.location:
@@ -72,18 +87,53 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
             d = dependency.reconcile(f, inventory)
             ev.append(dependency.to_evidence(d, inventory_ref=str(lockfile.name), profile_id=profile.profile_id))
             if d.status in ("version_drift", "not_installed"):
-                skipped[f"dependency:{d.status}"] = skipped.get(f"dependency:{d.status}", 0) + 1
+                skip(f, f"dependency:{d.status}")
                 continue
         r = reachability.assess(f, graph, profile, declared_direct=direct)
         ev.append(reachability.to_evidence(r, source_content_sha256=snapshot_sha, profile_id=profile.profile_id))
         if r.status == "imported_only_outside_deployment":
-            skipped["reachability:outside_deployment"] = skipped.get("reachability:outside_deployment", 0) + 1
+            skip(f, "reachability:outside_deployment")
             continue
+        disp[f.finding_id] = "assess"
         pre[f.finding_id] = ev
         key = cluster_key(f)
         clusters.setdefault(key, []).append(f)
         sites[key] = [(s.rsplit(":", 1)[0], int(s.rsplit(":", 1)[1])) for s in r.sites]
-    return Batch(clusters, skipped, pre, sites)
+    return Batch(clusters, skipped, pre, sites, disp)
+
+
+def link_and_group(findings: list[Finding], source_root: Path, files: list[str], profile: DeploymentProfile,
+                   idx: locate.SourceIndex, graph: reachability.CodeGraph, mode: RuntimeMode):
+    """SCA<->SAST links always; SAST<->DAST links and DAST evidence only when the scan has DAST."""
+    by = {t: [f for f in findings if f.finding_type is t] for t in FindingType}
+    links = package_link.link_all(by[FindingType.sca], by[FindingType.sast], graph, profile)
+    dast_ev = []
+    if by[FindingType.dast]:
+        routes = runtime_link.build_route_map(source_root, files, profile.entrypoints)
+        source = {f.location.path: idx.lines(f.location.path) for f in by[FindingType.sast]
+                  if f.location and f.location.path in idx.files}
+        dlinks = runtime_link.link_all(by[FindingType.sast], by[FindingType.dast], routes, source)
+        links += dlinks
+        dast_ev = [e for l in dlinks if (e := dast_evidence.to_evidence(l, profile_id=profile.profile_id, mode=mode))]
+    return links, grouping.group(findings, links), dast_ev
+
+
+def write_findings_index(out_dir: Path, findings: list[Finding], batch: Batch, issues) -> None:
+    """One row per original scanner finding: what happened to it and which grouped issue holds it."""
+    issue_of = {fid: g.issue_id for g in issues for fid in g.finding_ids}
+    primary = {g.primary_finding_id for g in issues}
+    with open(out_dir / "findings.jsonl", "w", encoding="utf-8") as fh:
+        for f in findings:
+            loc = f.location
+            fh.write(json.dumps({
+                "finding_id": f.finding_id, "source_finding_id": f.source_finding_id, "source_tool": f.source_tool,
+                "finding_type": f.finding_type.value, "title": f.title, "severity": f.severity.value,
+                "cwe": list(f.cwe), "path": loc.path if loc else None, "line": loc.start_line if loc else None,
+                "package": f"{f.package.name}@{f.package.version}" if f.package else None,
+                "endpoint": f"{f.endpoint.method} {f.endpoint.path}" if getattr(f, "endpoint", None) else None,
+                "disposition": batch.disposition.get(f.finding_id, "runtime_only" if f.finding_type is FindingType.dast
+                                                     else "assess"),
+                "issue_id": issue_of.get(f.finding_id), "primary": f.finding_id in primary}) + "\n")
 
 
 def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, client, out_dir: Path,
@@ -96,11 +146,23 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
     idx = locate.SourceIndex(source_root, files)
     graph = reachability.build_graph(source_root, files, profile)
     findings = load_findings(findings_spec)
-    batch = prepare(findings, source_root, profile, lockfile, snap.content_sha256, idx, graph)
+    mix = scanner_mix(findings)
+    mode = runtime_mode.default_for(mix)
+    batch = prepare([f for f in findings if f.finding_type is not FindingType.dast], source_root, profile,
+                    lockfile, snap.content_sha256, idx, graph)
+    links, issues, dast_ev = link_and_group(findings, source_root, files, profile, idx, graph, mode)
     keys = list(batch.clusters)[: limit or None]
     log(f"{len(findings)} findings -> {sum(len(batch.clusters[k]) for k in keys)} to assess in {len(keys)} clusters "
-        f"(skipped: {batch.skipped})")
+        f"(skipped: {batch.skipped}); scanners {'+'.join(mix)}, runtime mode {mode.value}, "
+        f"{len(issues)} grouped issues from {len(links)} links")
     out_dir.mkdir(parents=True, exist_ok=True)
+    with open(out_dir / "groups.jsonl", "w", encoding="utf-8") as fh:
+        for g in issues:
+            fh.write(g.model_dump_json() + "\n")
+    with open(out_dir / "links.jsonl", "w", encoding="utf-8") as fh:
+        for l in links:
+            fh.write(l.model_dump_json() + "\n")
+    write_findings_index(out_dir, findings, batch, issues)
     if dry_run:
         pdir = out_dir / "prompts"
         pdir.mkdir(exist_ok=True)
@@ -116,7 +178,8 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
                 fh.write(json.dumps({"prompt": f"{i:04d}", "cluster": list(map(str, k)), "tier": tier,
                                      "reason": why}) + "\n")
         log(f"dry run: wrote {len(keys)} prompts to {pdir}; first-pass tiers {tiers}")
-        return {"clusters": len(keys), "dry_run": True, "first_pass_tiers": tiers}
+        return {"clusters": len(keys), "dry_run": True, "first_pass_tiers": tiers, "scanner_mix": mix,
+                "runtime_mode": mode.value, "grouped_issues": len(issues)}
     ev_out = open(out_dir / "evidence.jsonl", "w", encoding="utf-8")
     as_out = open(out_dir / "assessments.jsonl", "w", encoding="utf-8")
     stats = {"clusters": 0, "errors": 0, "cached": 0, "stance": {}, "tiers": {}, "escalations": {}}
@@ -124,6 +187,8 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
         for fid, evs in batch.pre_evidence.items():
             for e in evs:
                 ev_out.write(e.model_dump_json() + "\n")
+        for e in dast_ev:
+            ev_out.write(e.model_dump_json() + "\n")
         for i, k in enumerate(keys, 1):
             group = batch.clusters[k]
             lead = group[0]
@@ -177,6 +242,7 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
     summary = {"run_at": datetime.now(timezone.utc).isoformat(), "model": router.model_id,
                "prompt_version": assessor.PROMPT_VERSION, "profile": profile.profile_id,
                "source_content_sha256": snap.content_sha256, "findings_total": len(findings),
+               "scanner_mix": mix, "runtime_mode": mode.value, "grouped_issues": len(issues), "links": len(links),
                "skipped": batch.skipped, **stats, "seconds": round(time.time() - t0, 1)}
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     return summary

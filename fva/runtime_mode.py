@@ -13,6 +13,11 @@ class RuntimeModeError(ValueError):
     pass
 
 
+def default_for(scanner_mix) -> RuntimeMode:
+    """DAST evidence only when the scan has DAST; SAST+SCA-only scans (e.g. non-web apps) are static-only."""
+    return RuntimeMode.dast_evidence if "dast" in set(scanner_mix) else RuntimeMode.none
+
+
 def check(mode: RuntimeMode | str | None, target_url: str | None = None) -> RuntimeMode:
     if mode is None:
         return DEFAULT_MODE
