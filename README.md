@@ -47,11 +47,12 @@ For each scan, the tool:
 An AI model helps with step 3 when the rules alone can't decide. The model can only
 add evidence. It can never mark something as confirmed on its own.
 
-## The four verdicts
+## The five verdicts
 
 | Verdict | Meaning |
 | --- | --- |
 | **Confirmed** | There is evidence the problem is real in this app, such as a DAST attack that worked. |
+| **Likely** | Strong static evidence (shipped, reachable, cited) but no runtime proof. Normal for apps without DAST, such as non-web apps scanned with SAST and SCA only. A reviewer's sign-off turns it into Confirmed. |
 | **Not applicable** | The finding doesn't affect the shipped app, for example because it's in test code. |
 | **Real, but not security** | The code issue is real, but it's a quality or reliability problem, not a security hole. |
 | **Needs review** | Not enough evidence either way. The tool says what's missing so a person can finish the job. |

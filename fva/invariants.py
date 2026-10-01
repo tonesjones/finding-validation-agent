@@ -10,7 +10,13 @@ from fva.schemas import EvidenceRecord, EvidenceType, Stance, Verdict, VerdictVa
 CONFIRMING_TYPES = {EvidenceType.runtime_probe, EvidenceType.negative_control, EvidenceType.human_review,
                     EvidenceType.imported_assessment, EvidenceType.dast_observation}
 
+# Rule-derived evidence a `likely` verdict must cite besides any model claim: a model argument alone never
+# makes a finding likely. These are never confirming types.
+RULE_TYPES = {EvidenceType.static_source, EvidenceType.deployment_boundary, EvidenceType.dependency_resolution,
+              EvidenceType.reachability, EvidenceType.advisory_precondition}
+
 _REQUIRED_STANCE = {
+    VerdictValue.likely: Stance.supports,
     VerdictValue.confirmed: Stance.supports,
     VerdictValue.not_applicable: Stance.refutes,
     VerdictValue.valid_non_security: Stance.non_security,
@@ -44,6 +50,9 @@ def check_verdict(v: Verdict, evidence: Mapping[str, EvidenceRecord]) -> None:
     if v.verdict is VerdictValue.confirmed and not any(
             r.stance is Stance.supports and r.evidence_type in CONFIRMING_TYPES for r in cited):
         raise InvariantError("confirmed requires supporting runtime, negative-control or human evidence")
+    if v.verdict is VerdictValue.likely and not any(
+            r.evidence_type in RULE_TYPES and r.stance in (Stance.supports, Stance.neutral) for r in cited):
+        raise InvariantError("likely requires rule-derived static evidence, not model output alone")
     need = _REQUIRED_STANCE[v.verdict]
     if need not in stances:
         raise InvariantError(f"{v.verdict.value} requires at least one '{need.value}' evidence record")

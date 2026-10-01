@@ -63,6 +63,7 @@ class Surface(str, Enum):
 
 class VerdictValue(str, Enum):
     confirmed = "confirmed"
+    likely = "likely"  # strong static evidence, no runtime proof (e.g. no DAST for non-web apps); never confirmed
     not_applicable = "not_applicable"
     valid_non_security = "valid_non_security"
     needs_review = "needs_review"

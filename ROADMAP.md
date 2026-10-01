@@ -45,12 +45,21 @@ prioritized issue per real flaw, built from Polaris SAST, SCA, and DAST results.
 
 ## v0.5 — Optional live validation (test targets only)
 
+Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `none` and rely on
+`likely` plus human review instead.
+
 - [ ] Per-application runtime profile: start, health check, base URL, stop.
 - [ ] Safe HTTP/browser probes restricted to localhost, intentionally vulnerable apps.
 - [ ] Store redacted evidence receipts and negative controls.
 - [ ] Require human approval for intrusive tests; exclude crash and denial-of-service tests.
 
 ## v0.6 — Decisions, prioritization, and remediation output
+
+- [x] Any scanner mix: SAST+SCA without DAST is a first-class run (scanner mix and runtime mode in `summary.json`).
+- [x] `likely` verdict for strong static evidence; never confirmed without runtime or human evidence.
+- [x] Triage worksheet (CSV + HTML), one row per Polaris issue id, with suggested triage status and severity.
+- [x] Re-import a filled worksheet: reviewer decisions become `human_review` evidence and superseding verdicts,
+      plus an agreement score per suggested verdict.
 
 - [ ] Evidence-backed verdicts with confidence and reason codes per grouped issue.
 - [ ] Evidence-based priority ranking (verdict × reachability × runtime evidence × severity).
@@ -69,6 +78,17 @@ prioritized issue per real flaw, built from Polaris SAST, SCA, and DAST results.
 - [ ] Evaluate TypeSafe AI's Jev (typed decisions with calibrated confidence, no text) as a triage and routing
       step: skip / junior / senior per cluster, or predict junior escalation. Never as evidence, because Jev
       produces no citations. Gate: vendor data-handling review before sending even redacted code.
+
+## v0.8 — Approval-gated Polaris write-back
+
+The Polaris MCP server is read-only, so re-ratings and groupings cannot go back through it.
+- [ ] Confirm the Polaris REST endpoints for triage status, severity and comments; verify the
+      `fva/export/polaris_triage_map.py` labels (currently ASSUMED).
+- [ ] Separate writer module with its own write-scoped token, never on the MCP read-only allowlist.
+- [ ] Input is an approved worksheet only; dry-run diff by default; per-run human approval; idempotent;
+      before/after audit log for every write.
+- [ ] Groupings as comments or tags, since Polaris has no cross-scanner group object (to verify).
+- Gate: company GitHub, data-handling sign-off, customer consent; update the CLAUDE.md read-only rule when it lands.
 
 ## Not now
 

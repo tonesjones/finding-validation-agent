@@ -16,6 +16,8 @@ python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0" --li
 python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0"             # full run (Luna/Sol routing)
 python -m fva assess --client codex --no-route --source "C:\TestCode\Juiceshop 20.2.0"  # GPT-6 Sol for every cluster
 python -m fva assess --dry-run --source "C:\TestCode\Juiceshop 20.2.0"                  # prompts only
+python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
+python -m fva import-review data\runs\<run> filled.csv      # reviewer decisions -> human_review evidence
 
 # Polaris (read-only MCP). Token: $env:POLARIS_ACCESS_TOKEN or data\.polaris-token
 python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # ids: data/LOCAL-NOTES.md
@@ -26,7 +28,8 @@ GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment), r
 default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `CHECKPOINT.md`.
 
 Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
-Runs write to `data/runs/<timestamp>-<client>/` (`summary.json`, `assessments.jsonl`, `evidence.jsonl`).
+Runs write to `data/runs/<timestamp>-<client>/` (`summary.json`, `assessments.jsonl`, `evidence.jsonl`,
+`findings.jsonl`, `groups.jsonl`, `links.jsonl`). DAST is optional: SAST+SCA-only runs use runtime mode `none`.
 Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/`.
 
 ## Rules (non-negotiable)
@@ -35,6 +38,7 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
   Raw Polaris responses contain internal service URLs and the tenant id. Commit only sanitized fixtures
   under `tests/fixtures/`, and check them for real ids before committing.
 - **Never print or log tokens.** Polaris access is read-only; only the tools in `READ_ONLY_TOOLS`.
+- **`likely` is not `confirmed`.** It needs rule-derived static evidence, never model output alone.
 - **The model never confirms.** `confirmed` needs runtime, negative-control, human-review or imported
   evidence (enforced in `fva/invariants.py`). Model and static evidence can only argue, cite, or refute.
 - **Only redacted code goes to a model** (`fva/redact.py`), and every model citation is verified against the

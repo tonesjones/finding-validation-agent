@@ -4,9 +4,11 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 
 ## Resume here
 
-- PR #4 (`feat/cli-assess`) is merged into `claude/eloquent-euler-yxb16x` (PR #5), together with v0.4. PR #4 history:: routing built, reviewed, then compared against Sol-only.
-  **Decision (2026-09-28, revised on list prices): Luna/Sol routing is the default** for codex; `--no-route`
-  or `--model` runs one model. PR #4 not merged yet: the user decides.
+- PRs #4, #5 and #6 are merged into `main` (v0.4 + routing). **Luna/Sol routing is the default** for codex;
+  `--no-route` or `--model` runs one model.
+- 2026-10-01 (branch `claude/stoic-shannon-3wy7sq`): scanner mix without DAST, `likely` verdict, triage worksheet
+  and review re-import (see "Scanner mix and write-back" below). Not yet run on the real Juice Shop export:
+  run `assess` locally, then `python -m fva worksheet <run_dir>`.
 - **Next action:** "Open / next" items 1-2 (stance semantics, SCA advisory context), then a routed re-run
   compared against `data/runs/20260928-ab-routed/` (baseline for the current prompt; Sol-only baseline
   `data/runs/20260928-ab-sol/`).
@@ -21,8 +23,10 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 | Area | Module | Status |
 |---|---|---|
 | Canonical schemas | `fva/schemas.py` | IngestionRun, Finding, EvidenceRecord (many findings per record), DeploymentProfile, Verdict (append-only, `supersedes`) |
-| Reason codes | `fva/reason_codes.py` | Vocabulary v1: 22 codes; 16 map 1:1 from the Juice Shop PoC classifications |
-| Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review |
+| Reason codes | `fva/reason_codes.py` | Vocabulary v1: 26 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer); 16 map 1:1 from the PoC |
+| Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence |
+| Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
+| Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; `import-review` -> `human_review` evidence, superseding verdicts, agreement score |
 | Severity tables | `fva/severity.py` | SARIF level, CVSS bands, vendor strings; unknown strings fail loudly |
 | Raw provenance | `fva/provenance.py` | content-addressed refs `raw:sha256:<hex>#<pointer>` |
 | Redaction | `fva/redact.py` | tokens, JWTs, cookies, cloud keys, secret assignments; all literals for credential CWEs |
@@ -47,6 +51,12 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 | DAST evidence | `fva/correlation/dast_evidence.py` | only high-confidence links `support`; no DAST hit = no evidence; reason code `DAST_OBSERVED` |
 
 ## Decisions
+
+- 2026-10-01: Not every customer has DAST (non-web apps: SAST+SCA only). Added verdict `likely` (static evidence,
+  never confirmed); a reviewer's sign-off in the worksheet confirms it.
+- 2026-10-01: Polaris MCP is read-only, so results cannot go back through it. Now: triage worksheet (mainly the
+  record for testing fva). Later (v0.8): separate, approval-gated Polaris REST writer with its own token.
+  Triage status labels in `fva/export/polaris_triage_map.py` are ASSUMED until checked against Polaris docs.
 
 - SAST engine is Polaris only (no Semgrep/CodeQL).
 - The model never produces `confirmed` on its own; it emits cited evidence, rules decide verdicts.
