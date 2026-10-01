@@ -1,0 +1,45 @@
+import argparse
+
+import pytest
+
+import fva.__main__ as cli
+
+
+def args(**kw):
+    base = dict(client="codex", model=None, dry_run=False, no_route=False, astra=None)
+    return argparse.Namespace(**{**base, **kw})
+
+
+@pytest.fixture
+def made(monkeypatch):
+    for v in ("FVA_MODEL_JUNIOR", "FVA_MODEL_SENIOR"):
+        monkeypatch.delenv(v, raising=False)
+    calls = []
+    monkeypatch.setattr(cli, "_client", lambda name, model: calls.append((name, model)) or type("C", (), {"model_id": f"{name}:{model}"})())
+    return calls
+
+
+def test_codex_routes_by_default(made):
+    r = cli._router(args())
+    assert r.routed and [m for _, m in made] == ["gpt-6-luna", "gpt-6-sol"]
+
+
+def test_no_route_uses_sol(made):
+    r = cli._router(args(no_route=True))
+    assert not r.routed and made == [("codex", "gpt-6-sol")]
+
+
+def test_explicit_model_wins(made):
+    cli._router(args(model="gpt-6-luna"))
+    assert made == [("codex", "gpt-6-luna")]
+
+
+def test_other_clients_are_not_routed(made):
+    assert not cli._router(args(client="claude-code")).routed and made == [("claude-code", None)]
+
+
+@pytest.mark.parametrize("kw", [dict(astra=["id"], no_route=True), dict(astra=["id"], model="x"),
+                                dict(astra=["id"], client="claude-code")])
+def test_astra_needs_routing(made, kw):
+    with pytest.raises(SystemExit):
+        cli._router(args(**kw))

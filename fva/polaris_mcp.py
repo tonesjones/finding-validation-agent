@@ -91,7 +91,25 @@ def export_issues(client: PolarisMCP, out: Path, **scope) -> int:
         total += len(items)
         cursor = items[-1].get("_cursor") if items else None
         if not items or len(items) < 10 or not cursor:
-            return total
+            break
+    fetch_types(client, out, **scope)
+    return total
+
+
+def fetch_types(client: PolarisMCP, out: Path, **scope) -> int:
+    """list_issues has no issue-type info; fetch it once per weaknessId -> types.json."""
+    first_issue: dict[str, str] = {}
+    for page in sorted(out.glob("page-*.json")):
+        data = json.loads(json.loads(page.read_text(encoding="utf-8"))["content"][0]["text"]).get("data", {})
+        for it in data.get("_items", []):
+            first_issue.setdefault(it.get("weaknessId"), it["id"])
+    types = {}
+    for wid, iid in first_issue.items():
+        res = client.call("get_issue", issueId=iid, includeType=True, includeOccurrenceProperties=False,
+                          includeFirstDetectedOn=False, **{k: v for k, v in scope.items() if k != "branchId"})
+        types[wid] = json.loads(res["content"][0]["text"]).get("data", {}).get("type")
+    (out / "types.json").write_text(json.dumps(types, indent=1), encoding="utf-8")
+    return len(types)
 
 
 def main(argv=None):
@@ -111,11 +129,16 @@ def main(argv=None):
     ex.add_argument("--project", required=True)
     ex.add_argument("--branch")
     ex.add_argument("--out", default="data/polaris-export")
+    ex.add_argument("--types-only", action="store_true", help="only (re)fetch types.json for an existing export")
     a = ap.parse_args(argv)
     if a.cmd == "export":
         out = Path(a.out)
         out.mkdir(parents=True, exist_ok=True)
-        n = export_issues(PolarisMCP(), out, projectId=a.project, **({"branchId": a.branch} if a.branch else {}))
+        scope = {"projectId": a.project, **({"branchId": a.branch} if a.branch else {})}
+        if a.types_only:
+            print(f"saved {fetch_types(PolarisMCP(), out, **scope)} issue types -> {out / 'types.json'}")
+            return
+        n = export_issues(PolarisMCP(), out, **scope)
         print(f"saved {n} issues -> {out}")
         return
     if a.cmd == "probe":

@@ -1,131 +1,152 @@
 # Finding Validation Agent
 
-An evidence-driven agent for validating commercial SAST, SCA, and DAST findings
-against the application source, its resolved dependencies, and authorized runtime
-evidence.
+Security scanners produce long lists of possible problems. Many of them turn out not
+to matter. This project is a tool that checks each one and says, with evidence,
+whether it's a real problem in the app you actually ship.
 
-## The idea
+## The problem
 
-Commercial scanners are good at finding candidates, but their results often mix
-deployed vulnerabilities with test code, inactive configuration, stale package
-versions, and findings that need application context. This project tests whether
-an AI agent can add that missing context without hiding uncertainty.
+Our scanners look at an application in three ways:
 
-The agent does not replace a scanner. It consumes scanner results, preserves every
-original finding, gathers independent evidence, and produces an auditable verdict.
+- **SAST** reads the source code and flags risky patterns, like user input going
+  straight into a database query.
+- **SCA** lists the open-source packages the app uses and flags known
+  vulnerabilities in them.
+- **DAST** attacks a running copy of the app and reports what worked.
 
-Cross-scanner *correlation* answers "which SAST, SCA, and DAST findings are the same
-flaw?" This project goes one step further and answers "is that flaw real in *this*
-deployment, and what is the evidence?" Correlation shrinks duplicates; validation
-shrinks the queue.
+Scanners are tuned to miss as little as possible, so they over-report. In our first
+test, on a practice app called OWASP Juice Shop, Polaris reported 570 findings. Most
+of them fell into categories that don't need a fix:
 
-## End result
+- code that only runs in tests
+- sample files that never execute
+- settings for a deployment that isn't used
+- package versions that aren't the ones installed
 
-For one build of an application, the finished agent will:
+A security team has to go through that list by hand, and the same findings come back
+on every scan.
 
-1. **Import** Polaris SAST, SCA, and DAST results, pinned to the exact source commit
-   and dependency snapshot the scans used.
-2. **Group** findings that describe the same flaw into one issue — for example a SAST
-   SQL-injection sink in `routes/search.ts`, the DAST hit on
-   `/rest/products/search?q=`, and an SCA advisory on the package involved.
-3. **Validate** each issue with independent evidence:
-   - Is the code reachable from a deployed route or entry point?
-   - Is it test code, inactive configuration, or a package that never ships?
-   - Is the vulnerable dependency function actually called?
-   - Did an authorized DAST scan observe it at runtime?
-4. **Decide** a verdict (below) with evidence receipts, confidence, and open questions.
-5. **Rank and route** issues into remediation queues, and export enriched SARIF back
-   to Polaris.
+## What this tool does
 
-## How this helps the security team
+For each scan, the tool:
 
-- **A smaller queue.** Findings outside the deployed boundary or without security
-  impact are closed with documented evidence instead of re-triaged every scan.
-- **Priority by evidence, not just scanner severity.** "Confirmed + reachable + seen
-  by DAST" comes first; a critical advisory in a never-called package drops.
-- **One fix, many findings.** A grouped issue becomes one ticket with the file, line,
-  route, and DAST request together; fixing it clears every linked finding.
-- **Fix location included.** Each ticket names the sink or dependency upgrade and why
-  it matters.
-- **Auditable closures.** Every "Not applicable" carries receipts a reviewer or
-  auditor can check.
-- **Gaps stay visible.** "Needs review" states exactly what is missing (for example,
-  "DAST did not cover this route"). Missing evidence never makes a finding look safe.
+1. **Collects the results** from all three scanners, tied to the exact version of the
+   code that was scanned.
+2. **Merges duplicates.** One flaw often shows up three times: SAST sees the risky
+   line, DAST sees the attack work, and SCA flags the package involved. The tool
+   joins them into one issue.
+3. **Checks each issue against the code.**
+   - Does the flagged code ship, or is it test code?
+   - Can a real user reach it?
+   - Is the vulnerable package actually used?
+   - Did the DAST scan show the attack working?
+4. **Gives a verdict and shows its reasoning.** Every verdict cites the evidence it
+   is based on.
+5. **Ranks what's left**, so the team fixes the most important real problems first.
 
-## What the agent should do
+An AI model helps with step 3 when the rules alone can't decide. The model can only
+add evidence. It can never mark something as confirmed on its own.
 
-1. Import SAST or SCA findings through a format adapter.
-2. Pin the exact source revision and dependency snapshot used by the scan.
-3. Correlate each finding with source, configuration, and deployment boundaries.
-4. Exercise only authorized, safe runtime paths in a disposable environment.
-5. Classify each finding with evidence, confidence, and unresolved questions.
-6. Export a vendor-neutral evidence ledger and enriched SARIF 2.1.0.
-7. Optionally run a separate discovery pass for issues the commercial tools missed.
+## The four verdicts
 
-## Verdict model
+| Verdict | Meaning |
+| --- | --- |
+| **Confirmed** | There is evidence the problem is real in this app, such as a DAST attack that worked. |
+| **Not applicable** | The finding doesn't affect the shipped app, for example because it's in test code. |
+| **Real, but not security** | The code issue is real, but it's a quality or reliability problem, not a security hole. |
+| **Needs review** | Not enough evidence either way. The tool says what's missing so a person can finish the job. |
 
-- **Confirmed:** Evidence supports a security-relevant issue in the tested deployment.
-- **Not applicable:** The finding does not apply to the tested source or runtime.
-- **Valid non-security:** The code observation is real but is quality or reliability related.
-- **Needs review:** Evidence is incomplete, conflicting, unsafe to obtain, or configuration dependent.
+"Not applicable" doesn't mean the scanner was wrong. The scanner may have correctly
+flagged code that simply never ships.
 
-“Not applicable” is intentionally different from “scanner false positive.” A scanner
-may correctly identify syntax that is outside the deployed application boundary.
+## How it helps the security team
 
-## Inputs and outputs
+- **Fewer items to review.** Findings that don't apply are closed with a written
+  reason, so they don't come back on every scan.
+- **Better priorities.** A problem that's confirmed, reachable and seen by DAST comes
+  before a "critical" warning in a package the app never calls.
+- **One fix clears several findings.** A merged issue becomes one ticket. Fixing it
+  closes the SAST, SCA and DAST entries together.
+- **Developers know where to look.** Each ticket names the file, the line and the web
+  address involved.
+- **Every closure can be checked.** An auditor can see why each finding was closed.
+- **Nothing is hidden.** If the tool isn't sure, the finding stays open as "Needs
+  review". A finding is never marked safe just because a scanner didn't report it.
 
-Initial inputs:
+## How this differs from merging findings in Polaris
 
-- Polaris SAST, SCA, and DAST exports
-- SARIF 2.1.0 from other scanners
-- A small documented CSV/JSON mapping for tools without SARIF
-- Source checkout and build/dependency metadata
-- Optional: an authorized local URL or command for a disposable test runtime
+Our product team plans to link SAST, SCA and DAST findings inside Polaris, so that
+fixing one clears the others. That answers "which findings are the same problem?"
 
-Outputs:
+This tool also answers "is that problem real in this app, and what's the proof?"
+Merging duplicates shortens the list a little. Checking the evidence shortens it a
+lot more.
 
-- Canonical JSONL finding ledger
-- Evidence receipts with secrets removed
-- Human-readable experiment report
-- Enriched SAST or SCA SARIF suitable for Polaris External Analysis
-- Optional comment/triage preview; platform writes remain approval-gated
+## Testing a running app needs permission
 
-## Runtime evidence and consent
+Attacking a customer's running app requires their consent, so the tool never does it
+by default. It gets proof that a problem is real at runtime in one of three ways:
 
-Actively probing a customer's running application requires their explicit consent,
-so live testing is never the default. Runtime evidence comes from one of three modes:
-
-| Mode | Runtime evidence source | When to use |
+| Setting | Where the proof comes from | When to use it |
 | --- | --- | --- |
-| `none` | Static evidence only | No runtime data available |
-| `dast-evidence` (default) | Findings from a DAST scan the customer already authorized | Normal use |
-| `live-localhost` | Safe probes against a disposable local instance | Intentionally vulnerable test apps (e.g. Juice Shop) only |
+| `none` | The code only | No runtime results available |
+| `dast-evidence` (default) | A DAST scan the customer already approved | Normal use |
+| `live-localhost` | Safe tests against a copy running on this machine | Practice apps like Juice Shop only |
+
+## Where things stand
+
+**Built and tested:**
+
+- Reading results from Polaris (SAST, SCA and DAST) and from other scanners that
+  export SARIF, a standard scanner results format
+- Telling shipped code apart from tests, samples and unused settings
+- Checking which package versions are actually installed
+- Tracing whether flagged code can be reached from the app's starting files
+- Merging SAST, SCA and DAST findings that describe the same problem
+- Using an approved DAST scan as proof that a problem is real
+- A batch command that runs all of the above, then asks an AI model about whatever
+  the rules couldn't decide
+
+**Not yet tested on real data:**
+
+- The DAST reader. It was built from a guessed format and needs checking against a
+  real Polaris DAST export.
+
+**Coming next:**
+
+- Final verdicts for each merged issue, a ranked fix list and reports
+- Measuring accuracy against findings that people have already reviewed
+- Moving this repository to a company GitHub account, before any real customer data
+  is used
+
+The full task list is in [ROADMAP.md](ROADMAP.md). Detailed status is in
+[CHECKPOINT.md](CHECKPOINT.md).
+
+## Try it
+
+```bash
+pip install -e .
+python -m pytest                                               # run the tests
+python -m fva assess --dry-run --source <path-to-juice-shop>   # prepare the AI prompts without sending them
+python -m fva assess --client claude-code --source <path-to-juice-shop>
+```
+
+Results go to `data/runs/<timestamp>-<client>/`. Real scanner data stays in `data/`,
+which is never committed.
 
 ## First case study
 
-The first experiment used OWASP Juice Shop 20.2.0 and 570 Polaris findings. Source
-and runtime analysis separated confirmed/current security findings, unresolved safe-
-testing cases, valid non-security observations, and findings not relevant to that
-specific deployment. See [Experiment 001](docs/experiments/001-juice-shop.md).
+The first experiment used OWASP Juice Shop 20.2.0 and 570 Polaris findings. See
+[Experiment 001](docs/experiments/001-juice-shop.md).
 
-## Current status
+## Ground rules
 
-The Juice Shop proof of concept is complete, and the intake, source-correlation,
-dependency, and reachability layers have been extracted into `fva/`. The next
-milestone adds DAST as runtime evidence and groups findings across scanners. Before
-any work that ingests real Polaris results, this repository will move to a company
-GitHub account. See [ROADMAP.md](ROADMAP.md).
+- Keep every original finding and record where each piece of evidence came from.
+- Say "needs review" rather than guess.
+- Never run destructive or denial-of-service tests.
+- Never test a live app without permission.
+- A missing DAST result never proves a finding is safe.
+- Keep passwords, customer data and private scanner exports out of this repository.
 
-## Project principles
-
-- Preserve original finding identifiers and raw evidence provenance.
-- Never force a binary verdict when evidence is insufficient.
-- Treat runtime observations as deployment-specific, not universal proof.
-- Keep SAST, SCA, and newly discovered findings separate in measurements.
-- Never run destructive, denial-of-service, or out-of-scope tests automatically.
-- No live runtime testing without explicit authorization; default to existing DAST evidence.
-- A missing DAST result is never proof that a finding is safe.
-- Keep credentials, proprietary exports, and sensitive source out of this repository.
-
-This is a research project, not a claim of complete vulnerability detection or an
-automatic replacement for human security review.
+This is a research project. It doesn't claim to find every vulnerability, and it
+doesn't replace a human security review.
