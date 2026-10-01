@@ -83,6 +83,44 @@ This tool also answers "is that problem real in this app, and what's the proof?"
 Merging duplicates shortens the list a little. Checking the evidence shortens it a
 lot more.
 
+## Which AI model handles each finding
+
+The tool sends each group of findings (findings on the same code line or advisory) to one of
+three model tiers. Fixed rules in code pick the tier, not a model (`fva/reasoning/routing.py`, `route()`).
+The first matching rule wins, and if any finding in a group needs the senior tier, the whole group goes there.
+
+| # | Rule | Tier |
+|---|---|---|
+| 1 | The scanner finding id was passed with `--astra <id>` | Astra |
+| 2 | Any finding is **critical** severity | Senior |
+| 3 | It is an **SCA** (open-source package) finding | Senior |
+| 4 | CWE is security-sensitive: injection and code execution (78, 79, 89, 94, 95, 676, 943), SSRF (918), authentication / authorization / JWT (284, 285, 287, 345, 347, 613, 639, 862, 863), crypto (320, 326, 327) | Senior |
+| 5 | CWE is bounded: dead code / no effect / unused value (398, 561, 563), hard-coded credentials (259, 321, 522, 547, 798) | Junior |
+| 6 | **High** severity with a CWE in neither list | Senior |
+| 7 | Everything else (low or medium severity, non-injection) | Junior |
+
+**Escalation.** A junior answer is re-asked once on the senior tier (no further retries, never to Astra) when:
+the output can't be parsed; a cited code quote isn't in the source; the answer argues both ways; the model reports
+low confidence (except hard-coded credentials, which only a runtime test can decide); or it argues that a high or
+critical finding doesn't apply. Both attempts are kept in `assessments.jsonl`.
+
+**Current model per tier** (`--client codex`, personal Codex subscription). Change a tier with its environment
+variable, no code change needed:
+
+| Tier | Role | Model today | Variable |
+|---|---|---|---|
+| Junior | Bulk, clear-cut questions | GPT-6 Luna (`gpt-6-luna`) | `FVA_MODEL_JUNIOR` |
+| Senior | Security judgment, escalations | GPT-6 Sol (`gpt-6-sol`) | `FVA_MODEL_SENIOR` |
+| Astra | Hard cases, manual flag only | GPT-6 Astra (`gpt-6-astra`) | `FVA_MODEL_ASTRA` |
+
+`--no-route` sends everything to the senior tier; `--model <name>` uses one model for everything.
+
+**Remapping for the company LiteLLM gateway (planned, not built).** The gateway client will use the same tiers
+and variables, set to the gateway's model aliases. Known on the gateway: GPT-5.6 Luna and GPT-5.6 Sol
+(GPT-6 not confirmed yet); Claude Opus / Sonnet / Haiku are alternatives. Re-run the routed comparison against
+the PoC answer key after remapping, because results for one model family don't carry over to another.
+See `CHECKPOINT.md`, "Work laptop: LiteLLM gateway".
+
 ## Testing a running app needs permission
 
 Attacking a customer's running app requires their consent, so the tool never does it
