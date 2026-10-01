@@ -184,6 +184,22 @@ Both runs used schema-enforced output and no credential low-confidence escalatio
 - Codex overhead dominates: about 20k of the ~24k input per call is Codex's system prompt, not ours.
   A direct API client would cut input about 6x (see item 9).
 
+## Work laptop: LiteLLM gateway instead of personal Codex (noted 2026-10-01, not built)
+
+After the move to the company's enterprise GitHub, personal Codex is not available. The company LiteLLM gateway
+(models hosted on Vertex, Bedrock, etc.) replaces it.
+- Known on the gateway: **GPT-5.6 Luna and GPT-5.6 Sol**. GPT-6 is not confirmed yet (maybe later).
+  Alternatives: Claude Opus / Sonnet / Haiku.
+- Plan: add `--client litellm` (OpenAI-compatible `/chat/completions`, reuse `OpenAICompatibleClient`), with
+  routing on as for codex; URL/key from `FVA_LITELLM_URL` / `FVA_LITELLM_KEY` (never logged); tiers via
+  `FVA_MODEL_JUNIOR` / `FVA_MODEL_SENIOR` / `FVA_MODEL_ASTRA` set to the gateway's aliases.
+- Needs: JSON-schema `response_format` with a fallback, real `usage` tokens + dollar estimate (closes item 8),
+  retry/backoff on 429/5xx, corporate CA bundle support.
+- Gains: no ~20k-token Codex system prompt (item 9), model name from the response, company-approved data path.
+- Before relying on it: re-run the routed A/B against the PoC ledger on the gateway models (Luna/Sol results
+  from GPT-6 do not carry over), and confirm gateway logging/retention in the data-handling sign-off.
+- Ask the gateway owner: exact model aliases, and whether JSON-schema output is enabled per model.
+
 ## Open / next
 
 Done 2026-09-28: structured output (`--output-schema`), no low-confidence escalation for credential CWEs,
