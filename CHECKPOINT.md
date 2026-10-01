@@ -9,6 +9,8 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 - 2026-10-01 (branch `claude/stoic-shannon-3wy7sq`): scanner mix without DAST, `likely` verdict, triage worksheet
   and review re-import (see "Scanner mix and write-back" below). Not yet run on the real Juice Shop export:
   run `assess` locally, then `python -m fva worksheet <run_dir>`.
+- First real worksheet (`data/runs/20261001-153602-codex/`): 573 rows, 499 issues; 430 not_applicable,
+  42 likely, 99 needs_review, 2 valid_non_security. Next: `python -m fva score <run_dir>` (added 2026-10-01).
 - **Next action:** "Open / next" items 1-2 (stance semantics, SCA advisory context), then a routed re-run
   compared against `data/runs/20260928-ab-routed/` (baseline for the current prompt; Sol-only baseline
   `data/runs/20260928-ab-sol/`).
@@ -26,6 +28,7 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 | Reason codes | `fva/reason_codes.py` | Vocabulary v1: 26 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer); 16 map 1:1 from the PoC |
 | Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence |
 | Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
+| Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
 | Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; `import-review` -> `human_review` evidence, superseding verdicts, agreement score |
 | Severity tables | `fva/severity.py` | SARIF level, CVSS bands, vendor strings; unknown strings fail loudly |
 | Raw provenance | `fva/provenance.py` | content-addressed refs `raw:sha256:<hex>#<pointer>` |

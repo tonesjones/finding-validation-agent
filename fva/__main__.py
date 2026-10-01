@@ -5,6 +5,7 @@
   python -m fva assess --dry-run ...        # write prompts only, no model calls
   python -m fva worksheet data/runs/<run>   # triage worksheet (CSV + HTML) for review
   python -m fva import-review data/runs/<run> filled.csv   # reviewer decisions -> human_review evidence
+  python -m fva score data/runs/<run>       # automatic scoring against the PoC answer key
 """
 from __future__ import annotations
 
@@ -79,7 +80,15 @@ def main(argv=None):
     r = sub.add_parser("import-review", help="turn a filled worksheet into human_review evidence and verdicts")
     r.add_argument("run_dir")
     r.add_argument("csv")
+    sc = sub.add_parser("score", help="score a run against an answer key (default: the Juice Shop PoC ledger)")
+    sc.add_argument("run_dir")
+    sc.add_argument("--key", default="data/poc-report/final-validation-ledger.jsonl")
     args = ap.parse_args(argv)
+
+    if args.cmd == "score":
+        from fva.export import score
+        print(score.score(Path(args.run_dir), Path(args.key)))
+        return
 
     if args.cmd in ("worksheet", "import-review"):
         from fva.export import worksheet

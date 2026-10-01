@@ -83,6 +83,85 @@ This tool also answers "is that problem real in this app, and what's the proof?"
 Merging duplicates shortens the list a little. Checking the evidence shortens it a
 lot more.
 
+## How a run works, step by step
+
+```
+Polaris export ──► 1 assess ──► 2 worksheet ──► 3 score (automatic) ──► 4 review (optional) ──► fixes
+ (read-only MCP)   evidence      CSV + HTML      vs answer key          human decisions
+```
+
+**1. Assess** (`python -m fva assess --client codex --source <checkout>`), output in `data/runs/<timestamp>-<client>/`:
+
+1. Load the Polaris findings (SAST, SCA, and DAST when the customer has it) and record the scanner mix.
+   No DAST (for example a non-web app) means runtime mode `none`: static evidence only.
+2. Pin the source: a content hash of the exact files that were scanned.
+3. Deployment boundary: findings in test code, sample files, unused deploy config or docs are set aside
+   with a rule-based reason. No model is called for them.
+4. Locate each remaining finding at its file and line; for SCA, compare the scanned package version with the
+   installed one (lockfile). A version that isn't installed is set aside too.
+5. Static reachability: is the file reachable from the app's entrypoints, is the package imported by shipped code.
+6. Link and group: an SCA package imported in a SAST finding's file, and a DAST hit on a SAST sink's route,
+   are merged into one issue. Every original finding is kept.
+7. Model assessment: one call per cluster (findings on the same sink or advisory), routed to the junior or senior
+   tier (see "Which AI model handles each finding"). Only redacted code is sent; every quoted line is checked
+   against the real source and dropped if it doesn't match.
+
+Files: `findings.jsonl` (every finding, its disposition and issue), `evidence.jsonl`, `assessments.jsonl`,
+`groups.jsonl`, `links.jsonl`, `summary.json`.
+
+**2. Worksheet** (`python -m fva worksheet <run_dir>`) turns the evidence into one suggested verdict per Polaris
+issue id, in `worksheet.csv` (Excel) and `worksheet.html` (grouped by issue). Every suggestion that cites evidence
+passes the same verdict rules as the rest of the tool (`fva/invariants.py`). A model argument alone never clears or
+promotes a finding: "doesn't apply" from the model alone stays needs review, and likely also needs rule evidence.
+Nothing is written to Polaris.
+
+**3. Score** (`python -m fva score <run_dir>`) compares the worksheet with an answer key. See below.
+
+**4. Review** (optional): fill `reviewer_decision` and `reviewer` in the CSV, then
+`python -m fva import-review <run_dir> <csv>`. Decisions become human-review evidence (a reviewer's `confirmed`
+is what turns likely into confirmed) and `review_summary.json` gives agreement per verdict.
+
+## Automatic scoring
+
+`python -m fva score <run_dir> [--key <answer key>]` measures a run without hand review. The default key is the
+Juice Shop proof-of-concept ledger (`data/poc-report/final-validation-ledger.jsonl`, 570 findings validated by hand
+and at runtime). Code: `fva/export/score.py`.
+
+**How it works.**
+1. Build the worksheet rows for the run (same logic as `fva worksheet`).
+2. Match each row to the key by Polaris issue id (`source_finding_id` = ledger `candidate_id`). Rows newer than
+   the key are reported as `not_in_key` and not scored.
+3. Convert the key's classification to a verdict and reason code (`LEGACY_POC_MAP` in `fva/reason_codes.py`),
+   for example `test_only` → not applicable / `TEST_ONLY`, `true_positive_runtime_validated` → confirmed.
+4. Give each row one outcome:
+
+| Outcome | Meaning |
+|---|---|
+| `agree` | Same verdict as the key. |
+| `agree_static` | Key says confirmed (proven at runtime), fva says likely. The best fva can do without runtime tests, so it counts as agreement. |
+| `unresolved` | fva says needs review. Not wrong, but a person still has to look. |
+| `incorrect_demotion` | Key says real or open, fva cleared it (not applicable or not security). **The dangerous error; the target is 0.** |
+| `over_flag` | Key cleared it, fva says likely or confirmed. Costs review time, not safety. |
+| `wrong_clearance_kind` | Both cleared it, but one says not applicable and the other not security. |
+| `other_mismatch` | Any other disagreement. |
+
+5. Compute the metrics:
+   - **Agreement**: (agree + agree_static) / scored rows. **Strict agreement**: agree only.
+   - **Incorrect demotions**: count, each listed in the report.
+   - **Unresolved rate**: needs review / scored rows.
+   - **Queue reduction**: share of all findings a person no longer has to triage (not needs review, likely or confirmed).
+   - **Reason code match**: of agreeing rows, how many also have the key's reason (e.g. both say `TEST_ONLY`).
+   - Breakdowns by answer-key verdict (confusion table), scanner (SAST/SCA/DAST) and tier (`rules` when no model
+     was called, `junior`, `senior`, `astra`), so Luna and Sol can be compared.
+
+**Output** in the run folder: `score.md` (readable report, with incorrect demotions listed first to check),
+`score.json` (all numbers, for comparing runs), `score_rows.csv` (every row with key verdict, fva verdict, tier and
+outcome, sorted by outcome).
+
+**Limits.** The key is one app (Juice Shop) validated by one PoC. Runtime-only verdicts (an active credential, an
+exploited advisory) can only reach `agree_static` or `unresolved` until runtime probes exist. A different app needs
+its own key in the same format (`candidate_id`, `classification`).
+
 ## Which AI model handles each finding
 
 The tool sends each group of findings (findings on the same code line or advisory) to one of
