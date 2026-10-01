@@ -1,6 +1,6 @@
 # Checkpoint
 
-Last updated: 2026-09-27. Update this file at every commit that changes status.
+Last updated: 2026-10-01. Update this file at every commit that changes status.
 
 ## Built (package `fva`, Python >= 3.10, tests: `python -m pytest`)
 
@@ -62,3 +62,40 @@ Last updated: 2026-09-27. Update this file at every commit that changes status.
 2. Runtime harness: allowlist and approval gate before any probe.
 3. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
 4. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
+
+## Milestone tasks — model estimate
+
+Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to implement well.
+**Opus**: design judgement, security reasoning, ambiguous matching, invariants that must not break.
+**Sonnet**: well-specified code following existing patterns. **Haiku**: mechanical edits only.
+
+| Milestone | Task | Model | Why |
+|---|---|---|---|
+| Pre-work | Move repo to company GitHub account | Haiku | Remote/URL updates only |
+| Pre-work | Confirm data-handling rules for real Polaris data | Sonnet | Draft checklist; humans decide |
+| v0.2 | Audit rejection of malformed inputs (raw exports untouched) | Sonnet | Tests against existing adapters |
+| v0.4 | Polaris DAST adapter (URL, method, parameter, CWE, redacted req/resp) | Sonnet | Mirrors `fva/adapters/polaris.py`; redaction via `fva/redact.py` |
+| v0.4 | SAST↔DAST linking by CWE, route/handler, parameter, with link confidence | Opus | Fuzzy route↔handler matching; false links mislead verdicts |
+| v0.4 | SCA↔SAST linking via vulnerable-function call sites | Opus | Advisory-to-function mapping, reachability semantics |
+| v0.4 | Grouped issue record keeping every original finding | Sonnet | Schema extension in `fva/schemas.py` |
+| v0.4 | Assessor uses linked DAST as runtime evidence; no-hit never demotes | Opus | Touches `fva/invariants.py` verdict rules |
+| v0.4 | Runtime mode setting (`none`, `dast-evidence`, `live-localhost`) | Haiku | Config flag plus guard |
+| v0.5 | Per-application runtime profile (start, health, base URL, stop) | Sonnet | Straightforward harness |
+| v0.5 | Safe HTTP/browser probes, localhost test apps only | Opus | Safety boundary; must not over-reach |
+| v0.5 | Redacted evidence receipts and negative controls | Sonnet | Reuses provenance/redaction |
+| v0.5 | Human approval gate for intrusive tests; no crash/DoS tests | Opus | Security-critical policy |
+| v0.6 | Verdicts with confidence and reason codes per grouped issue | Opus | Core decision logic |
+| v0.6 | Evidence-based priority ranking | Opus | Weighting design and justification |
+| v0.6 | One remediation ticket per grouped issue | Sonnet | Templating from grouped record |
+| v0.6 | Deterministic JSONL output and human-readable report | Sonnet | Serialization and formatting |
+| v0.6 | Enriched SAST/SCA/DAST SARIF, kept separate | Sonnet | SARIF spec work, existing adapter knowledge |
+| v0.6 | Approval-gated comment and triage previews | Sonnet | Preview only, no writes |
+| v0.7 | Independently adjudicated multi-app benchmark | Opus | Ground-truth judgement |
+| v0.7 | Metrics: queue reduction, precision, unresolved, incorrect demotions | Sonnet | Computation over ledgers |
+| v0.7 | Measure SAST↔DAST link accuracy | Sonnet | Metric over labelled links |
+| v0.7 | Measure scanner-gap discoveries separately | Opus | Judging novel findings |
+| v0.7 | Document model/prompt/tool/source/runtime versions | Haiku | Recording metadata |
+| Open | Live model-assessor run on Juice Shop vs PoC ledger | Opus | Reasoning quality is what's measured |
+| Open | `.gitattributes` for line endings | Haiku | One-line file |
+
+Totals: 11 Opus, 11 Sonnet, 4 Haiku. The model used *inside* the agent for assessment (`fva/reasoning/`) is a separate choice.
