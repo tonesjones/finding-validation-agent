@@ -1,0 +1,9 @@
+{
+ "content": [
+  {
+   "type": "text",
+   "text": "{\"data\": {\"weaknessId\": \"w-90\", \"occurrenceProperties\": [{\"key\": \"url\", \"value\": \"http://juice.internal:3000/rest/products/search?q=test\"}, {\"key\": \"http-method\", \"value\": \"GET\"}, {\"key\": \"parameter-name\", \"value\": \"q\"}, {\"key\": \"parameter-location\", \"value\": \"query\"}, {\"key\": \"cwe\", \"value\": \"CWE-89\"}, {\"key\": \"severity\", \"value\": \"high\"}, {\"key\": \"title\", \"value\": \"SQL Injection\"}, {\"key\": \"request\", \"value\": \"GET /rest/products/search?q=test%27 HTTP/1.1\\r\\nHost: juice.internal:3000\\r\\nAuthorization: Bearer FAKE-TOKEN-not-a-real-secret-0000\\r\\nCookie: session=FAKE-COOKIE-not-real; token=FAKE0000\\r\\n\\r\\n\"}, {\"key\": \"response-snippet\", \"value\": \"HTTP/1.1 500 Internal Server Error\\r\\n\\r\\nSQLITE_ERROR: near \\\"'\\\": syntax error\"}], \"_type\": \"issues\", \"id\": \"DAST1111BBBB2222CCCC3333DDDD4444\", \"context\": {\"toolType\": \"dast\", \"toolId\": \"fake-tool-id\", \"scanMode\": \"full\", \"date\": \"2026-09-04T00:00:00Z\", \"tenantId\": \"FAKE-TENANT-0000\", \"_links\": {\"self\": {\"href\": \"https://polaris.invalid/api/issues/DAST1111\"}}}, \"type\": {\"id\": \"00000000-0000-0000-0000-000000000000\", \"altName\": \"dast.sqli:web\", \"_localized\": {\"name\": \"SQL Injection\", \"otherDetails\": [{\"key\": \"description\", \"value\": \"Synthetic: user input reaches an SQL query unsanitized.\"}]}}}, \"success\": true, \"statusCode\": 200}"
+  }
+ ],
+ "isError": false
+}

@@ -78,7 +78,73 @@ def _unwrap(doc):
     return doc if isinstance(doc, list) else [doc]
 
 
+# TODO(real DAST sample): Polaris DAST MCP responses have never been sampled. ASSUMED: the same envelope
+# as SAST/SCA (`occurrenceProperties` key/value list, `context`, `type.altName`, `id`) with occurrence keys
+# `url`, `http-method`, `parameter-name`, `parameter-location`, `cwe`, `severity`, `title`, `request`,
+# `response-snippet`. Confirm against a real sample; only `from_dast_issue` should need to change.
+_SNIPPET_MAX = 500
+_PARAM_LOCS = {"query", "body", "header", "cookie", "path"}
+
+
+def _app_path(url: str) -> str:
+    """App-relative path only: no scheme, host, port, query, or fragment."""
+    from urllib.parse import urlsplit
+    path = urlsplit(url.strip()).path or "/"
+    return path if path.startswith("/") else "/" + path
+
+
+def _snippet(text, url: str) -> str | None:
+    """Scrub host, redact secrets, THEN truncate (so a cut never leaves a partial secret)."""
+    if not text:
+        return None
+    import re
+    from urllib.parse import urlsplit
+    from fva.redact import redact
+    t = str(text)
+    host = urlsplit(url.strip()).netloc
+    if host:
+        t = re.sub(re.escape(host), "[HOST]", t, flags=re.I)
+        t = re.sub(re.escape(host.rsplit("@", 1)[-1].split(":")[0]), "[HOST]", t, flags=re.I)
+    t = re.sub(r"(?im)^\s*host\s*:.*$", "Host: [HOST]", t)
+    return redact(t)[:_SNIPPET_MAX]
+
+
+def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str) -> _Finding:
+    from fva.schemas import EndpointRef
+    op = {p["key"]: p["value"] for p in issue.get("occurrenceProperties", [])}
+    ctx = issue.get("context") or {}
+    typ = issue.get("type") or {}
+    iid = issue["id"]
+    url = str(op.get("url") or "")
+    ploc = str(op.get("parameter-location") or "").lower()
+    ep = EndpointRef(method=str(op.get("http-method") or "GET"), path=_app_path(url),
+                     parameter=op.get("parameter-name") or None,
+                     parameter_location=ploc if ploc in _PARAM_LOCS else None)
+    alt = typ.get("altName") or ""
+    localized = typ.get("_localized") or {}
+    details = {d["key"]: d["value"] for d in localized.get("otherDetails") or []}
+    meta = {
+        "request_snippet": _snippet(op.get("request"), url),
+        "response_snippet": _snippet(op.get("response-snippet"), url),
+        "context": {k: ctx[k] for k in _SAFE_CONTEXT if k in ctx} or None,
+    }
+    return _Finding(
+        finding_id=str(_uuid.uuid5(_NS_MCP, f"finding:polaris:{iid}")), run_id=run_id,
+        source_tool="polaris", source_finding_id=iid,
+        rule_id=(alt.split(":")[0] if alt else None) or "unknown",
+        cwe=tuple(c.strip() for c in str(op.get("cwe", "")).split(",") if c.strip().startswith("CWE-")),
+        title=op.get("title") or localized.get("name") or "Untitled issue",
+        description=op.get("description") or details.get("description", ""),
+        severity=_sev.from_vendor(str(op.get("severity", "info"))),
+        finding_type=_FT.dast, endpoint=ep,
+        scanner_metadata={k: v for k, v in meta.items() if v not in (None, "", [])},
+        raw_evidence_ref=_raw_ref(raw_digest, pointer),
+    )
+
+
 def from_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str) -> _Finding:
+    if (issue.get("context") or {}).get("toolType") == "dast":
+        return from_dast_issue(issue, run_id=run_id, raw_digest=raw_digest, pointer=pointer)
     op = {p["key"]: p["value"] for p in issue.get("occurrenceProperties", [])}
     ctx = issue.get("context") or {}
     typ = issue.get("type") or {}
@@ -148,3 +214,8 @@ def load_mcp(paths, *, source_commit: str | None = None):
         for i, issue in enumerate(_unwrap(_json.loads(p.read_text(encoding="utf-8")))):
             out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}"))
     return run, out
+
+
+def load_dast(paths, *, source_commit: str | None = None):
+    """Explicit alias of load_mcp for DAST responses (same run/hashing behaviour)."""
+    return load_mcp(paths, source_commit=source_commit)
