@@ -98,4 +98,4 @@ Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to imp
 | Open | Live model-assessor run on Juice Shop vs PoC ledger | Opus | Reasoning quality is what's measured |
 | Open | `.gitattributes` for line endings | Haiku | One-line file |
 
-Totals: 11 Opus, 11 Sonnet, 4 Haiku. The model used *inside* the agent for assessment (`fva/reasoning/`) is a separate choice.
+Totals: 10 Opus, 12 Sonnet, 4 Haiku. The model used *inside* the agent for assessment (`fva/reasoning/`) is a separate choice.
