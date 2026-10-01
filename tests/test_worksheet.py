@@ -10,9 +10,9 @@ from fva.schemas import EvidenceRecord, EvidenceType, Stance
 NOW = datetime(2026, 10, 1, tzinfo=timezone.utc)
 
 
-def _ev(eid, fid, et, stance):
+def _ev(eid, fid, et, stance, profile="p"):
     return EvidenceRecord(evidence_id=eid, finding_ids=(fid,), evidence_type=et, method="m", stance=stance,
-                          summary="s", collected_at=NOW, deployment_profile_id="p").model_dump_json()
+                          summary="s", collected_at=NOW, deployment_profile_id=profile).model_dump_json()
 
 
 def _row(fid, ftype, disp, sev="high"):
@@ -30,6 +30,7 @@ def run(tmp_path):
            _ev("e2", "l", EvidenceType.reachability, Stance.neutral),
            _ev("e3", "m", EvidenceType.model_assessment, Stance.supports),  # model only
            _ev("e4", "d", EvidenceType.dast_observation, Stance.supports),
+           _ev("e6", "q", EvidenceType.static_source, Stance.neutral, profile=None),  # real runs: no profile id
            _ev("e5", "q", EvidenceType.model_assessment, Stance.non_security)]
     (tmp_path / "evidence.jsonl").write_text("\n".join(evs) + "\n")
     return tmp_path

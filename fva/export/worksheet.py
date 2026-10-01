@@ -44,8 +44,10 @@ def _read_jsonl(p: Path) -> list[dict]:
 
 
 def _check(fid: str, verdict: V, codes: tuple[str, ...], evs: list[EvidenceRecord], conf: str) -> bool:
+    # some records (e.g. source location) carry no profile id
+    profile = next((e.deployment_profile_id for e in evs if e.deployment_profile_id), "worksheet")
     try:
-        check_verdict(Verdict(verdict_id="probe", finding_id=fid, deployment_profile_id=evs[0].deployment_profile_id,
+        check_verdict(Verdict(verdict_id="probe", finding_id=fid, deployment_profile_id=profile,
                               verdict=verdict, reason_codes=codes, confidence=conf,
                               evidence_ids=tuple(e.evidence_id for e in evs), narrative="-",
                               decided_at=datetime.now(timezone.utc), decided_by={"method": "rules"}),
