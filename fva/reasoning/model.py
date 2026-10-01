@@ -60,3 +60,98 @@ class ScriptedClient:
     def complete(self, system: str, user: str, *, max_tokens: int = 2000) -> str:
         self.prompts.append((system, user))
         return self._responses.pop(0)
+
+
+# ------------------------------------------------------------------------------------------
+# Subscription-backed CLI clients (run on the user's machine where the CLI is logged in)
+# ------------------------------------------------------------------------------------------
+import re
+import shlex
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+SCHEMA_FILE = Path(__file__).with_name("assessment.schema.json")  # reply shape, for CLIs that enforce one
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+class _CliClient:
+    """Runs a local agent CLI non-interactively in an EMPTY temp directory, prompt on stdin.
+
+    The empty working directory means the agent has no repository to browse: it sees only
+    the redacted prompt we send. Override the command with an env var if your CLI version
+    uses different flags (the first run doubles as a smoke test).
+    """
+
+    env_var = ""
+    default_cmd = ""
+    model_id = "cli"
+
+    model_flag = "-m"
+    last_reported_model: str | None = None  # parsed from the CLI's own `model: <name>` header line
+    last_tokens: int | None = None  # parsed from the CLI's `tokens used` footer, when it prints one
+
+    def __init__(self, command: str | None = None, timeout: int = 600, model: str | None = None):
+        cmd = command or os.environ.get(self.env_var) or self.default_cmd
+        self._argv = shlex.split(cmd, posix=(os.name != "nt"))
+        if model:  # insert right after the subcommand words, before the trailing '-' (stdin) if present
+            at = len(self._argv) - 1 if self._argv[-1] == "-" else len(self._argv)
+            self._argv[at:at] = [self.model_flag, model]
+            self.model_id = f"{self.model_id}:{model}"
+        exe = shutil.which(self._argv[0])
+        if exe is None:
+            raise SystemExit(f"'{self._argv[0]}' not found on PATH (set {self.env_var} to override)")
+        self._argv[0] = exe
+        self._timeout = timeout
+
+    def _run(self, prompt: str, workdir: Path) -> str:
+        argv = [a.replace("{out}", str(workdir / "last_message.txt")).replace("{schema}", str(SCHEMA_FILE))
+                for a in self._argv]
+        self.last_reported_model = self.last_tokens = None
+        r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           cwd=workdir, timeout=self._timeout)
+        if r.returncode != 0:
+            log_dir = Path(os.environ.get("FVA_CLI_LOG_DIR", "data/logs"))
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log = log_dir / f"{Path(argv[0]).stem}-{workdir.name}.log"
+            log.write_text(f"argv: {argv}\nexit: {r.returncode}\n--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}",
+                           encoding="utf-8")
+            tail = "\n".join(((r.stderr or "") + "\n" + (r.stdout or "")).strip().splitlines()[-12:])
+            raise RuntimeError(f"{Path(argv[0]).name} exited {r.returncode} (full log: {log}):\n{tail}")
+        log = _ANSI.sub("", f"{r.stderr}\n{r.stdout}")
+        m = re.search(r"^model:\s*(\S+)", log, re.M)
+        self.last_reported_model = m.group(1) if m else None
+        t = re.search(r"^tokens used\s*\n\s*([\d,]+)", log, re.M)
+        self.last_tokens = int(t.group(1).replace(",", "")) if t else None
+        out_file = workdir / "last_message.txt"
+        return out_file.read_text(encoding="utf-8") if out_file.exists() else r.stdout
+
+    def complete(self, system: str, user: str, *, max_tokens: int = 2000) -> str:
+        prompt = (f"{system}\n\n---\n\n{user}\n\nRespond with the JSON object only. Do not run commands or read files. "
+                  "Do not delegate or spawn sub-agents; answer this yourself.")
+        with tempfile.TemporaryDirectory(prefix="fva-model-") as d:
+            return self._run(prompt, Path(d))
+
+
+class CodexCliClient(_CliClient):
+    """OpenAI Codex CLI on a ChatGPT/Codex subscription login: `codex exec`, read-only sandbox,
+    final reply constrained to the assessment JSON schema."""
+
+    env_var = "FVA_CODEX_CMD"
+    default_cmd = ("codex exec --skip-git-repo-check --sandbox read-only --output-schema {schema} "
+                   "--output-last-message {out} -")
+    model_id = "codex-cli"
+
+    @property
+    def cache_tag(self) -> str:
+        return "schema-v1" if any("{schema}" in a for a in self._argv) else ""
+
+
+class ClaudeCodeClient(_CliClient):
+    """Claude Code on a Claude subscription login: `claude -p` (print mode), no tools."""
+
+    env_var = "FVA_CLAUDE_CMD"
+    default_cmd = "claude -p --output-format text"
+    model_id = "claude-code-cli"
+    model_flag = "--model"

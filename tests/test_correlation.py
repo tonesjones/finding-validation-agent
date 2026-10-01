@@ -92,3 +92,18 @@ def test_all_poc_sast_findings_locate_exactly():
     idx = SourceIndex.build(Path(JUICE))
     statuses = {locate(f, idx).status for f in fs if f.location}
     assert statuses == {"exact"}
+
+
+def test_git_output_decoding_is_locale_independent(tmp_path):
+    """Regression: on Windows (cp1252) non-ASCII file names crashed git output decoding."""
+    import sys
+    (tmp_path / "ᓚᘏᗢ-cat.jpg").write_bytes(b"x")
+    (tmp_path / "a.ts").write_text("x\n")
+    g = lambda *a: subprocess.run(["git", "-C", str(tmp_path), *a], check=True, capture_output=True)
+    g("init", "-q"); g("add", "."); g("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "i")
+    code = ("import sys; from pathlib import Path; from fva.correlation.source_pin import _git; "
+            f"out = _git(Path({str(tmp_path)!r}), 'ls-files', '-z'); assert out is not None and 'a.ts' in out")
+    env = {**os.environ, "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0",
+           "PYTHONPATH": str(Path(__file__).resolve().parents[1])}
+    r = subprocess.run([sys.executable, "-X", "utf8=0", "-c", code], env=env, capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr

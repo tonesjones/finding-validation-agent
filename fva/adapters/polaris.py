@@ -109,11 +109,11 @@ def _snippet(text, url: str) -> str | None:
     return redact(t)[:_SNIPPET_MAX]
 
 
-def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str) -> _Finding:
+def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types: dict | None = None) -> _Finding:
     from fva.schemas import EndpointRef
     op = {p["key"]: p["value"] for p in issue.get("occurrenceProperties", [])}
     ctx = issue.get("context") or {}
-    typ = issue.get("type") or {}
+    typ = issue.get("type") or (types or {}).get(issue.get("weaknessId")) or {}
     iid = issue["id"]
     url = str(op.get("url") or "")
     ploc = str(op.get("parameter-location") or "").lower()
@@ -142,12 +142,12 @@ def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str) 
     )
 
 
-def from_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str) -> _Finding:
+def from_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types: dict | None = None) -> _Finding:
     if (issue.get("context") or {}).get("toolType") == "dast":
-        return from_dast_issue(issue, run_id=run_id, raw_digest=raw_digest, pointer=pointer)
+        return from_dast_issue(issue, run_id=run_id, raw_digest=raw_digest, pointer=pointer, types=types)
     op = {p["key"]: p["value"] for p in issue.get("occurrenceProperties", [])}
     ctx = issue.get("context") or {}
-    typ = issue.get("type") or {}
+    typ = issue.get("type") or (types or {}).get(issue.get("weaknessId")) or {}
     is_sca = (ctx.get("toolType") == "sca") or ("component-name" in op)
     iid = issue["id"]
     pkg = None
@@ -208,11 +208,13 @@ def load_mcp(paths, *, source_commit: str | None = None):
                adapter="fva.adapters.polaris:mcp@0.2.0", raw_artifact_sha256=h.hexdigest(),
                raw_artifact_name=",".join(p.name for p in sorted(paths)), source_commit=source_commit,
                ingested_at=_dt.now(_tz.utc))
+    types_file = paths[0].parent / "types.json"
+    types = _json.loads(types_file.read_text(encoding="utf-8")) if types_file.exists() else None
     out = []
     for p in sorted(paths):
         digest = _sha(p)
         for i, issue in enumerate(_unwrap(_json.loads(p.read_text(encoding="utf-8")))):
-            out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}"))
+            out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}", types=types))
     return run, out
 
 
