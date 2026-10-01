@@ -66,3 +66,19 @@ the verdict:
 
 The model proposes and interprets evidence. Deterministic code handles parsing,
 hashing, schema checks, redaction rules, deduplication, and output generation.
+
+## Cross-scanner grouping and DAST evidence (v0.4)
+
+- `Finding.endpoint` (`EndpointRef`) holds a DAST target as an app-relative path,
+  method and parameter. The host is dropped on import.
+- `FindingLink` records a claim that two findings are the same flaw (`sast_dast`
+  or `sca_sast`) with a `confidence` and its `basis`. A link is evidence of
+  identity, not of exploitability.
+- `GroupedIssue` is a connected set of linked findings. It keeps every original
+  finding id and names the `primary_finding_id` a developer fixes.
+- `EvidenceType.dast_observation` is runtime evidence from a DAST scan the
+  application owner already authorized. Like a probe, it must name its deployment
+  profile. Only a high-confidence link produces a `supports` stance. Lower-confidence
+  links are `neutral` context. A missing DAST hit produces no evidence at all.
+- `RuntimeMode` selects the runtime evidence source: `none`, `dast-evidence`
+  (default) or `live-localhost` (test apps only).

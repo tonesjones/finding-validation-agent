@@ -32,15 +32,16 @@ prioritized issue per real flaw, built from Polaris SAST, SCA, and DAST results.
 - [x] Reconcile SCA findings with the resolved dependency snapshot.
 - [x] Record reachability claims separately from runtime observations.
 
-## v0.4 — DAST evidence and cross-scanner grouping (next)
+## v0.4 — DAST evidence and cross-scanner grouping (done)
 
-- [ ] Polaris DAST adapter: URL, method, parameter, CWE, redacted request/response.
-- [ ] SAST↔DAST linking by CWE, route/handler, and parameter, with link confidence.
-- [ ] SCA↔SAST linking via call sites of the vulnerable dependency function.
-- [ ] Grouped issue record that keeps every original finding and its evidence.
-- [ ] Assessor treats a linked DAST observation as runtime evidence; absence of a
+- [x] Polaris DAST adapter: URL, method, parameter, CWE, redacted request/response.
+- [x] SAST↔DAST linking by CWE, route/handler, and parameter, with link confidence.
+- [x] SCA↔SAST linking via shipped import sites in the SAST file (file-level).
+- [ ] Refine SCA↔SAST linking to call sites of the vulnerable function.
+- [x] Grouped issue record that keeps every original finding and its evidence.
+- [x] Assessor treats a linked DAST observation as runtime evidence; absence of a
       DAST hit never demotes a finding.
-- [ ] Runtime mode setting: `none`, `dast-evidence` (default), `live-localhost`.
+- [x] Runtime mode setting: `none`, `dast-evidence` (default), `live-localhost`.
 
 ## v0.5 — Optional live validation (test targets only)
 

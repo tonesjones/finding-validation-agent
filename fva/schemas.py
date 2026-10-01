@@ -1,10 +1,12 @@
 """Canonical, vendor-neutral data model.
 
-Four record kinds, all append-only:
+Record kinds, all append-only:
 
 * IngestionRun   - one import of one raw scanner artifact (pins source commit + raw hash)
 * Finding        - one scanner-reported issue, normalized
 * EvidenceRecord - one observation; may support several findings (one probe, many rows)
+* FindingLink    - a claim that two findings from different scanners describe one flaw
+* GroupedIssue   - the connected set of linked findings; every original finding is kept
 * Verdict        - one decision for one finding under one deployment profile; never
                    overwritten, a re-decision supersedes the old verdict_id
 
@@ -35,6 +37,15 @@ class Severity(str, Enum):
 class FindingType(str, Enum):
     sast = "sast"
     sca = "sca"
+    dast = "dast"
+
+
+class RuntimeMode(str, Enum):
+    """Where runtime evidence may come from. Live probing is never the default."""
+
+    none = "none"  # static evidence only
+    dast_evidence = "dast-evidence"  # observations from a DAST scan the owner already authorized
+    live_localhost = "live-localhost"  # safe probes against a disposable local test app only
 
 
 class Surface(str, Enum):
@@ -72,6 +83,7 @@ class EvidenceType(str, Enum):
     dependency_resolution = "dependency_resolution"
     reachability = "reachability"  # static claim - never merged with runtime
     runtime_probe = "runtime_probe"
+    dast_observation = "dast_observation"  # authorized DAST scan result linked to the finding
     negative_control = "negative_control"
     advisory_precondition = "advisory_precondition"
     imported_assessment = "imported_assessment"  # carried over from a prior tool/PoC, unverified here
@@ -120,6 +132,27 @@ class PackageRef(_Model):
     linked_advisory_ids: tuple[str, ...] = ()  # e.g. BDSA ids
 
 
+class EndpointRef(_Model):
+    """A DAST target. Host is dropped on import: only the path within the app is kept."""
+
+    method: str = "GET"
+    path: str  # e.g. "/rest/products/search"; no scheme, host, or query string
+    parameter: str | None = None  # e.g. "q"
+    parameter_location: Literal["query", "body", "header", "cookie", "path"] | None = None
+
+    @field_validator("method")
+    @classmethod
+    def _upper(cls, v: str) -> str:
+        return v.upper()
+
+    @field_validator("path")
+    @classmethod
+    def _path_only(cls, v: str) -> str:
+        if "://" in v or "?" in v or not v.startswith("/"):
+            raise ValueError(f"endpoint path must be an app-relative path, got {v!r}")
+        return v
+
+
 class Finding(_Model):
     finding_id: str
     run_id: str
@@ -134,6 +167,7 @@ class Finding(_Model):
     finding_type: FindingType
     location: FindingLocation | None = None
     package: PackageRef | None = None
+    endpoint: EndpointRef | None = None  # DAST only
     fingerprint: str | None = None  # for cross-tool de-duplication later
     scanner_metadata: dict[str, Any] = {}  # vendor extras: reachability, triage, links
     raw_evidence_ref: str  # "raw:sha256:<hex>#<json-pointer or line>"
@@ -164,7 +198,8 @@ class EvidenceRecord(_Model):
 
     @model_validator(mode="after")
     def _runtime_needs_profile(self):
-        if self.evidence_type in (EvidenceType.runtime_probe, EvidenceType.negative_control) and not self.deployment_profile_id:
+        if self.evidence_type in (EvidenceType.runtime_probe, EvidenceType.negative_control,
+                                  EvidenceType.dast_observation) and not self.deployment_profile_id:
             raise ValueError("runtime evidence must name its deployment_profile_id")
         return self
 
@@ -183,6 +218,41 @@ class DeploymentProfile(_Model):
     extra_path_rules: tuple[tuple[str, Surface], ...] = ()  # app-specific glob -> surface
     base_url: str | None = None
     entrypoints: tuple[str, ...] = ()  # repo-relative files where execution starts (server + client)
+
+
+# ------------------------------------------------------------------ grouping
+
+
+class LinkKind(str, Enum):
+    sast_dast = "sast_dast"  # static sink observed at runtime by DAST
+    sca_sast = "sca_sast"  # vulnerable package used at a SAST-reported site / call site
+
+
+class FindingLink(_Model):
+    """A claim that two findings describe the same flaw. Links are evidence of identity, not of exploitability."""
+
+    link_id: str
+    kind: LinkKind
+    from_finding_id: str  # sast (sast_dast) or sca (sca_sast)
+    to_finding_id: str  # dast (sast_dast) or sast (sca_sast)
+    confidence: Literal["high", "medium", "low"]
+    basis: tuple[str, ...] = Field(min_length=1)  # e.g. ("cwe", "route", "parameter")
+    method: str  # e.g. "fva.correlation.runtime_link@0.1.0"
+
+
+class GroupedIssue(_Model):
+    issue_id: str  # deterministic from the sorted member ids
+    finding_ids: tuple[str, ...] = Field(min_length=1)  # sorted, unique; never drops an original finding
+    link_ids: tuple[str, ...] = ()
+    primary_finding_id: str  # the finding a developer fixes (SAST sink when present)
+
+    @model_validator(mode="after")
+    def _members(self):
+        if list(self.finding_ids) != sorted(set(self.finding_ids)):
+            raise ValueError("finding_ids must be sorted and unique")
+        if self.primary_finding_id not in self.finding_ids:
+            raise ValueError("primary_finding_id must be a member")
+        return self
 
 
 # ----------------------------------------------------------------------- verdict

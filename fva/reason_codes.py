@@ -42,6 +42,7 @@ _CODES = [
     ReasonCode("RUNTIME_EXPLOITED", V.confirmed, "Advisory/vulnerability exploited against the live runtime."),
     ReasonCode("ACTIVE_CREDENTIAL", V.confirmed, "Hard-coded credential authenticates in the live runtime."),
     ReasonCode("BROWSER_EXECUTION_CONFIRMED", V.confirmed, "Script execution observed in a real browser."),
+    ReasonCode("DAST_OBSERVED", V.confirmed, "An authorized DAST scan observed the issue; linked to it with high confidence."),
     # needs_review
     ReasonCode("REACHABLE_NOT_EXPLOITED", V.needs_review, "Vulnerable component is reachable; exact advisory not executed."),
     ReasonCode("UNSAFE_TO_TEST", V.needs_review, "Confirming would require a destructive/DoS test; not run."),

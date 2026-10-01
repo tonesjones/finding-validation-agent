@@ -8,7 +8,7 @@ from fva.schemas import EvidenceRecord, EvidenceType, Stance, Verdict, VerdictVa
 
 # Evidence types that may carry a confirmation. Static claims and model output never can.
 CONFIRMING_TYPES = {EvidenceType.runtime_probe, EvidenceType.negative_control, EvidenceType.human_review,
-                    EvidenceType.imported_assessment}
+                    EvidenceType.imported_assessment, EvidenceType.dast_observation}
 
 _REQUIRED_STANCE = {
     VerdictValue.confirmed: Stance.supports,
