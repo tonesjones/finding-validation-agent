@@ -32,6 +32,35 @@ def test_pipeline_end_to_end(tmp_path):
     ev = [json.loads(l) for l in (out / "evidence.jsonl").read_text().splitlines()]
     model_ev = [e for e in ev if e["evidence_type"] == "model_assessment"]
     assert len(model_ev) == 1 and len(model_ev[0]["finding_ids"]) == 2
+    # the rule-skipped test-file finding keeps the boundary record its closure cites
+    (b,) = [e for e in ev if e["evidence_type"] == "deployment_boundary"]
+    assert b["stance"] == "refutes" and b["method"] == "path_rule:test" and b["detail_ref"]
+    from fva.export import worksheet
+    rows = {r["source_finding_id"]: r for r in worksheet.build(out)}
+    assert rows["C"]["fva_verdict"] == "not_applicable" and rows["C"]["evidence_ids"] == b["evidence_id"]
+
+
+def test_version_drift_closure_cites_dependency_evidence(tmp_path):
+    from pathlib import Path
+    from fva.export import worksheet
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "server.ts").write_text("import multer from 'multer'\n")
+    rows = [{"candidate_id": "S", "tool": "SCA", "severity": "medium", "issue_type": "DoS", "component": "multer",
+             "component_version": "1.4.5-lts.1"}]  # the lockfile has another multer version
+    fj = tmp_path / "f.jsonl"
+    fj.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    prof = DeploymentProfile(profile_id="p", name="t", language_packs=("node",), entrypoints=("server.ts",))
+    out = tmp_path / "out"
+    s = pipeline.run(findings_spec=str(fj), source_root=src, profile=prof, client=ScriptedClient([]), out_dir=out,
+                     lockfile=Path(__file__).parent / "fixtures" / "package-lock.min.json", log=lambda *_: None)
+    assert s["skipped"] == {"dependency:version_drift": 1} and s["clusters"] == 0
+    ev = [json.loads(l) for l in (out / "evidence.jsonl").read_text().splitlines()]
+    (d,) = [e for e in ev if e["evidence_type"] == "dependency_resolution"]
+    assert d["stance"] == "refutes" and d["method"] == "inventory:version_drift"
+    (r,) = worksheet.build(out)
+    assert r["fva_verdict"] == "not_applicable" and r["reason_codes"] == "VERSION_DRIFT"
+    assert d["evidence_id"] in r["evidence_ids"].split()
 
 
 def _mcp_run(tmp_path, names):
@@ -52,6 +81,8 @@ def _mcp_run(tmp_path, names):
     s = pipeline.run(findings_spec=str(inp / "*.json"), source_root=src, profile=prof, client=ScriptedClient([]),
                      out_dir=out, dry_run=True, log=lambda *_: None)
     rows = [json.loads(l) for l in (out / "findings.jsonl").read_text().splitlines()]
+    # rule evidence for skipped findings never enters a prompt (prompt hashes, and so the model cache, are unchanged)
+    assert not any("deployment_boundary" in p.read_text() for p in (out / "prompts").glob("*.txt"))
     return s, rows
 
 
@@ -69,3 +100,4 @@ def test_dast_findings_are_grouped_not_assessed(tmp_path):
     (d,) = [r for r in rows if r["finding_type"] == "dast"]
     assert d["disposition"] == "runtime_only" and d["endpoint"] == "GET /rest/products/search"
     assert s["clusters"] <= 2  # DAST never becomes a model cluster
+

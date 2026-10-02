@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fva.adapters import polaris
-from fva import runtime_mode
+from fva import runtime_mode, surface
 from fva.correlation import dast_evidence, dependency, grouping, locate, package_link, reachability, runtime_link
 from fva.correlation.source_pin import iter_files, pin
 from fva.langpacks import REGISTRY
@@ -51,7 +51,7 @@ def cluster_key(f: Finding) -> tuple:
 class Batch:
     clusters: "OrderedDict[tuple, list[Finding]]"
     skipped: dict[str, int]
-    pre_evidence: dict[str, list]  # finding_id -> evidence records
+    pre_evidence: dict[str, list]  # finding_id -> evidence records (assessed and rule-skipped findings)
     sites: dict[tuple, list[tuple[str, int]]]
     disposition: dict[str, str]  # finding_id -> "assess" or the skip reason (e.g. "surface:test")
 
@@ -71,14 +71,16 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
     skipped: dict[str, int] = {}
     pre, sites, disp = {}, {}, {}
 
-    def skip(f: Finding, why: str):
+    def skip(f: Finding, why: str, ev: list):
+        """Rule-decided finding: keep the evidence the rule used, so the closure can cite it."""
         skipped[why] = skipped.get(why, 0) + 1
         disp[f.finding_id] = why
+        pre[f.finding_id] = ev
 
     for f in findings:
         surf = classify_finding(f, profile)
         if not is_deployed(surf, profile):
-            skip(f, f"surface:{surf.value}")
+            skip(f, f"surface:{surf.value}", [surface.to_evidence(f, profile)])
             continue
         ev = []
         if f.location:
@@ -87,12 +89,12 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
             d = dependency.reconcile(f, inventory)
             ev.append(dependency.to_evidence(d, inventory_ref=str(lockfile.name), profile_id=profile.profile_id))
             if d.status in ("version_drift", "not_installed"):
-                skip(f, f"dependency:{d.status}")
+                skip(f, f"dependency:{d.status}", ev)
                 continue
         r = reachability.assess(f, graph, profile, declared_direct=direct)
         ev.append(reachability.to_evidence(r, source_content_sha256=snapshot_sha, profile_id=profile.profile_id))
         if r.status == "imported_only_outside_deployment":
-            skip(f, "reachability:outside_deployment")
+            skip(f, "reachability:outside_deployment", ev)
             continue
         disp[f.finding_id] = "assess"
         pre[f.finding_id] = ev
