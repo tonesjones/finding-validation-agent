@@ -142,6 +142,21 @@ def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, 
     )
 
 
+# kept in sync by hand; fva census reports keys the adapter drops
+USED_OCCURRENCE_KEYS: frozenset[str] = frozenset({
+    "location", "line-number", "function-name", "cwe", "severity", "title", "description", "checker", "language",
+    "component-origin-external-id", "component-name", "component-version-name",
+    "component-origin-external-namespace", "vulnerability-id", "vulnerability-source", "base-score", "solution",
+    "minor-version-upgrade-guidance-version-name", "major-version-upgrade-guidance-version-name",
+    "coverity-events", "url", "http-method", "parameter-name", "parameter-location", "request",
+    "response-snippet",
+})
+USED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({
+    "id", "weaknessId", "type", "context", "occurrenceProperties", "reachability", "reachabilityEvidenceCount",
+    "componentLocations", "triageProperties",
+})
+
+
 def from_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types: dict | None = None) -> _Finding:
     if (issue.get("context") or {}).get("toolType") == "dast":
         return from_dast_issue(issue, run_id=run_id, raw_digest=raw_digest, pointer=pointer, types=types)

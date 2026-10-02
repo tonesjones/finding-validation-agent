@@ -26,7 +26,8 @@ def run(tmp_path):
     rows = [_row("t", "sast", "surface:test"), _row("l", "sast", "assess"), _row("m", "sast", "assess"),
             _row("d", "sast", "assess"), _row("q", "sast", "assess", "low")]
     (tmp_path / "findings.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
-    evs = [_ev("e1", "l", EvidenceType.model_assessment, Stance.supports),
+    evs = [_ev("e0", "t", EvidenceType.deployment_boundary, Stance.refutes),  # rule skip cites its boundary record
+           _ev("e1", "l", EvidenceType.model_assessment, Stance.supports),
            _ev("e2", "l", EvidenceType.reachability, Stance.neutral),
            _ev("e3", "m", EvidenceType.model_assessment, Stance.supports),  # model only
            _ev("e4", "d", EvidenceType.dast_observation, Stance.supports),
@@ -41,7 +42,7 @@ def test_suggestions(run):
     rows = {r["source_finding_id"]: r for r in csv.DictReader(open(run / "worksheet.csv", encoding="utf-8-sig"))}
     assert s["rows"] == 5 and list(rows) and set(rows) == {"POL-t", "POL-l", "POL-m", "POL-d", "POL-q"}
     assert rows["POL-t"]["fva_verdict"] == "not_applicable" and rows["POL-t"]["reason_codes"] == "TEST_ONLY"
-    assert rows["POL-t"]["suggested_severity"] == "informational"
+    assert rows["POL-t"]["suggested_severity"] == "informational" and rows["POL-t"]["evidence_ids"] == "e0"
     assert rows["POL-l"]["fva_verdict"] == "likely"
     assert rows["POL-m"]["fva_verdict"] == "needs_review"  # model output alone is never likely
     assert rows["POL-d"]["fva_verdict"] == "confirmed" and rows["POL-d"]["reason_codes"] == "DAST_OBSERVED"
@@ -77,3 +78,13 @@ def test_review_needs_reviewer_and_valid_decision(run):
     p = _fill(run, {"POL-l": "maybe"})
     with pytest.raises(ValueError, match="reviewer_decision"):
         worksheet.import_reviews(run, p)
+
+
+def test_rule_skip_without_evidence_stays_open(run):
+    """A run made before rule evidence existed: the closure has nothing to cite, so it is not closed."""
+    ev = run / "evidence.jsonl"
+    ev.write_text("\n".join(l for l in ev.read_text().splitlines() if '"e0"' not in l) + "\n")
+    s = worksheet.write(run)
+    rows = {r["source_finding_id"]: r for r in csv.DictReader(open(run / "worksheet.csv", encoding="utf-8-sig"))}
+    assert rows["POL-t"]["fva_verdict"] == "needs_review" and rows["POL-t"]["evidence_ids"] == ""
+    assert "1 rule-skipped" in s["warning"]

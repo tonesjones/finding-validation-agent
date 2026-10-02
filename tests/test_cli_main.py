@@ -43,3 +43,19 @@ def test_other_clients_are_not_routed(made):
 def test_astra_needs_routing(made, kw):
     with pytest.raises(SystemExit):
         cli._router(args(**kw))
+
+
+def test_missing_lockfile_warns(tmp_path, monkeypatch, capsys):
+    from fva import pipeline
+    seen = {}
+    monkeypatch.setattr(pipeline, "run", lambda **kw: seen.update(kw) or {})
+    cli.main(["assess", "--dry-run", "--source", str(tmp_path), "--lockfile", str(tmp_path / "missing.json"),
+              "--out", str(tmp_path / "out"), "--workers", "3", "--credential-model", "skip"])
+    assert "lockfile not found" in capsys.readouterr().err
+    assert seen["lockfile"] is None and seen["workers"] == 3 and seen["credential_model"] == "skip"
+
+
+def test_delegated_subcommand(tmp_path, capsys):
+    from pathlib import Path
+    cli.main(["census", str(Path(__file__).parent / "fixtures" / "polaris_mcp_sast.json"), "--out", str(tmp_path)])
+    assert (tmp_path / "census.md").exists() and "sast=1" in capsys.readouterr().out

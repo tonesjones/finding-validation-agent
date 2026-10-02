@@ -6,19 +6,26 @@
   python -m fva worksheet data/runs/<run>   # triage worksheet (CSV + HTML) for review
   python -m fva import-review data/runs/<run> filled.csv   # reviewer decisions -> human_review evidence
   python -m fva score data/runs/<run>       # automatic scoring against the PoC answer key
+  python -m fva census data/polaris-export  # field census of saved Polaris responses (sanitized)
+  python -m fva correlation-value [--source <checkout>]   # do candidate join keys predict the answer key?
 """
 from __future__ import annotations
 
 import argparse
+import importlib
+import sys
 from datetime import datetime
 from pathlib import Path
 
 PROFILES = {"juiceshop": "fva.adapters.poc_ledger:JUICESHOP_PROFILE"}
+# sub-commands whose module parses its own arguments
+DELEGATED = {"census": ("fva.analysis.census", "field census of saved Polaris responses (sanitized output)"),
+             "correlation-value": ("fva.analysis.correlation_value",
+                                   "measure whether candidate join keys between findings predict the answer key")}
 
 
 def _profile(name: str):
     mod, attr = PROFILES[name].split(":")
-    import importlib
     return getattr(importlib.import_module(mod), attr)
 
 
@@ -57,8 +64,13 @@ def _router(args):
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv and argv[0] in DELEGATED:
+        return importlib.import_module(DELEGATED[argv[0]][0]).main(argv[1:])
     ap = argparse.ArgumentParser(prog="python -m fva")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    for name, (_, text) in DELEGATED.items():
+        sub.add_parser(name, help=text, add_help=False)
     a = sub.add_parser("assess", help="collect evidence and model assessments for findings")
     a.add_argument("--client", default="codex", choices=["codex", "claude-code", "anthropic", "local", "none"])
     a.add_argument("--model", help="model to use (passed to the codex/claude CLI, or the API/local client)")
@@ -71,6 +83,9 @@ def main(argv=None):
     a.add_argument("--cache", default="data/cache/model")
     a.add_argument("--limit", type=int, help="assess only the first N clusters (smoke test)")
     a.add_argument("--dry-run", action="store_true", help="write prompts only; no model calls")
+    a.add_argument("--workers", type=int, default=1, help="parallel model calls (default 1; about 4 is a good start)")
+    a.add_argument("--credential-model", choices=["ask", "skip"], default="ask",
+                   help="skip: no model call for hard-coded-credential findings (only a runtime test decides them)")
     a.add_argument("--no-route", action="store_true",
                    help="codex: GPT-6 Sol for every cluster instead of Luna/Sol routing (--model also disables routing)")
     a.add_argument("--astra", action="append", metavar="SOURCE_FINDING_ID",
@@ -101,9 +116,12 @@ def main(argv=None):
     out = Path(args.out or f"data/runs/{datetime.now():%Y%m%d-%H%M%S}-{args.client}")
     client = _router(args)
     lock = Path(args.lockfile) if args.lockfile and Path(args.lockfile).exists() else None
+    if args.lockfile and lock is None:
+        print(f"warning: lockfile not found: {args.lockfile} (version-drift checks disabled)", file=sys.stderr)
     summary = pipeline.run(findings_spec=args.findings, source_root=Path(args.source), profile=_profile(args.profile),
                            client=client, out_dir=out, lockfile=lock, cache_dir=Path(args.cache),
-                           limit=args.limit, dry_run=args.dry_run)
+                           limit=args.limit, dry_run=args.dry_run, workers=args.workers,
+                           credential_model=args.credential_model)
     print(f"done -> {out}\n{summary}")
 
 

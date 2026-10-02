@@ -16,12 +16,16 @@ python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0" --li
 python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0"             # full run (Luna/Sol routing)
 python -m fva assess --client codex --no-route --source "C:\TestCode\Juiceshop 20.2.0"  # GPT-6 Sol for every cluster
 python -m fva assess --dry-run --source "C:\TestCode\Juiceshop 20.2.0"                  # prompts only
+python -m fva assess --client codex --workers 4 --source "C:\TestCode\Juiceshop 20.2.0"   # parallel model calls
 python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
 python -m fva import-review data\runs\<run> filled.csv      # reviewer decisions -> human_review evidence
 python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
 
 # Polaris (read-only MCP). Token: $env:POLARIS_ACCESS_TOKEN or data\.polaris-token
 python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # ids: data/LOCAL-NOTES.md
+python -m fva.polaris_mcp inventory          # read-only survey: tool schemas, tool types, max-detail samples
+python -m fva census data\polaris-export     # sanitized field census -> data\analysis\census.md
+python -m fva correlation-value --source "C:\TestCode\Juiceshop 20.2.0"   # join-key value vs the PoC ledger
 ```
 
 Roles: you (Claude) act as VP of engineering and own final review; Codex does the assessment work with
@@ -29,6 +33,7 @@ GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment), r
 default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `CHECKPOINT.md`.
 
 Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
+Operator detail (routing rules, scoring internals, assess options): `docs/operations.md`.
 Runs write to `data/runs/<timestamp>-<client>/` (`summary.json`, `assessments.jsonl`, `evidence.jsonl`,
 `findings.jsonl`, `groups.jsonl`, `links.jsonl`). DAST is optional: SAST+SCA-only runs use runtime mode `none`.
 Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/`.
@@ -53,7 +58,8 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 
 `fva/schemas.py` data model · `fva/adapters/` scanner input (SARIF, Polaris flat + MCP, mapping, PoC ledger) ·
 `fva/correlation/` source pin, locate, dependency, reachability · `fva/reasoning/` model clients + assessor ·
-`fva/pipeline.py` batch run · `fva/langpacks/` per-language rules (Node today) · `fva/polaris_mcp.py` Polaris client.
+`fva/verdicts.py` suggested verdicts (rules) · `fva/export/` worksheet, scoring · `fva/analysis/` Polaris census and
+correlation value · `fva/pipeline.py` batch run · `fva/langpacks/` per-language rules (Node today) · `fva/polaris_mcp.py` Polaris client.
 
 ## Reference data (local only)
 
@@ -65,5 +71,5 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 
 ## Git
 
-Work on a branch, open a PR into `main`, keep `CHECKPOINT.md` current. Line endings: commit with
-`core.autocrlf=input`; README/ROADMAP/docs show phantom CRLF-only changes on Windows, don't commit those.
+Work on a branch, open a PR into `main`, keep `CHECKPOINT.md` current. Line endings are normalized by
+`.gitattributes` (`* text=auto`). CI (`.github/workflows/tests.yml`) runs pytest on Linux and Windows.

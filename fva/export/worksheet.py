@@ -1,8 +1,7 @@
 """Triage worksheet: one row per original scanner finding, for review and for scoring fva.
 
-Suggestions here are provisional (rules over the run's evidence, pre-v0.6 verdict reasoner). Every
-suggestion that cites evidence passes `fva.invariants.check_verdict`; anything that would not falls
-back to needs_review. Nothing is written to Polaris (MCP access is read-only).
+Suggestions come from `fva.verdicts.suggest_verdict` (rules over the run's evidence, pre-v0.6 verdict
+reasoner). Nothing is written to Polaris (MCP access is read-only).
 
   python -m fva worksheet <run_dir>                     -> worksheet.csv, worksheet.html
   python -m fva import-review <run_dir> <filled.csv>    -> reviews.jsonl, review_summary.json
@@ -19,8 +18,9 @@ from pathlib import Path
 
 from fva import reason_codes
 from fva.export.polaris_triage_map import MAP_STATUS, suggest
-from fva.invariants import InvariantError, check_verdict
+from fva.invariants import check_verdict
 from fva.schemas import EvidenceRecord, EvidenceType, Stance, Verdict, VerdictValue as V
+from fva.verdicts import SKIP_CODES, suggest_verdict
 
 _NS = uuid.UUID("0f6d2b8a-4c1e-4a37-9b5d-8e2f1c3a7d60")
 RULESET = "worksheet-provisional@0.1.0"
@@ -30,57 +30,10 @@ COLUMNS = ["source_finding_id", "issue_id", "primary", "scanner", "title", "cwe"
            "evidence_summary", "evidence_ids", "reviewer_decision", "reviewer", "reviewer_notes"]
 DECISIONS = {"agree", V.confirmed.value, V.not_applicable.value, V.valid_non_security.value, V.needs_review.value}
 
-_SKIP_CODES = {
-    "surface:test": "TEST_ONLY", "surface:fixture": "NON_EXECUTABLE_FIXTURE",
-    "surface:infrastructure": "UNUSED_DEPLOYMENT_CONFIG", "surface:api_spec": "DOCUMENTATION_ONLY",
-    "surface:documentation": "DOCUMENTATION_ONLY", "dependency:version_drift": "VERSION_DRIFT",
-    "dependency:not_installed": "VERSION_DRIFT",
-}
-_RULE_CONTEXT = {EvidenceType.static_source, EvidenceType.reachability, EvidenceType.dependency_resolution}
-
 
 def _read_jsonl(p: Path) -> list[dict]:
     return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()] if p.exists() else []
-
-
-def _check(fid: str, verdict: V, codes: tuple[str, ...], evs: list[EvidenceRecord], conf: str) -> bool:
-    # some records (e.g. source location) carry no profile id
-    profile = next((e.deployment_profile_id for e in evs if e.deployment_profile_id), "worksheet")
-    try:
-        check_verdict(Verdict(verdict_id="probe", finding_id=fid, deployment_profile_id=profile,
-                              verdict=verdict, reason_codes=codes, confidence=conf,
-                              evidence_ids=tuple(e.evidence_id for e in evs), narrative="-",
-                              decided_at=datetime.now(timezone.utc), decided_by={"method": "rules"}),
-                      {e.evidence_id: e for e in evs})
-        return True
-    except InvariantError:
-        return False
-
-
-def suggest_verdict(row: dict, evs: list[EvidenceRecord]) -> tuple[V, tuple[str, ...], str, list[EvidenceRecord]]:
-    """(verdict, reason codes, confidence, cited evidence) for one finding."""
-    disp = row["disposition"]
-    if disp in _SKIP_CODES:  # deployment-boundary / dependency rules: decided before any model call
-        return V.not_applicable, (_SKIP_CODES[disp],), "high", evs
-    if disp.startswith(("surface:", "dependency:", "reachability:")):
-        return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
-    stances = {e.stance for e in evs}
-    dast = [e for e in evs if e.evidence_type is EvidenceType.dast_observation and e.stance is Stance.supports]
-    if dast and Stance.refutes not in stances:
-        return V.confirmed, ("DAST_OBSERVED",), "high", evs
-    if Stance.supports in stances and Stance.refutes in stances:
-        return V.needs_review, ("CONFLICTING_EVIDENCE",), "medium", evs
-    if Stance.non_security in stances and Stance.supports not in stances:
-        if _check(row["finding_id"], V.valid_non_security, ("QUALITY_NOT_SECURITY",), evs, "medium"):
-            return V.valid_non_security, ("QUALITY_NOT_SECURITY",), "medium", evs
-    if Stance.supports in stances:
-        code = "VULNERABLE_VERSION_IMPORTED" if row["finding_type"] == "sca" else "STATIC_REACHABLE_SINK"
-        if any(e.evidence_type in _RULE_CONTEXT for e in evs) and _check(row["finding_id"], V.likely, (code,),
-                                                                          evs, "medium"):
-            return V.likely, (code,), "medium", evs
-    # A model refutation alone stays needs_review here: which not_applicable reason applies is a reviewer call.
-    return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
-
+DECISIONS = {"agree", V.confirmed.value, V.not_applicable.value, V.valid_non_security.value, V.needs_review.value}
 
 def build(run_dir: Path) -> list[dict]:
     run_dir = Path(run_dir)
@@ -99,7 +52,8 @@ def build(run_dir: Path) -> list[dict]:
         status, sev = suggest(verdict, r["severity"])
         loc = r.get("endpoint") or r.get("package") or (f"{r['path']}:{r['line']}" if r.get("path") else "")
         rows.append({
-            "finding_id": r["finding_id"], "source_finding_id": r["source_finding_id"], "issue_id": r["issue_id"],
+            "finding_id": r["finding_id"], "disposition": r["disposition"], "source_finding_id": r["source_finding_id"],
+            "issue_id": r["issue_id"],
             "primary": "yes" if r["primary"] else "", "scanner": r["finding_type"], "title": r["title"],
             "cwe": " ".join(r["cwe"]), "location": loc, "polaris_severity": r["severity"],
             "fva_verdict": verdict.value, "reason_codes": " ".join(codes), "confidence": conf,
@@ -121,7 +75,13 @@ def write(run_dir: Path) -> dict:
         w.writerows(rows)
     counts = Counter(r["fva_verdict"] for r in rows)
     (run_dir / "worksheet.html").write_text(_html(rows, counts), encoding="utf-8")
-    return {"rows": len(rows), "issues": len({r["issue_id"] for r in rows}), "verdicts": dict(counts)}
+    res = {"rows": len(rows), "issues": len({r["issue_id"] for r in rows}), "verdicts": dict(counts)}
+    stale = sum(1 for r in rows if r["evidence_summary"].startswith("rule:") and r["disposition"] in SKIP_CODES)
+    if stale:
+        res["warning"] = (f"{stale} rule-skipped findings have no evidence records (run made before boundary "
+                          "evidence), so they stay needs_review: re-run `python -m fva assess` (model answers come "
+                          "from cache), then this command")
+    return res
 
 
 def _html(rows: list[dict], counts: Counter) -> str:
