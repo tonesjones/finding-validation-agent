@@ -6,6 +6,8 @@
   python -m fva worksheet data/runs/<run>   # triage worksheet (CSV + HTML) for review
   python -m fva import-review data/runs/<run> filled.csv   # reviewer decisions -> human_review evidence
   python -m fva score data/runs/<run>       # automatic scoring against the PoC answer key
+  python -m fva census data/polaris-export  # field census of saved Polaris responses (sanitized)
+  python -m fva correlation-value [--source <checkout>]   # do candidate join keys predict the answer key?
 """
 from __future__ import annotations
 
@@ -16,6 +18,10 @@ from datetime import datetime
 from pathlib import Path
 
 PROFILES = {"juiceshop": "fva.adapters.poc_ledger:JUICESHOP_PROFILE"}
+# sub-commands whose module parses its own arguments
+DELEGATED = {"census": ("fva.analysis.census", "field census of saved Polaris responses (sanitized output)"),
+             "correlation-value": ("fva.analysis.correlation_value",
+                                   "measure whether candidate join keys between findings predict the answer key")}
 
 
 def _profile(name: str):
@@ -58,8 +64,13 @@ def _router(args):
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv and argv[0] in DELEGATED:
+        return importlib.import_module(DELEGATED[argv[0]][0]).main(argv[1:])
     ap = argparse.ArgumentParser(prog="python -m fva")
     sub = ap.add_subparsers(dest="cmd", required=True)
+    for name, (_, text) in DELEGATED.items():
+        sub.add_parser(name, help=text, add_help=False)
     a = sub.add_parser("assess", help="collect evidence and model assessments for findings")
     a.add_argument("--client", default="codex", choices=["codex", "claude-code", "anthropic", "local", "none"])
     a.add_argument("--model", help="model to use (passed to the codex/claude CLI, or the API/local client)")

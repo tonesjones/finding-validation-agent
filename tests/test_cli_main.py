@@ -54,3 +54,8 @@ def test_missing_lockfile_warns(tmp_path, monkeypatch, capsys):
     assert "lockfile not found" in capsys.readouterr().err
     assert seen["lockfile"] is None and seen["workers"] == 3 and seen["credential_model"] == "skip"
 
+
+def test_delegated_subcommand(tmp_path, capsys):
+    from pathlib import Path
+    cli.main(["census", str(Path(__file__).parent / "fixtures" / "polaris_mcp_sast.json"), "--out", str(tmp_path)])
+    assert (tmp_path / "census.md").exists() and "sast=1" in capsys.readouterr().out
