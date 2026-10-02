@@ -6,12 +6,16 @@ share the same code location or advisory).
 
 Any scanner mix works: SAST+SCA only (non-web apps, no DAST) skips DAST linking and runtime
 evidence; DAST findings, when present, are linked to SAST sinks and grouped, never sent to the model.
+
+`run(workers=N)` makes the per-cluster model calls in N threads (default 1 = sequential); results are still
+consumed in cluster order on the main thread, so output files and log lines are unchanged apart from timings.
 """
 from __future__ import annotations
 
 import glob
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,6 +28,7 @@ from fva.correlation.source_pin import iter_files, pin
 from fva.langpacks import REGISTRY
 from fva.reasoning import assessor
 from fva.reasoning.routing import Router
+from fva.redact import CREDENTIAL_CWES
 from fva.schemas import DeploymentProfile, Finding, FindingType, RuntimeMode, Surface
 from fva.surface import classify_finding, is_deployed
 
@@ -140,7 +145,9 @@ def write_findings_index(out_dir: Path, findings: list[Finding], batch: Batch, i
 
 def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, client, out_dir: Path,
         lockfile: Path | None = None, cache_dir: Path | None = None, limit: int | None = None,
-        dry_run: bool = False, log=print) -> dict:
+        dry_run: bool = False, workers: int = 1, credential_model: str = "ask", log=print) -> dict:
+    """`credential_model="skip"`: clusters made only of hard-coded-credential findings get no model call; only a
+    runtime test can tell whether a credential is active, and their rule evidence is still recorded."""
     t0 = time.time()
     router = client if isinstance(client, Router) else Router.single(client)
     snap = pin(source_root)
@@ -153,6 +160,11 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
     batch = prepare([f for f in findings if f.finding_type is not FindingType.dast], source_root, profile,
                     lockfile, snap.content_sha256, idx, graph)
     links, issues, dast_ev = link_and_group(findings, source_root, files, profile, idx, graph, mode)
+    if credential_model == "skip":
+        for k in [k for k, g in batch.clusters.items() if all(set(f.cwe) & CREDENTIAL_CWES for f in g)]:
+            for f in batch.clusters.pop(k):
+                batch.disposition[f.finding_id] = "model:credential_runtime_only"
+                batch.skipped["model:credential_runtime_only"] = batch.skipped.get("model:credential_runtime_only", 0) + 1
     keys = list(batch.clusters)[: limit or None]
     log(f"{len(findings)} findings -> {sum(len(batch.clusters[k]) for k in keys)} to assess in {len(keys)} clusters "
         f"(skipped: {batch.skipped}); scanners {'+'.join(mix)}, runtime mode {mode.value}, "
@@ -191,53 +203,71 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
                 ev_out.write(e.model_dump_json() + "\n")
         for e in dast_ev:
             ev_out.write(e.model_dump_json() + "\n")
-        for i, k in enumerate(keys, 1):
+
+        def call(k):
+            """Assess one cluster; return the RoutedResult, or the exception (recorded in order by the consumer)."""
             group = batch.clusters[k]
-            lead = group[0]
             try:
-                routed = router.assess(group, idx, source_content_sha256=snap.content_sha256,
-                                       profile_id=profile.profile_id, evidence=batch.pre_evidence[lead.finding_id],
-                                       sites=batch.sites.get(k, []), cache_dir=cache_dir,
-                                       also_covers=tuple(g.finding_id for g in group[1:]))
+                return router.assess(group, idx, source_content_sha256=snap.content_sha256,
+                                     profile_id=profile.profile_id, evidence=batch.pre_evidence[group[0].finding_id],
+                                     sites=batch.sites.get(k, []), cache_dir=cache_dir,
+                                     also_covers=tuple(g.finding_id for g in group[1:]))
             except Exception as e:  # keep going; record the failure
-                stats["errors"] += 1
-                as_out.write(json.dumps({"cluster": list(map(str, k)), "error": str(e)[-2000:],
-                                         "tier": router.plan(group)[0],
-                                         "source_finding_ids": [g.source_finding_id for g in group]}) + "\n")
-                log(f"[{i}/{len(keys)}] ERROR {e}")
-                continue
-            res = routed.result
-            for a in routed.attempts:
-                t = stats["tiers"].setdefault(a["tier"], {"calls": 0, "cached": 0, "seconds": 0.0, "rejected": 0,
-                                                           "tokens": 0, "tokens_unknown": 0, "stance": {},
-                                                           "agent_models": {}})
-                t["calls"] += 1
-                if a["tokens"] is None:
-                    t["tokens_unknown"] += 1
-                else:
-                    t["tokens"] += a["tokens"]
-                t["cached"] += a["cached"]
-                t["seconds"] = round(t["seconds"] + a["seconds"], 1)
-                t["rejected"] += a["rejected"]
-                t["stance"][a["stance"]] = t["stance"].get(a["stance"], 0) + 1
-                t["agent_models"][a["agent_model"]] = t["agent_models"].get(a["agent_model"], 0) + 1
-                if a.get("escalate"):
-                    stats["escalations"][a["escalate"]] = stats["escalations"].get(a["escalate"], 0) + 1
-            stats["clusters"] += 1
-            stats["cached"] += res.cached
-            stats["stance"][res.evidence.stance.value] = stats["stance"].get(res.evidence.stance.value, 0) + 1
-            ev_out.write(res.evidence.model_dump_json() + "\n")
-            as_out.write(json.dumps({"cluster": list(map(str, k)),
-                                     "source_finding_ids": [g.source_finding_id for g in group],
-                                     "finding_ids": [g.finding_id for g in group],
-                                     "stance": res.evidence.stance.value, "accepted": res.accepted,
-                                     "rejected": res.rejected, "cached": res.cached,
-                                     "confidence": res.confidence, "tier": routed.tier,
-                                     "routing_reason": routed.reason, "agent_model": res.agent_model,
-                                     "attempts": routed.attempts}) + "\n")
-            as_out.flush()
-            log(f"[{i}/{len(keys)}] {routed.tier:6s} {res.evidence.stance.value:12s} {lead.title[:60]}"
-                f"{' (cached)' if res.cached else ''}")
+                return e
+
+        pool = ThreadPoolExecutor(max_workers=workers) if workers > 1 else None
+        try:
+            if pool:  # submit everything now; results are consumed below in cluster order
+                futures = [pool.submit(call, k) for k in keys]
+                results = (f.result() for f in futures)
+            else:  # sequential: call lazily so each cluster is assessed right before it is written
+                results = (call(k) for k in keys)
+            for i, (k, routed) in enumerate(zip(keys, results), 1):
+                group = batch.clusters[k]
+                lead = group[0]
+                if isinstance(routed, Exception):
+                    e = routed
+                    stats["errors"] += 1
+                    as_out.write(json.dumps({"cluster": list(map(str, k)), "error": str(e)[-2000:],
+                                             "tier": router.plan(group)[0],
+                                             "source_finding_ids": [g.source_finding_id for g in group]}) + "\n")
+                    log(f"[{i}/{len(keys)}] ERROR {e}")
+                    continue
+                res = routed.result
+                for a in routed.attempts:
+                    t = stats["tiers"].setdefault(a["tier"], {"calls": 0, "cached": 0, "seconds": 0.0, "rejected": 0,
+                                                               "tokens": 0, "tokens_unknown": 0, "stance": {},
+                                                               "agent_models": {}})
+                    t["calls"] += 1
+                    if a["tokens"] is None:
+                        t["tokens_unknown"] += 1
+                    else:
+                        t["tokens"] += a["tokens"]
+                    t["cached"] += a["cached"]
+                    t["seconds"] = round(t["seconds"] + a["seconds"], 1)
+                    t["rejected"] += a["rejected"]
+                    t["stance"][a["stance"]] = t["stance"].get(a["stance"], 0) + 1
+                    t["agent_models"][a["agent_model"]] = t["agent_models"].get(a["agent_model"], 0) + 1
+                    if a.get("escalate"):
+                        stats["escalations"][a["escalate"]] = stats["escalations"].get(a["escalate"], 0) + 1
+                stats["clusters"] += 1
+                stats["cached"] += res.cached
+                stats["stance"][res.evidence.stance.value] = stats["stance"].get(res.evidence.stance.value, 0) + 1
+                ev_out.write(res.evidence.model_dump_json() + "\n")
+                as_out.write(json.dumps({"cluster": list(map(str, k)),
+                                         "source_finding_ids": [g.source_finding_id for g in group],
+                                         "finding_ids": [g.finding_id for g in group],
+                                         "stance": res.evidence.stance.value, "accepted": res.accepted,
+                                         "rejected": res.rejected, "cached": res.cached,
+                                         "confidence": res.confidence, "tier": routed.tier,
+                                         "routing_reason": routed.reason, "agent_model": res.agent_model,
+                                         "attempts": routed.attempts}) + "\n")
+                as_out.flush()
+                log(f"[{i}/{len(keys)}] {routed.tier:6s} {res.evidence.stance.value:12s} {lead.title[:60]}"
+                    f"{' (cached)' if res.cached else ''}")
+        finally:
+            if pool:
+                pool.shutdown(wait=True, cancel_futures=True)
     finally:
         ev_out.close()
         as_out.close()

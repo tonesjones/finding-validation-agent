@@ -101,3 +101,28 @@ def test_dast_findings_are_grouped_not_assessed(tmp_path):
     assert d["disposition"] == "runtime_only" and d["endpoint"] == "GET /rest/products/search"
     assert s["clusters"] <= 2  # DAST never becomes a model cluster
 
+
+def test_credential_clusters_can_skip_the_model(tmp_path):
+    src = tmp_path / "src"
+    (src / "routes").mkdir(parents=True)
+    (src / "server.ts").write_text("import './routes/login'\n")
+    (src / "routes/login.ts").write_text("const password = 'x'\nsequelize.query(q)\n")
+    rows = [{"candidate_id": "K", "tool": "SAST", "severity": "high", "issue_type": "Cred", "cwe": "CWE-798",
+             "location": "routes/login.ts", "line": 1},
+            {"candidate_id": "Q", "tool": "SAST", "severity": "high", "issue_type": "SQLi", "cwe": "CWE-89",
+             "location": "routes/login.ts", "line": 2}]
+    fj = tmp_path / "f.jsonl"
+    fj.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    prof = DeploymentProfile(profile_id="p", name="t", language_packs=("node",), entrypoints=("server.ts",))
+    reply = json.dumps({"claims": [], "confidence": "low"})
+    client = ScriptedClient([reply])  # exactly one model call: the SQLi cluster
+    out = tmp_path / "out"
+    s = pipeline.run(findings_spec=str(fj), source_root=src, profile=prof, client=client, out_dir=out,
+                     credential_model="skip", log=lambda *_: None)
+    assert s["clusters"] == 1 and s["skipped"] == {"model:credential_runtime_only": 1} and len(client.prompts) == 1
+    disp = {json.loads(l)["source_finding_id"]: json.loads(l)["disposition"]
+            for l in (out / "findings.jsonl").read_text().splitlines()}
+    assert disp == {"K": "model:credential_runtime_only", "Q": "assess"}
+    from fva.export import worksheet
+    k = next(r for r in worksheet.build(out) if r["source_finding_id"] == "K")
+    assert k["fva_verdict"] == "needs_review" and k["evidence_ids"]  # rule evidence still recorded

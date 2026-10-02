@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -85,6 +86,7 @@ class Router:
 
     def __init__(self, clients: dict, make=None, astra_ids=frozenset()):
         self._clients, self._make, self.astra_ids = dict(clients), make, frozenset(astra_ids)
+        self._lock = threading.Lock()  # lazy client creation can race across pipeline worker threads
 
     @classmethod
     def single(cls, client) -> "Router":
@@ -100,9 +102,11 @@ class Router:
 
     def client(self, tier: str):
         if tier not in self._clients:
-            if self._make is None:
-                raise SystemExit(f"no client configured for tier {tier}")
-            self._clients[tier] = self._make(model_name(tier))
+            with self._lock:
+                if tier not in self._clients:
+                    if self._make is None:
+                        raise SystemExit(f"no client configured for tier {tier}")
+                    self._clients[tier] = self._make(model_name(tier))
         return self._clients[tier]
 
     def plan(self, group: list[Finding]) -> tuple[str, str]:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import urllib.request
 from typing import Protocol
 
@@ -52,14 +53,16 @@ class OpenAICompatibleClient:
 
 
 class ScriptedClient:
-    """Deterministic client for tests: returns queued responses in order."""
+    """Deterministic client for tests: returns queued responses in order (thread-safe)."""
 
     def __init__(self, responses: list[str], model_id: str = "scripted"):
         self.model_id, self._responses, self.prompts = model_id, list(responses), []
+        self._lock = threading.Lock()
 
     def complete(self, system: str, user: str, *, max_tokens: int = 2000) -> str:
-        self.prompts.append((system, user))
-        return self._responses.pop(0)
+        with self._lock:
+            self.prompts.append((system, user))
+            return self._responses.pop(0)
 
 
 # ------------------------------------------------------------------------------------------
@@ -89,10 +92,29 @@ class _CliClient:
     model_id = "cli"
 
     model_flag = "-m"
-    last_reported_model: str | None = None  # parsed from the CLI's own `model: <name>` header line
-    last_tokens: int | None = None  # parsed from the CLI's `tokens used` footer, when it prints one
+
+    # Per-thread, so one client can serve parallel pipeline workers: the assessor reads these right after
+    # complete() on the same thread. None until a call on this thread has set them.
+    #   last_reported_model: str | None  parsed from the CLI's own `model: <name>` header line
+    #   last_tokens: int | None          parsed from the CLI's `tokens used` footer, when it prints one
+    @property
+    def last_reported_model(self) -> str | None:
+        return getattr(self._local, "last_reported_model", None)
+
+    @last_reported_model.setter
+    def last_reported_model(self, value: str | None) -> None:
+        self._local.last_reported_model = value
+
+    @property
+    def last_tokens(self) -> int | None:
+        return getattr(self._local, "last_tokens", None)
+
+    @last_tokens.setter
+    def last_tokens(self, value: int | None) -> None:
+        self._local.last_tokens = value
 
     def __init__(self, command: str | None = None, timeout: int = 600, model: str | None = None):
+        self._local = threading.local()
         cmd = command or os.environ.get(self.env_var) or self.default_cmd
         self._argv = shlex.split(cmd, posix=(os.name != "nt"))
         if model:  # insert right after the subcommand words, before the trailing '-' (stdin) if present

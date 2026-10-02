@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import argparse
+import importlib
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -18,7 +20,6 @@ PROFILES = {"juiceshop": "fva.adapters.poc_ledger:JUICESHOP_PROFILE"}
 
 def _profile(name: str):
     mod, attr = PROFILES[name].split(":")
-    import importlib
     return getattr(importlib.import_module(mod), attr)
 
 
@@ -71,6 +72,9 @@ def main(argv=None):
     a.add_argument("--cache", default="data/cache/model")
     a.add_argument("--limit", type=int, help="assess only the first N clusters (smoke test)")
     a.add_argument("--dry-run", action="store_true", help="write prompts only; no model calls")
+    a.add_argument("--workers", type=int, default=1, help="parallel model calls (default 1; about 4 is a good start)")
+    a.add_argument("--credential-model", choices=["ask", "skip"], default="ask",
+                   help="skip: no model call for hard-coded-credential findings (only a runtime test decides them)")
     a.add_argument("--no-route", action="store_true",
                    help="codex: GPT-6 Sol for every cluster instead of Luna/Sol routing (--model also disables routing)")
     a.add_argument("--astra", action="append", metavar="SOURCE_FINDING_ID",
@@ -101,9 +105,12 @@ def main(argv=None):
     out = Path(args.out or f"data/runs/{datetime.now():%Y%m%d-%H%M%S}-{args.client}")
     client = _router(args)
     lock = Path(args.lockfile) if args.lockfile and Path(args.lockfile).exists() else None
+    if args.lockfile and lock is None:
+        print(f"warning: lockfile not found: {args.lockfile} (version-drift checks disabled)", file=sys.stderr)
     summary = pipeline.run(findings_spec=args.findings, source_root=Path(args.source), profile=_profile(args.profile),
                            client=client, out_dir=out, lockfile=lock, cache_dir=Path(args.cache),
-                           limit=args.limit, dry_run=args.dry_run)
+                           limit=args.limit, dry_run=args.dry_run, workers=args.workers,
+                           credential_model=args.credential_model)
     print(f"done -> {out}\n{summary}")
 
 
