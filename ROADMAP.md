@@ -1,6 +1,6 @@
 # Roadmap
 
-The end goal is described in the [README](README.md#end-result): one evidence-backed,
+The end goal is described in the [README](README.md#what-this-tool-does): one evidence-backed,
 prioritized issue per real flaw, built from Polaris SAST, SCA, and DAST results.
 
 ## Pre-work — Repository migration
@@ -34,6 +34,9 @@ prioritized issue per real flaw, built from Polaris SAST, SCA, and DAST results.
 
 ## v0.4 — DAST evidence and cross-scanner grouping (done)
 
+The Polaris test tenant has no DAST data (checked 2026-10-02): the DAST items below were built from a
+guessed response format and stay frozen and unverified until a real DAST export exists.
+
 - [x] Polaris DAST adapter: URL, method, parameter, CWE, redacted request/response.
 - [x] SAST↔DAST linking by CWE, route/handler, and parameter, with link confidence.
 - [x] SCA↔SAST linking via shipped import sites in the SAST file (file-level).
@@ -60,6 +63,7 @@ Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `
 - [x] Triage worksheet (CSV + HTML), one row per Polaris issue id, with suggested triage status and severity.
 - [x] Re-import a filled worksheet: reviewer decisions become `human_review` evidence and superseding verdicts,
       plus an agreement score per suggested verdict.
+- [x] Every rule closure cites its evidence (deployment boundary, dependency resolution).
 
 - [ ] Evidence-backed verdicts with confidence and reason codes per grouped issue.
 - [ ] Evidence-based priority ranking (verdict × reachability × runtime evidence × severity).
@@ -74,6 +78,8 @@ Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `
 - [ ] Measure queue reduction, precision improvement, unresolved rate, and incorrect demotions.
 - [ ] Measure SAST↔DAST link accuracy.
 - [ ] Measure scanner-gap discoveries separately.
+- [x] Polaris data tools: MCP inventory, field census, correlation value of candidate join keys (built 2026-10-02).
+- [ ] Run them on live Polaris data; decide which links to keep and which dropped fields the adapter should read.
 - [ ] Document model, prompt, tool, source, and runtime versions for reproducibility.
 - [ ] Evaluate TypeSafe AI's Jev (typed decisions with calibrated confidence, no text) as a triage and routing
       step: skip / junior / senior per cluster, or predict junior escalation. Never as evidence, because Jev

@@ -1,9 +1,27 @@
 # Checkpoint
 
-Last updated: 2026-10-01. Update this file at every commit that changes status.
+Last updated: 2026-10-02. Update this file at every commit that changes status.
 
 ## Resume here
 
+- 2026-10-02 (branch `claude/compassionate-ramanujan-vjgzq0`, after a whole-project review):
+  - **Rule closures now cite evidence.** Before, 430 of 573 worksheet rows were closed `not_applicable` with no evidence
+    record. Skipped findings now keep a `deployment_boundary` record (path rule) or their `dependency_resolution` /
+    reachability records, and the closure passes `check_verdict`. Prompts are unchanged, so **re-run `assess` on the
+    real export (all cache hits, free), then `worksheet` and `score`**: expect the same 430 `not_applicable`, each
+    with `evidence_ids`. Older run dirs now show those rows as needs_review, with a warning.
+  - Verdict suggestion logic moved to `fva/verdicts.py` (worksheet and score import it).
+  - `assess --workers N` (parallel model calls, ordered output), `--credential-model skip` (opt-in; compare with
+    `score` against `ask` before making it the default), missing-lockfile warning. CI on Linux + Windows.
+  - **No DAST exists in the PoC tenant.** The DAST adapter, SAST↔DAST linker and DAST evidence are frozen and
+    unverified (built from a guessed format).
+  - Polaris data tools (built, tested on fixtures/stubs, not yet run on live data): `python -m fva.polaris_mcp
+    inventory`, `python -m fva census <dir>`, `python -m fva correlation-value --source <checkout>`.
+    **Next action once Polaris access is back:** run inventory + census (anywhere), then correlation-value on the
+    laptop (needs the PoC ledger), and record the tables here. Cloud sessions read `POLARIS_ACCESS_TOKEN` from the
+    environment settings.
+  - README restructured (plain-language top, built vs planned), operator detail moved to `docs/operations.md`,
+    PROJECT_STATUS.md removed (status lives here).
 - PRs #4, #5 and #6 are merged into `main` (v0.4 + routing). **Luna/Sol routing is the default** for codex;
   `--no-route` or `--model` runs one model.
 - 2026-10-01 (branch `claude/stoic-shannon-3wy7sq`): scanner mix without DAST, `likely` verdict, triage worksheet
@@ -30,6 +48,10 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 | Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
 | Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
 | Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; `import-review` -> `human_review` evidence, superseding verdicts, agreement score |
+| Suggested verdicts | `fva/verdicts.py` | rules over a run's evidence; every closure, rule closures included, must pass `check_verdict` |
+| Rule evidence | `fva/surface.py` (`to_evidence`), `fva/pipeline.py` | skipped findings keep `deployment_boundary` / `dependency_resolution` / reachability records; never sent to a model |
+| Polaris data tools | `fva/polaris_mcp.py` (`inventory`), `fva/analysis/` | read-only MCP survey; sanitized field census with adapter-dropped keys; correlation value (coverage, fan-out, coherence, lift) of candidate join keys vs the PoC ledger |
+| Parallel assess | `fva/pipeline.py`, `fva/reasoning/model.py` | `--workers N`, results consumed in cluster order; per-thread CLI model/token fields |
 | Severity tables | `fva/severity.py` | SARIF level, CVSS bands, vendor strings; unknown strings fail loudly |
 | Raw provenance | `fva/provenance.py` | content-addressed refs `raw:sha256:<hex>#<pointer>` |
 | Redaction | `fva/redact.py` | tokens, JWTs, cookies, cloud keys, secret assignments; all literals for credential CWEs |
@@ -55,6 +77,10 @@ Last updated: 2026-10-01. Update this file at every commit that changes status.
 
 ## Decisions
 
+- 2026-10-02: The PoC tenant has no DAST. Freeze the DAST stack (no extensions) until a real DAST export exists;
+  measure what Polaris returns for SAST/SCA (inventory, census) and the decision value of candidate links
+  (correlation-value) before building more linking.
+- 2026-10-02: A rule closure must cite a recorded rule result like any other verdict; no evidence, no closure.
 - 2026-10-01: Not every customer has DAST (non-web apps: SAST+SCA only). Added verdict `likely` (static evidence,
   never confirmed); a reviewer's sign-off in the worksheet confirms it.
 - 2026-10-01: Polaris MCP is read-only, so results cannot go back through it. Now: triage worksheet (mainly the
@@ -211,11 +237,12 @@ token accounting per call and tier, routed vs Sol-only comparison (routing stays
 1. Stance semantics: tell the model that restating the scanner's sink is `neutral`, and that a real quality
    issue is `non_security`. Consider aggregation where a cited refutation of the precondition beats a
    restated sink. Bump `PROMPT_VERSION`. This is the main remaining source of disagreement.
-2. Credential CWEs: consider skipping the model call entirely, because they are runtime-decided.
+2. Credential CWEs: `--credential-model skip` exists (opt-in, 2026-10-02). Score both modes on the real export,
+   then decide the default.
 3. SCA prompts: include advisory text, affected function, and config/usage sites so precondition checks are possible.
 4. Runtime harness: allowlist and approval gate before any probe.
 5. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
-6. Consider a `.gitattributes` (`* text=auto`) so Windows line endings stop showing as modifications.
+6. Done 2026-10-02: `.gitattributes` (`* text=auto`).
 7. Evaluate Jev (TypeSafe AI, early access since 2026-09-15) as a routing/triage classifier, not an assessor.
    Jev returns typed choices with calibrated confidence and no text, so it cannot produce the cited claims the
    assessor requires, and its output is never evidence. Candidate uses: a Choice per cluster of
