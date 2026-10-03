@@ -53,6 +53,14 @@ health-check the disposable application. Probes are scoped to its approved base 
 and use test accounts or synthetic data. Runtime evidence proves only what was
 exercised in that particular deployment.
 
+A run uses one of three runtime modes. No command-line flag sets the mode. It follows the scanner mix.
+
+| Mode | Where the proof comes from | When it is used |
+| --- | --- | --- |
+| `none` | The code only | The scan has no DAST results |
+| `dast-evidence` | A DAST scan the customer already approved | The scan includes DAST results |
+| `live-localhost` | Safe tests against a copy running on this machine | Not built. Meant for practice apps only |
+
 ## Agent loop
 
 For each finding, the controller asks for the least costly evidence that can change
@@ -80,5 +88,6 @@ hashing, schema checks, redaction rules, deduplication, and output generation.
   application owner already authorized. Like a probe, it must name its deployment
   profile. Only a high-confidence link produces a `supports` stance. Lower-confidence
   links are `neutral` context. A missing DAST hit produces no evidence at all.
-- `RuntimeMode` selects the runtime evidence source: `none`, `dast-evidence`
-  (default) or `live-localhost` (test apps only).
+- `RuntimeMode` selects the runtime evidence source: `none`, `dast-evidence` or
+  `live-localhost`. A run takes it from the scanner mix, as the runtime boundary
+  table shows.

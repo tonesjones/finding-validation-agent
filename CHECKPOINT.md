@@ -4,9 +4,10 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Current state
 
-- PR #9 is in review. Its fixes cover Git helper execution during pinning, separate
-  redaction for source and HTTP evidence, DAST type export and import, CLI isolation,
-  and discovery metrics.
+- PR #9 merged into `main` on 2026-10-03. It adds the blind evaluation pilot commands
+  `discover` and `eval prepare|run|score`, and repairs Polaris DAST ingestion. Review
+  fixes cover Git helper execution during pinning, separate redaction for source and
+  HTTP evidence, DAST type export and import, CLI isolation, and discovery metrics.
 - The static pilot scanned and imported six findings. Fresh Sol 6 discovery produced
   six cited allegations; a 12-case preparation and blank human forms are frozen.
   These are not validated vulnerabilities. Exact identities, hosted target, paths
@@ -20,7 +21,7 @@ Last updated: 2026-10-03. Update this file when status changes.
   visible while HTTP headers and literal template secrets are masked. DAST sidecars
   round-trip by issue ID and bind to evaluation scope hashes. No detected plant
   comment hints or redacted-source changes in the six-file frozen discovery packet.
-  The empty demo repository is now private. CI and human re-review remain merge gates.
+  The empty demo repository is now private.
 - The re-review found that pinning ran submodule clean and process filters. That is
   fixed: a test shows the unsafe diff runs them and pinning doesn't. The dirty flag
   now ignores submodule changes, matching the source hash, which never covered them.
@@ -32,7 +33,7 @@ Last updated: 2026-10-03. Update this file when status changes.
 - The pilot app's DAST scan waits on entitlement, so its coverage is unknown. The
   separate sample proves importer compatibility, not the pilot app's coverage,
   evidence bodies or links.
-- Review and CI must pass before merge. No case smoke, batch or score has run.
+- No case smoke, batch or score has run.
 - Next: select scanner-only or static-plus-discovery scope, obtain its label receipt,
   smoke with audit, batch reusing smoke, human-grade, then score. Add DAST later in
   a new preparation with approved links and a new private label receipt.
