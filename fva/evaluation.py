@@ -397,6 +397,24 @@ def artifact_dir(path):
     return out
 
 
+def preflight_dir(path, source):
+    """Allow explicit external report output without touching source or frozen runs."""
+    out, source = Path(path).resolve(), Path(source).resolve()
+    repo = Path(__file__).resolve().parent.parent
+    if out.is_relative_to(source) or source.is_relative_to(out):
+        raise ValueError("preflight output must not overlap the source checkout")
+    if ".git" in out.parts:
+        raise ValueError("preflight output must not be Git metadata")
+    if out.is_relative_to(repo) and not out.is_relative_to(repo / "data"):
+        raise ValueError("reports inside this repository must stay under ignored data/")
+    if any((out / name).exists() for name in ("prepared.json", "outputs.json")):
+        raise ValueError("preflight output must not overwrite a frozen evaluation run")
+    for name in ("preflight.json", "preflight.md"):
+        if not (out / name).resolve().is_relative_to(out):
+            raise ValueError("preflight report path escapes the selected output directory")
+    return out
+
+
 def profile_args(parser):
     profiles = parser.add_mutually_exclusive_group()
     profiles.add_argument("--profile", choices=sorted(PROFILES))
@@ -407,6 +425,7 @@ def profile_args(parser):
 def preflight(source: Path, profile, out: Path, *, expected_routes: Path | None = None,
               lockfile: Path | None = None) -> dict:
     source = source.resolve()
+    out = preflight_dir(out, source)
     if not source.is_dir():
         raise ValueError(f"source directory not found: {source}")
     unknown = set(profile.language_packs) - REGISTRY.keys()
@@ -510,7 +529,10 @@ def main(argv=None):
                             smoke_run=args.smoke_run,
                             labels_receipt=Path(args.labels_receipt) if args.labels_receipt else None))
             return
-        artifact_dir(args.out)
+        if args.findings or args.canonical:
+            artifact_dir(args.out)
+        else:
+            preflight_dir(args.out, args.source)
         if (args.findings or args.canonical) and Path(args.out).exists() and any(Path(args.out).iterdir()):
             raise ValueError("evaluation output must be empty; frozen packets cannot be overwritten")
         profile = load_profile(args.profile, args.profile_file)

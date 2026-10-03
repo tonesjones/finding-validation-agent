@@ -9,7 +9,16 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   Preflight records each file's boundary rule, import reachability, dependency inventory,
   pinned source/profile hashes and the existing Express route map. Expected routes are
   required for DAST readiness; missing/incorrect handlers block launch.
-  The demo checkout currently contains only `.git`. No private ledger has been read.
+  The app session now reports staged source and neutral handoff profile/expected routes.
+  Final source freeze and hosted metadata are pending. No private ledger has been read.
+  Source-only preflight accepts explicitly selected external report output; source
+  overlap, Git metadata, escaped report paths and frozen runs are rejected. Discovery
+  and paired evaluation artifacts still require ignored data/. Do not start discovery
+  or scans until the application session supplies final freeze/hosted metadata.
+  Preliminary preflight completed with the app session's neutral handoff inputs.
+  Reports: `C:\TestCode\fva-eval-private\handoff\preliminary-preflight\preflight.json`
+  and `preflight.md`. Route readiness passed; this is preliminary, not authorization
+  to launch scans. No discovery/model/scanner call or private ledger read occurred.
   Discovery and frozen paired prepare/run/score tooling are now implemented. See
   `docs/blind-pilot.md` for exact invocations and file contracts. Fixed `gpt-6.1-sol`
   calls audit tool events and require observed identity; no routing/cache in evaluation.
@@ -17,7 +26,7 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   link approval. Private gold remains absent from preparation/run and model inputs;
   a label-free receipt freezes its hash before the smoke. One raw response feeds all
   three arms. Explicit case gold and legacy key formats both work. Counts only; no judge.
-  Verification: local dev environment installed; 224 passed, 5 skipped on Windows.
+  Verification: local dev environment installed; 226 passed, 5 skipped on Windows.
   Private-data/source tests and POSIX-only CLI stand-ins are among the skips.
   A source pinning fix prevents an archive nested under another Git checkout from
   accidentally using its parent's tracked-file inventory. Tests run under ignored data/.

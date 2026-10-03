@@ -1,7 +1,7 @@
 # Blind discovery and validation pilot
 
 Use the local `.venv\Scripts\python.exe` in place of `python` below if the package
-is not installed in your default interpreter. All artifacts belong under ignored `data/`.
+is not installed in your default interpreter. Evaluation/model artifacts belong under ignored `data/`.
 Keep the demo in `C:\TestCode\fva-eval-demo` and its ledger/receipts outside this repository.
 
 ## Source/profile preflight
@@ -19,6 +19,10 @@ Outputs are `preflight.json` and `preflight.md`. The JSON includes every tracked
 boundary and matched rule, import paths, declarations/resolved inventory, route map,
 source/profile hashes, and DAST blockers. Untracked source must be committed or staged
 in the application's checkout before pinning. No findings or model call are needed.
+Source-only preflight also accepts an explicitly selected external `--out` directory,
+such as the application's private handoff directory. The destination must not overlap
+the source checkout, Git metadata or a frozen evaluation run. Discovery, case preparation,
+run and score artifacts still require ignored `data/` output. No private ledger is read.
 The expected route list has this shape, with the application's actual methods and paths:
 
 ```json

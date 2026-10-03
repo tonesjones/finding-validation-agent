@@ -3,7 +3,7 @@ import json
 import pytest
 
 from fva.__main__ import load_profile, main
-from fva.evaluation import preflight
+from fva.evaluation import preflight, preflight_dir, main as eval_main
 from fva.schemas import DeploymentProfile
 
 
@@ -54,3 +54,33 @@ def test_route_registration_must_be_entrypoint(app, tmp_path):
     assert not result["dast_ready"] and "incorrect route mapping" in result["blocking_reasons"][0]
     result = preflight(src, profile, tmp_path / "out2")
     assert not result["dast_ready"]
+
+
+def test_external_preflight_cli_only(app, tmp_path, monkeypatch, capsys):
+    src, profile, expected = app
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(profile.model_dump_json())
+    # Treat the test directory as an external handoff for the CLI boundary.
+    external = tmp_path / "external" / "preflight"
+    import fva.evaluation as evaluation
+    def restricted(path):
+        raise ValueError("case artifacts require ignored data/")
+    monkeypatch.setattr(evaluation, "artifact_dir", restricted)
+    args = ["prepare", "--source", str(src), "--profile-file", str(profile_path),
+            "--expected-routes", str(expected), "--out", str(external)]
+    eval_main(args)
+    assert (external / "preflight.json").exists() and "DAST launch: ready" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        eval_main(args + ["--canonical", str(tmp_path / "must-not-read.jsonl")])
+
+
+def test_preflight_output_path_safety(app, tmp_path):
+    src, _, _ = app
+    for path in (src, src / "reports", src.parent, tmp_path / "other" / ".git" / "reports"):
+        with pytest.raises(ValueError):
+            preflight_dir(path, src)
+    frozen = tmp_path / "frozen"
+    frozen.mkdir()
+    (frozen / "prepared.json").write_text("{}")
+    with pytest.raises(ValueError, match="frozen"):
+        preflight_dir(frozen, src)
