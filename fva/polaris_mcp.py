@@ -104,19 +104,31 @@ def export_issues(client: PolarisMCP, out: Path, **scope) -> int:
 
 
 def fetch_types(client: PolarisMCP, out: Path, **scope) -> int:
-    """list_issues has no issue-type info; fetch it once per weaknessId -> types.json."""
+    """Fetch static types by weaknessId and DAST types by original issue id."""
+    from fva.adapters.polaris import is_dast
     first_issue: dict[str, str] = {}
+    dast_issues: list[str] = []
     for page in sorted(out.glob("page-*.json")):
         data = json.loads(json.loads(page.read_text(encoding="utf-8"))["content"][0]["text"]).get("data", {})
         for it in data.get("_items", []):
-            first_issue.setdefault(it.get("weaknessId"), it["id"])
+            if is_dast(it):
+                if it["id"] not in dast_issues:
+                    dast_issues.append(it["id"])
+            else:
+                first_issue.setdefault(it.get("weaknessId"), it["id"])
     types = {}
     for wid, iid in first_issue.items():
         res = client.call("get_issue", issueId=iid, includeType=True, includeOccurrenceProperties=False,
                           includeFirstDetectedOn=False, **{k: v for k, v in scope.items() if k != "branchId"})
         types[wid] = json.loads(res["content"][0]["text"]).get("data", {}).get("type")
+    dast_types = {}
+    for issue_id in dast_issues:
+        res = client.call("get_issue", issueId=issue_id, includeType=True, includeOccurrenceProperties=False,
+                          includeFirstDetectedOn=False, **{k: v for k, v in scope.items() if k != "branchId"})
+        dast_types[issue_id] = json.loads(res["content"][0]["text"]).get("data", {}).get("type")
     (out / "types.json").write_text(json.dumps(types, indent=1), encoding="utf-8")
-    return len(types)
+    (out / "dast-types.json").write_text(json.dumps(dast_types, indent=1), encoding="utf-8")
+    return len(types) + len(dast_types)
 
 KEYWORDS = ("dast", "tooltype", "correlat", "related", "link", "trace", "event", "endpoint", "url", "reachab")
 _ERRORS = (ValueError, SystemExit, KeyError)

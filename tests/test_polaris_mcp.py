@@ -29,6 +29,15 @@ def test_sca_issue_uses_polaris_package_identity():
     assert "_links" not in str(m) and "tenantId" not in str(m)
 
 
+def test_sca_linked_advisory_and_specific_description():
+    import json
+    issue = polaris._unwrap(json.loads((FIX / "polaris_mcp_sca.json").read_text()))[0]
+    op = {p["key"]: p["value"] for p in issue["occurrenceProperties"]}
+    finding = polaris.from_issue(issue, run_id="sample", raw_digest="0" * 64, pointer="/issues/0")
+    assert finding.package.linked_advisory_ids == (op["linked-vulnerability-id"],)
+    assert finding.scanner_metadata["technical_description"] == op["technical-description"]
+
+
 def test_mcp_and_flat_ids_agree():
     """Same Polaris issue id -> same finding_id whichever adapter ingested it."""
     import json, tempfile

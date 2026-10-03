@@ -1,0 +1,127 @@
+{
+  "_items": [
+    {
+      "id": "DAST-SAMPLE-POST-001",
+      "weaknessId": "sample-shared-weakness",
+      "context": {
+        "toolType": "dast",
+        "toolId": "sample-tool",
+        "tenantId": "SYNTHETIC-TENANT"
+      },
+      "occurrenceProperties": [
+        {
+          "key": "location",
+          "value": "https://demo.invalid/api/action?mode=sample"
+        },
+        {
+          "key": "method",
+          "value": "POST"
+        },
+        {
+          "key": "cwe",
+          "value": "CWE-755"
+        },
+        {
+          "key": "severity",
+          "value": "medium"
+        },
+        {
+          "key": "attack-scope",
+          "value": "Endpoint"
+        },
+        {
+          "key": "attack-segment",
+          "value": "StatusCode"
+        },
+        {
+          "key": "attack-target",
+          "value": "FAKE-PRIVATE-TARGET"
+        },
+        {
+          "key": "evidence",
+          "value": [
+            {
+              "label": "Synthetic evidence",
+              "attack": {
+                "scope": "Endpoint",
+                "segment": "StatusCode",
+                "target": "FAKE-PRIVATE-TARGET"
+              },
+              "_links": [
+                {
+                  "rel": "request",
+                  "method": "GET",
+                  "href": "https://artifacts.invalid/request?token=FAKE-SIGNED-TOKEN"
+                },
+                {
+                  "rel": "response",
+                  "method": "GET",
+                  "href": "https://artifacts.invalid/response?token=FAKE-SIGNED-TOKEN"
+                },
+                {
+                  "rel": "screenshot",
+                  "method": "GET",
+                  "href": "https://artifacts.invalid/screenshot?token=FAKE-SIGNED-TOKEN"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "type": {
+        "id": "sample-error-type",
+        "altName": "Server Error",
+        "_localized": {
+          "name": "Server Error",
+          "otherDetails": [
+            {
+              "key": "description",
+              "value": "Synthetic server error observation."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "DAST-SAMPLE-GET-002",
+      "weaknessId": "sample-shared-weakness",
+      "context": {
+        "toolType": "dast"
+      },
+      "occurrenceProperties": [
+        {
+          "key": "location",
+          "value": "https://demo.invalid/api/status"
+        },
+        {
+          "key": "method",
+          "value": "GET"
+        },
+        {
+          "key": "cwe",
+          "value": "CWE-326"
+        },
+        {
+          "key": "severity",
+          "value": "medium"
+        },
+        {
+          "key": "attack-scope",
+          "value": "Application"
+        },
+        {
+          "key": "attack-segment",
+          "value": "Body"
+        }
+      ],
+      "type": {
+        "id": "sample-tls-type",
+        "altName": "Weak SSL Protocol",
+        "_localized": {
+          "name": "Deprecated TLS Protocol Version",
+          "otherDetails": []
+        }
+      }
+    }
+  ]
+}

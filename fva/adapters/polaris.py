@@ -78,10 +78,8 @@ def _unwrap(doc):
     return doc if isinstance(doc, list) else [doc]
 
 
-# TODO(real DAST sample): Polaris DAST MCP responses have never been sampled. ASSUMED: the same envelope
-# as SAST/SCA (`occurrenceProperties` key/value list, `context`, `type.altName`, `id`) with occurrence keys
-# `url`, `http-method`, `parameter-name`, `parameter-location`, `cwe`, `severity`, `title`, `request`,
-# `response-snippet`. Confirm against a real sample; only `from_dast_issue` should need to change.
+# Real DAST samples use location/method and structured evidence links. Older flat
+# exports use url/http-method and inline snippets. Neither implies runtime proof.
 _SNIPPET_MAX = 500
 _PARAM_LOCS = {"query", "body", "header", "cookie", "path"}
 
@@ -99,27 +97,31 @@ def _snippet(text, url: str) -> str | None:
         return None
     import re
     from urllib.parse import urlsplit
-    from fva.redact import redact
+    from fva.redact import redact_http
     t = str(text)
     host = urlsplit(url.strip()).netloc
     if host:
         t = re.sub(re.escape(host), "[HOST]", t, flags=re.I)
         t = re.sub(re.escape(host.rsplit("@", 1)[-1].split(":")[0]), "[HOST]", t, flags=re.I)
     t = re.sub(r"(?im)^\s*host\s*:.*$", "Host: [HOST]", t)
-    return redact(t)[:_SNIPPET_MAX]
+    return redact_http(t)[:_SNIPPET_MAX]
 
 
 def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types: dict | None = None) -> _Finding:
     from fva.schemas import EndpointRef
     op = {p["key"]: p["value"] for p in issue.get("occurrenceProperties", [])}
     ctx = issue.get("context") or {}
-    typ = issue.get("type") or (types or {}).get(issue.get("weaknessId")) or {}
     iid = issue["id"]
-    url = str(op.get("url") or "")
+    # DAST weaknessId is not a unique type identity (e.g. w-0 has multiple types).
+    # A sidecar must be keyed by original issue ID; full get_issue details win.
+    typ = issue.get("type") or (types or {}).get(iid) or {}
+    url = str(op.get("location") or op.get("url") or "").strip()
+    method = str(op.get("method") or op.get("http-method") or "").strip()
+    missing = [name for name, value in (("location", url), ("method", method)) if not value]
     ploc = str(op.get("parameter-location") or "").lower()
-    ep = EndpointRef(method=str(op.get("http-method") or "GET"), path=_app_path(url),
-                     parameter=op.get("parameter-name") or None,
-                     parameter_location=ploc if ploc in _PARAM_LOCS else None)
+    ep = None if missing else EndpointRef(method=method, path=_app_path(url),
+                                         parameter=op.get("parameter-name") or None,
+                                         parameter_location=ploc if ploc in _PARAM_LOCS else None)
     alt = typ.get("altName") or ""
     localized = typ.get("_localized") or {}
     details = {d["key"]: d["value"] for d in localized.get("otherDetails") or []}
@@ -127,7 +129,34 @@ def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, 
         "request_snippet": _snippet(op.get("request"), url),
         "response_snippet": _snippet(op.get("response-snippet"), url),
         "context": {k: ctx[k] for k in _SAFE_CONTEXT if k in ctx} or None,
+        "endpoint_missing_fields": missing or None,
+        "type_details_missing": True if not typ else None,
+        "attack_scope": op.get("attack-scope"),
+        "attack_segment": op.get("attack-segment"),
     }
+    # Keep content-addressed references, never internal/signed artifact URLs or
+    # unredacted attack targets. Retrieving a body is a separate authorized step.
+    evidence = []
+    for pi, prop in enumerate(issue.get("occurrenceProperties", [])):
+        base = f"{pointer}/occurrenceProperties/{pi}/value"
+        if prop["key"] == "attack-target" and prop.get("value"):
+            meta["attack_target_ref"] = _raw_ref(raw_digest, base)
+        if prop["key"] != "evidence" or not isinstance(prop.get("value"), list):
+            continue
+        for ei, item in enumerate(prop["value"]):
+            if not isinstance(item, dict):
+                continue
+            attack = item.get("attack") or {}
+            record = {"raw_ref": _raw_ref(raw_digest, f"{base}/{ei}"),
+                      "scope": attack.get("scope"), "segment": attack.get("segment"),
+                      "artifacts": [{"relation": link["rel"],
+                                     "raw_ref": _raw_ref(raw_digest, f"{base}/{ei}/_links/{li}")}
+                                    for li, link in enumerate(item.get("_links") or [])
+                                    if link.get("rel") in {"request", "response", "screenshot"}]}
+            if attack.get("target"):
+                record["target_ref"] = _raw_ref(raw_digest, f"{base}/{ei}/attack/target")
+            evidence.append({k: v for k, v in record.items() if v is not None})
+    meta["dast_evidence"] = evidence or None
     return _Finding(
         finding_id=str(_uuid.uuid5(_NS_MCP, f"finding:polaris:{iid}")), run_id=run_id,
         source_tool="polaris", source_finding_id=iid,
@@ -150,6 +179,8 @@ USED_OCCURRENCE_KEYS: frozenset[str] = frozenset({
     "minor-version-upgrade-guidance-version-name", "major-version-upgrade-guidance-version-name",
     "coverity-events", "url", "http-method", "parameter-name", "parameter-location", "request",
     "response-snippet",
+    "method", "attack-scope", "attack-segment", "attack-target", "evidence",
+    "linked-vulnerability-id", "technical-description",
 })
 USED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({
     "id", "weaknessId", "type", "context", "occurrenceProperties", "reachability", "reachabilityEvidenceCount",
@@ -157,8 +188,12 @@ USED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({
 })
 
 
+def is_dast(issue: dict) -> bool:
+    return str((issue.get("context") or {}).get("toolType") or "").lower() == "dast"
+
+
 def from_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types: dict | None = None) -> _Finding:
-    if (issue.get("context") or {}).get("toolType") == "dast":
+    if is_dast(issue):
         return from_dast_issue(issue, run_id=run_id, raw_digest=raw_digest, pointer=pointer, types=types)
     op = {p["key"]: p["value"] for p in issue.get("occurrenceProperties", [])}
     ctx = issue.get("context") or {}
@@ -171,7 +206,9 @@ def from_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types
         name = origin.rsplit("/", 1)[0] if origin and "/" in origin else op.get("component-name", "unknown")
         pkg = _Pkg(name=name, version=str(op.get("component-version-name", "unknown")),
                    ecosystem=NAMESPACE_ECOSYSTEM.get(op.get("component-origin-external-namespace", "")),
-                   advisory_id=op.get("vulnerability-id"))
+                   advisory_id=op.get("vulnerability-id"),
+                   linked_advisory_ids=tuple(v.strip() for v in str(op.get("linked-vulnerability-id") or "").split(",")
+                                            if v.strip()))
     loc = None
     if not is_sca and op.get("location"):
         fn = op.get("function-name")
@@ -187,6 +224,7 @@ def from_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types
         "vulnerability_source": op.get("vulnerability-source"),
         "cvss_base_score": op.get("base-score"),
         "fix_guidance": op.get("solution"),
+        "technical_description": op.get("technical-description"),
         "upgrade_minor": op.get("minor-version-upgrade-guidance-version-name"),
         "upgrade_major": op.get("major-version-upgrade-guidance-version-name"),
         "coverity_events_ref": op.get("coverity-events"),
@@ -225,11 +263,14 @@ def load_mcp(paths, *, source_commit: str | None = None):
                ingested_at=_dt.now(_tz.utc))
     types_file = paths[0].parent / "types.json"
     types = _json.loads(types_file.read_text(encoding="utf-8")) if types_file.exists() else None
+    dast_types_file = paths[0].parent / "dast-types.json"
+    dast_types = _json.loads(dast_types_file.read_text(encoding="utf-8")) if dast_types_file.exists() else None
     out = []
     for p in sorted(paths):
         digest = _sha(p)
         for i, issue in enumerate(_unwrap(_json.loads(p.read_text(encoding="utf-8")))):
-            out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}", types=types))
+            out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}",
+                                  types=(dast_types if dast_types is not None else types) if is_dast(issue) else types))
     return run, out
 
 

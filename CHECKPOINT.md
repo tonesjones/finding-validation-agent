@@ -1,42 +1,48 @@
 # Checkpoint
 
-Last updated: 2026-10-02. Update this file at every commit that changes status.
+Last updated: 2026-10-03. Update this file when status changes.
 
-## Resume here
+## Current state
 
-- 2026-10-02 (branch `claude/compassionate-ramanujan-vjgzq0`, after a whole-project review):
-  - **Rule closures now cite evidence.** Before, 430 of 573 worksheet rows were closed `not_applicable` with no evidence
-    record. Skipped findings now keep a `deployment_boundary` record (path rule) or their `dependency_resolution` /
-    reachability records, and the closure passes `check_verdict`. Prompts are unchanged, so **re-run `assess` on the
-    real export (all cache hits, free), then `worksheet` and `score`**: expect the same 430 `not_applicable`, each
-    with `evidence_ids`. Older run dirs now show those rows as needs_review, with a warning.
-  - Verdict suggestion logic moved to `fva/verdicts.py` (worksheet and score import it).
-  - `assess --workers N` (parallel model calls, ordered output), `--credential-model skip` (opt-in; compare with
-    `score` against `ask` before making it the default), missing-lockfile warning. CI on Linux + Windows.
-  - **No DAST exists in the PoC tenant.** The DAST adapter, SAST↔DAST linker and DAST evidence are frozen and
-    unverified (built from a guessed format).
-  - Polaris data tools (built, tested on fixtures/stubs, not yet run on live data): `python -m fva.polaris_mcp
-    inventory`, `python -m fva census <dir>`, `python -m fva correlation-value --source <checkout>`.
-    **Next action once Polaris access is back:** run inventory + census (anywhere), then correlation-value on the
-    laptop (needs the PoC ledger), and record the tables here. Cloud sessions read `POLARIS_ACCESS_TOKEN` from the
-    environment settings.
-  - README restructured (plain-language top, built vs planned), operator detail moved to `docs/operations.md`,
-    PROJECT_STATUS.md removed (status lives here).
-- PRs #4, #5 and #6 are merged into `main` (v0.4 + routing). **Luna/Sol routing is the default** for codex;
-  `--no-route` or `--model` runs one model.
-- 2026-10-01 (branch `claude/stoic-shannon-3wy7sq`): scanner mix without DAST, `likely` verdict, triage worksheet
-  and review re-import (see "Scanner mix and write-back" below). Not yet run on the real Juice Shop export:
-  run `assess` locally, then `python -m fva worksheet <run_dir>`.
-- First real worksheet (`data/runs/20261001-153602-codex/`): 573 rows, 499 issues; 430 not_applicable,
-  42 likely, 99 needs_review, 2 valid_non_security. Next: `python -m fva score <run_dir>` (added 2026-10-01).
-- **Next action:** "Open / next" items 1-2 (stance semantics, SCA advisory context), then a routed re-run
-  compared against `data/runs/20260928-ab-routed/` (baseline for the current prompt; Sol-only baseline
-  `data/runs/20260928-ab-sol/`).
-- Review scripts (local, not committed): `python data/review/review_run.py <run_dir>`,
-  `python data/review/compare_ab.py <routed_run> <sol_run>`,
-  `python data/review/measure_usage.py <dry_run_dir> <n>` (exact token split via `codex exec --json`).
-- Caveat: the per-call `tokens` field in run summaries is Codex's footer count, not total usage; use
-  `measure_usage.py` figures for cost (item 8).
+- PR #9 merged into `main` on 2026-10-03. It adds the blind evaluation pilot commands
+  `discover` and `eval prepare|run|score`, and repairs Polaris DAST ingestion. Review
+  fixes cover Git helper execution during pinning, separate redaction for source and
+  HTTP evidence, DAST type export and import, CLI isolation, and discovery metrics.
+- The static pilot scanned and imported six findings. Fresh Sol 6 discovery produced
+  six cited allegations; a 12-case preparation and blank human forms are frozen.
+  These are not validated vulnerabilities. Exact identities, hosted target, paths
+  and artifact locations are in ignored `data/LOCAL-NOTES.md`.
+- Fixed pilot model is `gpt-6-sol`, explicitly approved while Sol 6.1 CLI access is
+  unavailable. Later model comparisons require new smoke/batch outputs.
+- PR review fixes passed 260 local tests, with 5 skips, plus an independent
+  security-boundary review. The original fsmonitor callback was reproduced in a
+  disposable checkout; hardened pinning left callback markers absent and retained
+  clean/dirty detection without changing Git config/index. Source auth syntax stays
+  visible while HTTP headers and literal template secrets are masked. DAST sidecars
+  round-trip by issue ID and bind to evaluation scope hashes. No detected plant
+  comment hints or redacted-source changes in the six-file frozen discovery packet.
+  The empty demo repository is now private.
+- The re-review found that pinning ran submodule clean and process filters. That is
+  fixed: a test shows the unsafe diff runs them and pinning doesn't. The dirty flag
+  now ignores submodule changes, matching the source hash, which never covered them.
+
+## Blocked on / next
+
+- Human-frozen private labels and matching receipt before assessment smoke/batch.
+  Human issue adjudication is also required for discovery overlap and unique additions.
+- The pilot app's DAST scan waits on entitlement, so its coverage is unknown. The
+  separate sample proves importer compatibility, not the pilot app's coverage,
+  evidence bodies or links.
+- No case smoke, batch or score has run.
+- Next: select scanner-only or static-plus-discovery scope, obtain its label receipt,
+  smoke with audit, batch reusing smoke, human-grade, then score. Add DAST later in
+  a new preparation with approved links and a new private label receipt.
+
+## Historical development log
+
+The detailed dated pilot/authoring history and local identities were moved to
+`data/LOCAL-NOTES.md`. The reference implementation notes below are historical;
+they are not instructions to rerun or replace the frozen pilot.
 
 ## Built (package `fva`, Python >= 3.10, tests: `python -m pytest`)
 
@@ -229,7 +235,7 @@ After the move to the company's enterprise GitHub, personal Codex is not availab
   from GPT-6 do not carry over), and confirm gateway logging/retention in the data-handling sign-off.
 - Ask the gateway owner: exact model aliases, and whether JSON-schema output is enabled per model.
 
-## Open / next
+## Historical backlog
 
 Done 2026-09-28: structured output (`--output-schema`), no low-confidence escalation for credential CWEs,
 token accounting per call and tier, routed vs Sol-only comparison (routing stays the default on price).
