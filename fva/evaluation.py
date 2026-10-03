@@ -496,6 +496,7 @@ def preflight(source: Path, profile, out: Path, *, expected_routes: Path | None 
 
 
 def main(argv=None):
+    from fva.discovery import FIXED_MODEL
     parser = argparse.ArgumentParser(prog="python -m fva eval")
     subs = parser.add_subparsers(dest="operation", required=True)
     prep = subs.add_parser("prepare", help="inspect source/profile without findings")
@@ -509,7 +510,7 @@ def main(argv=None):
     run = subs.add_parser("run", help="one fresh fixed-model response per frozen case")
     run.add_argument("prepared")
     run.add_argument("--out", required=True)
-    run.add_argument("--model", required=True, choices=["gpt-6.1-sol"])
+    run.add_argument("--model", required=True, choices=[FIXED_MODEL])
     run.add_argument("--smoke", action="store_true")
     run.add_argument("--smoke-run")
     run.add_argument("--labels-receipt", help="reviewer, prepared_sha256 and gold_sha256 only; no gold path or labels")

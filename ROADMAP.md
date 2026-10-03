@@ -34,8 +34,10 @@ prioritized issue per real flaw, built from Polaris SAST, SCA, and DAST results.
 
 ## v0.4 — DAST evidence and cross-scanner grouping (done)
 
-The Polaris test tenant has no DAST data (checked 2026-10-02): the DAST items below were built from a
-guessed response format and stay frozen and unverified until a real DAST export exists.
+The DAST importer was checked and repaired against six real details from a separate
+sample project on 2026-10-03. That verifies sampled endpoint/type mappings, not the
+pilot's request/response retrieval or cross-scanner links. Record Desk DAST remains
+unlaunched pending entitlement. The items below are implementation status.
 
 - [x] Polaris DAST adapter: URL, method, parameter, CWE, redacted request/response.
 - [x] SAST↔DAST linking by CWE, route/handler, and parameter, with link confidence.
@@ -79,7 +81,8 @@ Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `
 - [ ] Measure SAST↔DAST link accuracy.
 - [ ] Measure scanner-gap discoveries separately.
 - [x] Polaris data tools: MCP inventory, field census, correlation value of candidate join keys (built 2026-10-02).
-- [ ] Run them on live Polaris data; decide which links to keep and which dropped fields the adapter should read.
+- [ ] Complete live Polaris correlation checks. Static export census and six-record
+      sample DAST compatibility are checked; pilot DAST links remain unverified.
 - [ ] Document model, prompt, tool, source, and runtime versions for reproducibility.
 - [ ] Evaluate TypeSafe AI's Jev (typed decisions with calibrated confidence, no text) as a triage and routing
       step: skip / junior / senior per cluster, or predict junior escalation. Never as evidence, because Jev

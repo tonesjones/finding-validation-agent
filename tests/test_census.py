@@ -35,7 +35,7 @@ def test_no_leaks():
 
 def test_dropped():
     d = _c()["dropped"]
-    assert {"technical-description", "linked-vulnerability-id"} <= set(d["sca"]["occurrence"])
+    assert not {"technical-description", "linked-vulnerability-id"} & set(d["sca"]["occurrence"])
     assert all("cwe" not in v["occurrence"] for v in d.values())
     assert "_type" in d["sast"]["top_level"]
 

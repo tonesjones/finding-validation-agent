@@ -4,6 +4,12 @@ Use the local `.venv\Scripts\python.exe` in place of `python` below if the packa
 is not installed in your default interpreter. Evaluation/model artifacts belong under ignored `data/`.
 Keep the demo in `C:\TestCode\fva-eval-demo` and its ledger/receipts outside this repository.
 
+On 2026-10-03 the user approved `gpt-6-sol` as the fixed pilot model while CLI
+access to `gpt-6.1-sol` is unavailable. Discovery and assessment enforce the same
+requested/observed model and tool audit. Preserve earlier Sol 6.1 artifacts.
+Migration to Sol 6.1 requires separate smoke, batch and score directories; never
+reuse a Sol 6 smoke as a Sol 6.1 response.
+
 ## Source/profile preflight
 
 The application session supplies a JSON `DeploymentProfile` and a JSON route list.
@@ -36,7 +42,7 @@ Use `eval` for the pilot's approval filtering and frozen paired comparisons.
 ## Discovery
 
 ```powershell
-python -m fva discover --source C:\TestCode\fva-eval-demo --profile-file data/eval/profile.json --model gpt-6.1-sol --out data/eval/discovery-01
+python -m fva discover --source C:\TestCode\fva-eval-demo --profile-file data/eval/profile.json --model gpt-6-sol --out data/eval/discovery-01
 ```
 
 The packet contains only redacted application code and supported package manifests,
@@ -57,8 +63,22 @@ python -m fva eval prepare --source C:\TestCode\fva-eval-demo --profile-file dat
 
 Findings and canonical inputs are repeatable and optional. Without them, this is only
 preflight. Canonical findings bypass the Polaris adapter. Supply `--lockfile` for an
-external resolved inventory. The Polaris adapter remains unverified for real DAST;
-run the existing census against an actual export before trusting its normalized fields.
+external resolved inventory. DAST location/method mapping was checked against six
+real issue details from a separate sample project. Check the actual pilot export
+with the census before trusting its fields; the sample does not prove pilot coverage.
+
+DAST imports accept observed `location`/`method` and legacy `url`/`http-method`.
+If either endpoint fact is missing, `endpoint` is absent and the missing fields are
+recorded; no root path or GET method is invented. Prefer full `get_issue` records.
+For DAST, a `types.json` sidecar must use original issue IDs as keys. A weakness ID
+can describe multiple DAST types and is not a safe lookup key. SAST/SCA sidecars
+continue to use weakness IDs.
+
+Structured DAST evidence retains attack scope/segment and content-addressed
+references into the adapter's unwrapped `/issues` view. Internal or signed download
+URLs and raw attack targets stay in the original export. Artifact references are
+not request/response bodies; retrieve and redact those separately when available.
+Do not infer a parameter name from an unverified attack-target field.
 
 Review `link-review.json` against the export and pinned source. Check route, handler,
 parameter, CWE and scanner observation for each high-confidence link. Copy and fill
@@ -83,8 +103,8 @@ also remains supported. Create a label receipt containing only `reviewer`,
 `gold_sha256`. The preparation and run commands accept no gold path or labels.
 
 ```powershell
-python -m fva eval run data/eval/prepared-01 --model gpt-6.1-sol --labels-receipt data/eval/labels-receipt.json --smoke --out data/eval/smoke-01
-python -m fva eval run data/eval/prepared-01 --model gpt-6.1-sol --labels-receipt data/eval/labels-receipt.json --smoke-run data/eval/smoke-01 --out data/eval/run-01
+python -m fva eval run data/eval/prepared-01 --model gpt-6-sol --labels-receipt data/eval/labels-receipt.json --smoke --out data/eval/smoke-01
+python -m fva eval run data/eval/prepared-01 --model gpt-6-sol --labels-receipt data/eval/labels-receipt.json --smoke-run data/eval/smoke-01 --out data/eval/run-01
 ```
 
 The smoke calls the first case. The batch reuses that response and calls each remaining
@@ -101,6 +121,25 @@ directly. Each `human-review.json` row grades the one shared response and every 
 claim. Copy that template to another file to grade it; frozen outputs must remain intact.
 
 ## Score and human adjudication
+
+Before assessment, a human fills a private expected-label row for every case.
+Use `needs_review` when the available evidence cannot decide. Use `likely` for
+strong static support, and `confirmed` only with independently verified runtime
+or human evidence. Record a specific rationale. A dependency advisory or a model
+allegation alone does not establish exploitation. Keep blank labeling forms and
+receipts outside the frozen preparation; filled labels stay in the private area.
+
+Discovery adjudication is separate: mark each accepted and rejected candidate
+as verified, refuted or unresolved, cite the independent evidence, and record
+scanner overlap only after adjudication. Citation acceptance does not validate
+the security claim. A rejected true candidate remains a discovery citation failure.
+
+After the batch, copy its generated `human-review.json` to a grading file. Grade
+reasoning as supported, unsupported or uncertain against the cited evidence.
+Record hidden assumptions, treatment of uncertainty and whether the stated risk
+matches the demonstrated path. Grade each dropped claim as correct, incorrect or
+uncertain with a rationale. Keep response and packet hashes unchanged. Do not
+pre-fill response grades before the model answers or use a model as the judge.
 
 ```powershell
 python -m fva eval score data/eval/prepared-01 data/eval/run-01 --gold C:\TestCode\fva-eval-private\gold.jsonl --human-review data/eval/graded-review.json

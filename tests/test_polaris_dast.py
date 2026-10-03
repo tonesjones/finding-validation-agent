@@ -1,5 +1,9 @@
 import hashlib
+import copy
+import json
 from pathlib import Path
+
+import pytest
 
 from fva.adapters import polaris
 from fva.schemas import FindingType, Severity
@@ -53,3 +57,74 @@ def test_raw_fixture_unchanged():
     before = hashlib.sha256(FIX.read_bytes()).hexdigest()
     _load()
     assert hashlib.sha256(FIX.read_bytes()).hexdigest() == before
+
+
+OBSERVED = FIX.parent / "polaris_dast_observed.json"
+
+
+def test_observed_post_and_get_endpoints():
+    _, (post, get) = polaris.load_dast(OBSERVED)
+    assert (post.endpoint.method, post.endpoint.path) == ("POST", "/api/action")
+    assert (get.endpoint.method, get.endpoint.path) == ("GET", "/api/status")
+    assert post.source_finding_id == "DAST-SAMPLE-POST-001"
+    assert (post.cwe, post.severity, post.title) == (("CWE-755",), Severity.medium, "Server Error")
+    assert get.title == "Deprecated TLS Protocol Version"
+    assert post.endpoint.parameter is None
+    assert post.endpoint.parameter_location is None
+
+
+def test_structured_evidence_retains_provenance_without_signed_urls():
+    _, (post, _) = polaris.load_dast(OBSERVED)
+    record, = post.scanner_metadata["dast_evidence"]
+    assert [a["relation"] for a in record["artifacts"]] == ["request", "response", "screenshot"]
+    assert record["artifacts"][0]["raw_ref"] == (
+        f"raw:sha256:{hashlib.sha256(OBSERVED.read_bytes()).hexdigest()}#/issues/0/occurrenceProperties/7/value/0/_links/0"
+    )
+    assert record["target_ref"].endswith("/attack/target")
+    assert post.scanner_metadata["attack_target_ref"].endswith("/occurrenceProperties/6/value")
+    assert (record["scope"], record["segment"]) == ("Endpoint", "StatusCode")
+    dumped = post.model_dump_json()
+    for private in ("demo.invalid", "artifacts.invalid", "FAKE-SIGNED-TOKEN",
+                    "FAKE-PRIVATE-TARGET", "SYNTHETIC-TENANT"):
+        assert private not in dumped
+    assert "request_snippet" not in post.scanner_metadata
+    assert "response_snippet" not in post.scanner_metadata
+
+
+@pytest.mark.parametrize("missing", ["method", "location"])
+def test_missing_endpoint_fact_never_becomes_root_or_get(missing):
+    issue = copy.deepcopy(json.loads(OBSERVED.read_text())["_items"][0])
+    issue["occurrenceProperties"] = [p for p in issue["occurrenceProperties"] if p["key"] != missing]
+    finding = polaris.from_issue(issue, run_id="sample", raw_digest="0" * 64, pointer="/issues/0")
+    assert finding.endpoint is None
+    assert finding.scanner_metadata["endpoint_missing_fields"] == [missing]
+    from fva.correlation.runtime_link import link
+    from fva.schemas import Finding, FindingLocation
+    static = Finding(finding_id="static", run_id="sample", source_tool="sample",
+                     source_finding_id="static", rule_id="sample", cwe=("CWE-755",),
+                     title="sample", severity=Severity.medium, finding_type=FindingType.sast,
+                     location=FindingLocation(path="action.js", start_line=1),
+                     raw_evidence_ref="raw:sha256:0#/issues/0")
+    assert link(static, finding, {("ALL", "/api/action"): {"action.js"}}) is None
+
+
+def test_dast_type_sidecar_uses_issue_id_and_ignores_ambiguous_weakness_id():
+    issue = copy.deepcopy(json.loads(OBSERVED.read_text())["_items"][1])
+    correct = issue.pop("type")
+    wrong = json.loads(OBSERVED.read_text())["_items"][0]["type"]
+    finding = polaris.from_issue(issue, run_id="sample", raw_digest="0" * 64, pointer="/issues/0",
+                                 types={issue["weaknessId"]: wrong})
+    assert finding.title == "Untitled issue"
+    assert finding.scanner_metadata["type_details_missing"] is True
+    finding = polaris.from_issue(issue, run_id="sample", raw_digest="0" * 64, pointer="/issues/0",
+                                 types={issue["id"]: correct, issue["weaknessId"]: wrong})
+    assert finding.title == "Deprecated TLS Protocol Version"
+    assert "type_details_missing" not in finding.scanner_metadata
+
+
+def test_dast_inline_type_wins_over_sidecar():
+    issue = json.loads(OBSERVED.read_text())["_items"][1]
+    wrong = json.loads(OBSERVED.read_text())["_items"][0]["type"]
+    finding = polaris.from_issue(issue, run_id="sample", raw_digest="0" * 64, pointer="/issues/0",
+                                 types={issue["id"]: wrong})
+    assert finding.title == "Deprecated TLS Protocol Version"

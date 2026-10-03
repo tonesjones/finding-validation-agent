@@ -168,13 +168,14 @@ def test_raw_aggregation(stances, expected):
     assert raw_verdict(raw) == expected
 
 
-def test_freeze_and_model_gates(pilot, tmp_path):
+@pytest.mark.parametrize("observed_model", ["wrong", "gpt-6.1-sol"])
+def test_freeze_and_model_gates(pilot, tmp_path, observed_model):
     prepared = prep(pilot, tmp_path)
     _, receipt = labels(prepared, tmp_path)
     with pytest.raises(ValueError, match="smoke"):
         run_cases(prepared, tmp_path / "batch", client=AuditedClient([]), labels_receipt=receipt)
     client = AuditedClient([response()])
-    client.last_reported_model = "wrong"
+    client.last_reported_model = observed_model
     out = tmp_path / "wrong"
     assert run_cases(prepared, out, smoke=True, client=client, labels_receipt=receipt)["processing_failures"] == 1
     assert not (out / "smoke.json").exists()
@@ -209,7 +210,7 @@ def test_audited_cli_schema_and_tools(tmp_path, monkeypatch):
         Path(out).write_text(response())
         events = [{"type": "turn.started"}, {"type": "item.completed", "item": {"type": "command_execution"}},
                   {"type": "turn.completed", "usage": {"output_tokens": 5}}]
-        return subprocess.CompletedProcess(argv, 0, "\n".join(json.dumps(e) for e in events), "model: gpt-6.1-sol\n")
+        return subprocess.CompletedProcess(argv, 0, "\n".join(json.dumps(e) for e in events), f"model: {FIXED_MODEL}\n")
     monkeypatch.setattr(subprocess, "run", fake)
     client = CodexCliClient(model=FIXED_MODEL, schema_file=schema, audit=True)
     client.complete("sys", "prompt")

@@ -1,8 +1,95 @@
 # Checkpoint
 
-Last updated: 2026-10-02. Update this file at every commit that changes status.
+Last updated: 2026-10-03. Update this file at every commit that changes status.
 
 ## Resume here
+
+- 2026-10-03 consolidated checkpoint: SAST/SCA scans and six-finding ingestion are
+  complete. DAST remains NOT_LAUNCHED pending entitlement; coverage is UNKNOWN.
+  Source remains clean at 9ac51601c57e95f37cd5720dad3e6e6ab21ba2a2 with content hash
+  a7a5ddfc0089ea4b967a326f580295f1e1b97c56876da89eb2b28e261addb499.
+  User explicitly approved fixed gpt-6-sol while gpt-6.1-sol CLI access is unavailable.
+  Discovery and evaluation CLI/audit gates now enforce Sol 6. A later Sol 6.1 run
+  must have new smoke/batch outputs; neither old responses nor labels may be silently
+  relabeled. Earlier Sol 6.1 discovery remains bound to the old app revision.
+  Fresh isolated CLI discovery completed on the current revision with 6 accepted,
+  0 rejected candidates, verified citations, observed gpt-6-sol and a complete audit
+  with no tools or unknown events. These are unvalidated allegations.
+  Raw response, packet, citations, audit and sealed artifacts are under ignored
+  data/eval/record-desk-discovery-sol6-20261003-01/.
+  Frozen static-plus-discovery preparation has 12 cases, preserving 6 scanner and
+  6 synthesized discovery IDs, with zero approved DAST links:
+  data/eval/record-desk-static-discovery-sol6-20261003-01/.
+  Blank label forms, label-free receipt template, case index and discovery
+  adjudication form are in data/eval/record-desk-review-materials-sol6-20261003-01/.
+  Scanner-only forms remain separately available in
+  data/eval/record-desk-scanner-review-materials-sol6-20261003-01/ for the original
+  6-case preparation. Ignored data/eval/prepare-review-materials.py generates these
+  forms from verified seals without reading private labels or choosing verdicts.
+  Human grading guidance is in docs/blind-pilot.md. No private ledger or labels were
+  read; no case assessment smoke, batch or score ran. Static rules-only remains
+  6/6 needs_review. Choose the preparation scope and have a human freeze its private
+  labels, then supply only the matching receipt path. Sol 6 discovery establishes
+  model transport/audit access; the assessment smoke still requires that receipt.
+  Importer repairs, model selection and current workstream notes are reviewed for
+  draft PR #9 on codex/blind-evaluation-pilot. Keep data/ and raw exports out of Git.
+  Final local suite: 237 passed, 5 skipped; git diff --check passed. Added an explicit
+  rejection test for Sol 6.1 responses under the Sol 6 pilot. Remote CI for the new
+  commit must pass before merge; PR remains draft. All ignored evaluation seals verified.
+  Next after labels: smoke, inspect audit, batch reusing the smoke, human-grade,
+  score. When DAST is available: verify pilot export/body retrieval and traffic,
+  approve actual links, create a new combined preparation and private label receipt.
+
+- 2026-10-03: user authorized DAST adapter repair and static export ingestion.
+  Six real DAST details from a separately authorized sample project now preserve
+  all paths and methods; before the repair all six paths became root and three
+  POST methods became GET. Missing endpoint facts now leave endpoint absent.
+  Structured evidence and attack targets retain raw references rather than signed
+  URLs or unredacted values. No artifact bodies were retrieved. DAST type lookup
+  uses inline details or issue-ID sidecars; weakness IDs were observed to collide.
+  Added a fully synthetic fixture and regression checks. All real sample data stays
+  under ignored data/compatibility/altoro-dast-20261003/, outside the pilot.
+  The six-record sample is not proof of Record Desk DAST coverage or confirmation.
+  Own-app DAST remains NOT_LAUNCHED until entitlement becomes available.
+  SAST and SCA completed, and their hash-checked exports imported to
+  data/ingestion/record-desk-static-20261003/: one SAST and five SCA findings.
+  Original IDs, severity, CWE, titles, static locations/lines, dependency versions,
+  advisory IDs, linked advisory IDs, technical descriptions and declarations were
+  checked. Re-import IDs are stable. Source files still match the scanned manifest
+  for commit 9ac51601c57e95f37cd5720dad3e6e6ab21ba2a2. This is import validation only:
+  no gold, private receipts, model answers, case labels or verdicts were read/run.
+  Remaining unused vendor fields are listed in the saved census and preserved raw.
+  Local Windows suite: 236 passed, 5 skipped. No source/runtime change, scan launch,
+  or cross-chat message. Fresh discovery and fixed-model assessment access remain
+  outstanding before case preparation and the final blind comparison.
+
+- 2026-10-02: replacement neutral handoff received and inspected. Current clean demo
+  commit is 9ac51601c57e95f37cd5720dad3e6e6ab21ba2a2 (verified directly with Git);
+  reported FVA content hash is a7a5ddfc0089ea4b967a326f580295f1e1b97c56876da89eb2b28e261addb499.
+  Current reports are handoff/public-preflight/preflight.json and .md; the neutral
+  handoff reports all 12 routes and 9 boundaries passing. Hosted target is public,
+  with no X-Desk-Key required. Reported deployment 4b8ac602-2d82-479f-8dbd-c59b68429a54,
+  version 78581ed9-52bf-4594-a7b4-ba86f0d89da7. Older source/profile/preflight identities
+  below are historical. SAST/SCA/DAST still NOT_LAUNCHED per neutral handoff.
+  Fresh source-only discovery is required for an evaluation on this new revision.
+  No rerun started: this chat remains held for review per the user's workstream split.
+
+- 2026-10-02: the app-authoring chat reports a user-requested removal of the
+  X-Desk-Key hosting gate, with worker.js changes, redeployment and a new freeze
+  pending. The previous source/deployment identity must not be used for new scans
+  or treated as the identity of the updated app. Preserve all six discovery candidates
+  and their audit against the OLD revision 7707c673bb709e7d820fd8dd2980e83b1f133db0.
+  Await the new neutral source/profile/runtime identity and passing preflight. Then
+  decide how to obtain fresh source-only discovery for a comparison on the new revision;
+  do not relabel or silently reuse the old discovery as a scan of the updated source.
+  No new discovery, scan or assessment was launched in response to this notice.
+
+- 2026-10-02: user split the pilot into two chats. This chat retains non-Polaris FVA
+  evaluation and will review it once required inputs arrive. A separate chat owns
+  Polaris setup, SAST/SCA/DAST execution, complete exports, real DAST ingestion checks
+  and a repeatable runbook. See `docs/pilot-workstreams.md` for scope and return contract.
+  Preserve frozen discovery and source; no private ledger or discovery candidates
+  enter the Polaris workflow. No scans were launched during this split.
 
 - 2026-10-02, `codex/blind-evaluation-pilot`: implementing the attached blind pilot plan.
   External `--profile-file` and `eval prepare` source/profile preflight are available.
