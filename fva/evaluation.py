@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import glob
 import hashlib
 import json
+import shutil
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
@@ -46,7 +48,6 @@ def prepare_cases(source, profile, out, report, *, findings_specs=(), canonical_
     from fva.schemas import Finding, FindingType, RuntimeMode
 
     findings, exports = [], {}
-    import glob
     for spec in findings_specs:
         paths = sorted(glob.glob(spec)) or [spec]
         for path in paths:
@@ -225,7 +226,6 @@ def run_cases(prepared: Path, out: Path, *, smoke=False, smoke_run=None, client=
     results, human = [], []
     start = 0
     if not smoke and cases:
-        import shutil
         results = read_rows(Path(smoke_run) / "results.jsonl")
         if len(results) != 1 or results[0]["case_id"] != cases[0]["case_id"]:
             raise ValueError("smoke response does not match first prepared case")
@@ -282,13 +282,13 @@ def run_cases(prepared: Path, out: Path, *, smoke=False, smoke_run=None, client=
 
 def score_cases(prepared: Path, run: Path, gold: Path, *, review: Path | None = None):
     from fva.export.score import load_key
-    verify_seal(prepared, "prepared.json")
+    prepared_manifest = verify_seal(prepared, "prepared.json")
     verify_seal(run, "outputs.json")
     run_meta = json.loads((run / "run.json").read_text(encoding="utf-8"))
     expected_hash = (run_meta.get("labels_receipt") or {}).get("gold_sha256")
     if expected_hash and hashlib.sha256(gold.read_bytes()).hexdigest() != expected_hash:
         raise ValueError("gold changed after label freeze")
-    if run_meta["prepared_sha256"] != verify_seal(prepared, "prepared.json")["sha256"]:
+    if run_meta["prepared_sha256"] != prepared_manifest["sha256"]:
         raise ValueError("run/prepared mismatch")
     key = load_key(gold)
     rows = read_rows(run / "results.jsonl")
@@ -537,7 +537,7 @@ def main(argv=None):
         if (args.findings or args.canonical) and Path(args.out).exists() and any(Path(args.out).iterdir()):
             raise ValueError("evaluation output must be empty; frozen packets cannot be overwritten")
         profile = load_profile(args.profile, args.profile_file)
-        report = preflight(Path(args.source), load_profile(args.profile, args.profile_file), Path(args.out),
+        report = preflight(Path(args.source), profile, Path(args.out),
                            expected_routes=Path(args.expected_routes) if args.expected_routes else None,
                            lockfile=Path(args.lockfile) if args.lockfile else None)
         if args.findings or args.canonical:

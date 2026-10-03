@@ -105,17 +105,17 @@ def export_issues(client: PolarisMCP, out: Path, **scope) -> int:
 
 def fetch_types(client: PolarisMCP, out: Path, **scope) -> int:
     """Fetch static types by weaknessId and DAST types by original issue id."""
+    from fva.adapters.polaris import is_dast
     first_issue: dict[str, str] = {}
-    dast_issues: dict[str, str] = {}
+    dast_issues: list[str] = []
     for page in sorted(out.glob("page-*.json")):
         data = json.loads(json.loads(page.read_text(encoding="utf-8"))["content"][0]["text"]).get("data", {})
         for it in data.get("_items", []):
-            issue_id = it["id"]
-            tool_type = str(((it.get("context") or {}).get("toolType")) or "")
-            if tool_type.casefold() == "dast":
-                dast_issues.setdefault(issue_id, issue_id)
+            if is_dast(it):
+                if it["id"] not in dast_issues:
+                    dast_issues.append(it["id"])
             else:
-                first_issue.setdefault(it.get("weaknessId"), issue_id)
+                first_issue.setdefault(it.get("weaknessId"), it["id"])
     types = {}
     for wid, iid in first_issue.items():
         res = client.call("get_issue", issueId=iid, includeType=True, includeOccurrenceProperties=False,

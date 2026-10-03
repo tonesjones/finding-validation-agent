@@ -21,7 +21,7 @@ has no entitlement. Its findings and coverage remain unknown.
 The separate DAST sample proved endpoint/method importer compatibility and exposed
 bugs now repaired. It supplies no evidence for the pilot app. Actual pilot DAST bodies,
 links and scanner traffic remain unverified. The latest static import audit is under
-ignored data/ingestion/record-desk-static-20261003/.
+the ignored `data/ingestion/` directory; its exact path is in `data/LOCAL-NOTES.md`.
 
 ## FVA evaluation stays here
 

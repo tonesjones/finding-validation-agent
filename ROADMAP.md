@@ -34,10 +34,11 @@ prioritized issue per real flaw, built from Polaris SAST, SCA, and DAST results.
 
 ## v0.4 — DAST evidence and cross-scanner grouping (done)
 
-The DAST importer was checked and repaired against six real details from a separate
-sample project on 2026-10-03. That verifies sampled endpoint/type mappings, not the
-pilot's request/response retrieval or cross-scanner links. Record Desk DAST remains
-unlaunched pending entitlement. The items below are implementation status.
+On 2026-10-03 the DAST importer was checked against six real issue details from a
+separate sample project, and repaired. That verifies the sampled endpoint and type
+mappings. It doesn't verify request and response retrieval or cross-scanner links for
+the pilot app, whose DAST scan waits on entitlement. The items below are implementation
+status.
 
 - [x] Polaris DAST adapter: URL, method, parameter, CWE, redacted request/response.
 - [x] SAST↔DAST linking by CWE, route/handler, and parameter, with link confidence.

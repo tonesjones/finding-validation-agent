@@ -188,8 +188,12 @@ USED_TOP_LEVEL_KEYS: frozenset[str] = frozenset({
 })
 
 
+def is_dast(issue: dict) -> bool:
+    return str((issue.get("context") or {}).get("toolType") or "").lower() == "dast"
+
+
 def from_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types: dict | None = None) -> _Finding:
-    if (issue.get("context") or {}).get("toolType") == "dast":
+    if is_dast(issue):
         return from_dast_issue(issue, run_id=run_id, raw_digest=raw_digest, pointer=pointer, types=types)
     op = {p["key"]: p["value"] for p in issue.get("occurrenceProperties", [])}
     ctx = issue.get("context") or {}
@@ -265,9 +269,8 @@ def load_mcp(paths, *, source_commit: str | None = None):
     for p in sorted(paths):
         digest = _sha(p)
         for i, issue in enumerate(_unwrap(_json.loads(p.read_text(encoding="utf-8")))):
-            is_dast = str((issue.get("context") or {}).get("toolType", "")).lower() == "dast"
             out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}",
-                                  types=(dast_types if dast_types is not None else types) if is_dast else types))
+                                  types=(dast_types if dast_types is not None else types) if is_dast(issue) else types))
     return run, out
 
 

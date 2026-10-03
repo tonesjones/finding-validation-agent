@@ -1,64 +1,87 @@
 # Blind discovery and validation pilot
 
-Use the local `.venv\Scripts\python.exe` in place of `python` below if the package
-is not installed in your default interpreter. Evaluation/model artifacts belong under ignored `data/`.
-Keep the demo in a separate private checkout and its ledger/receipts outside this repository.
+This guide runs the pilot end to end: preflight the demo source, let a model look for
+candidates without seeing scanner results, prepare frozen cases, freeze human labels,
+run the paired assessment, and score it.
 
-On 2026-10-03 the user approved `gpt-6-sol` as the fixed pilot model while CLI
-access to `gpt-6.1-sol` is unavailable. Discovery and assessment enforce the same
-requested/observed model and tool audit. Preserve earlier Sol 6.1 artifacts.
-Migration to Sol 6.1 requires separate smoke, batch and score directories; never
-reuse a Sol 6 smoke as a Sol 6.1 response.
+## Before you start
 
-## Source/profile preflight
+- If the package isn't installed in your default interpreter, use the local
+  `.venv\Scripts\python.exe` in place of `python` in the commands below.
+- Write evaluation and model artifacts under the ignored `data/` directory.
+- Keep the demo in a separate private checkout. Keep its ledger and receipts outside
+  this repository.
+
+On 2026-10-03 the user approved `gpt-6-sol` as the fixed pilot model, because CLI
+access to `gpt-6.1-sol` is unavailable. Discovery and assessment both check that the
+observed model matches the requested model, and both audit tool use. Keep earlier
+Sol 6.1 artifacts. A move to Sol 6.1 needs its own smoke, batch and score directories.
+Never reuse a Sol 6 smoke as a Sol 6.1 response.
+
+## Run the source and profile preflight
 
 The application session supplies a JSON `DeploymentProfile` and a JSON route list.
-The profile must name the route-registration file as an entrypoint as well as the
-Workers adapter. Routes use the existing Express parser. Unsupported syntax produces
-missing mappings and blocks DAST readiness, rather than guessing a handler.
+The profile must name both the route-registration file and the Workers adapter as
+entrypoints. Routes are read with the existing Express parser. Syntax the parser
+doesn't support produces a missing mapping and blocks DAST readiness. The parser
+never guesses a handler.
 
 ```powershell
 python -m fva eval prepare --source .\demo-source --profile-file data/eval/profile.json --expected-routes data/eval/routes.json --out data/eval/preflight
 ```
 
-Outputs are `preflight.json` and `preflight.md`. The JSON includes every tracked file's
-boundary and matched rule, import paths, declarations/resolved inventory, route map,
-source/profile hashes, and DAST blockers. Untracked source must be committed or staged
-in the application's checkout before pinning. No findings or model call are needed.
-Source-only preflight also accepts an explicitly selected external `--out` directory,
-such as the application's private handoff directory. The destination must not overlap
-the source checkout, Git metadata or a frozen evaluation run. Discovery, case preparation,
-run and score artifacts still require ignored `data/` output. No private ledger is read.
-The expected route list has this shape, with the application's actual methods and paths:
+The command writes `preflight.json` and `preflight.md`. The JSON lists, for every
+tracked file, its boundary, matched rule and import path. It also holds the declared
+and resolved dependency inventory, the route map, the source and profile hashes, and
+the reasons DAST is blocked. Preflight needs no findings and makes no model call.
+
+Commit or stage new source files in the application's checkout before you pin it.
+Pinning reads tracked files only.
+
+Preflight can write to an external `--out` directory that you select, such as the
+application's private handoff directory. That directory must not overlap the source
+checkout, Git metadata or a frozen evaluation run. Discovery, case preparation, run
+and score still write only under `data/`. No step reads the private ledger.
+
+The expected route list has this shape. Use the application's real methods and paths:
 
 ```json
 [{"method":"GET","path":"/example","handlers":["src/example.js"]}]
 ```
 
-`assess` also accepts `--profile-file`; it is mutually exclusive with `--profile`.
-Existing `assess` behavior is unchanged, including its automatic DAST linking.
-Use `eval` for the pilot's approval filtering and frozen paired comparisons.
+`assess` also accepts `--profile-file`, which can't be combined with `--profile`.
+Nothing else in `assess` changes, including its automatic DAST linking. Use `eval`
+for the pilot's link approvals and frozen paired comparison.
 
-## Discovery
+## Run discovery
 
 ```powershell
 python -m fva discover --source .\demo-source --profile-file data/eval/profile.json --model gpt-6-sol --out data/eval/discovery-01
 ```
 
-The packet contains only redacted application code and supported package manifests,
-with line numbers and dependency inventory. Markdown notes, scanner exports, receipts,
-private evidence and `data/` are excluded. The packet rejects sources over its byte bound
-rather than truncating them. `--max-bytes` changes that bound explicitly.
-Freezing also refuses obvious plant/answer markers in comments. The marker tuple in
-`fva/discovery.py` is a conservative check, not proof that a packet is blind: inspect
-the frozen source for issue notes, answer hints and plant-specific tests before using
-discovery results. Keep the demo repository private; obtain a new neutral source
-identity and fresh discovery if hints require source changes.
+The model sees only redacted application code and supported package manifests, with
+line numbers and the dependency inventory. Markdown notes, scanner exports, receipts,
+private evidence and `data/` are left out. If the source is larger than the byte limit,
+discovery stops instead of truncating it. To change the limit, pass `--max-bytes`.
 
-`findings.jsonl` contains canonical allegations with synthesized stable IDs and raw
-response pointers. `response.txt`, `call.json`, `packet.json`, and `rejected.json` retain
-the response, audit, input and rejected candidates. Adjudicate rejected candidates too.
-A true candidate with failed citations counts as discovery with citation failure.
+Freezing stops if a code comment contains an obvious plant or answer marker. The
+markers live in `PLANT_COMMENT_MARKERS` in `fva/discovery.py`. They are a rough check
+and don't prove the packet is blind. Before you use discovery results, read the frozen source for
+issue notes, answer hints and tests written for a plant. Keep the demo repository
+private. If removing a hint means changing the source, the source needs a new neutral
+identity and a fresh discovery run.
+
+Discovery writes these files:
+
+- `findings.jsonl`: accepted candidates as canonical findings, with stable synthesized
+  IDs and pointers into the raw response.
+- `response.txt`: the raw model response.
+- `call.json`: the model identity and the call audit.
+- `packet.json`: the exact model input.
+- `rejected.json`: candidates whose schema or citations failed.
+
+Adjudicate rejected candidates too. A true candidate with failed citations counts as a
+discovery with a citation failure.
 
 ## Prepare cases and review DAST links
 
@@ -66,107 +89,130 @@ A true candidate with failed citations counts as discovery with citation failure
 python -m fva eval prepare --source .\demo-source --profile-file data/eval/profile.json --expected-routes data/eval/routes.json --findings 'data/eval/polaris/page-*.json' --canonical data/eval/discovery-01/findings.jsonl --out data/eval/review-01
 ```
 
-Findings and canonical inputs are repeatable and optional. Without them, this is only
-preflight. Canonical findings bypass the Polaris adapter. Supply `--lockfile` for an
-external resolved inventory. DAST location/method mapping was checked against six
-real issue details from a separate sample project. Check the actual pilot export
-with the census before trusting its fields; the sample does not prove pilot coverage.
+`--findings` and `--canonical` are optional and repeatable. Without either one, the
+command runs preflight only. Canonical findings skip the Polaris adapter. To use an
+external resolved inventory, pass `--lockfile`.
 
-DAST imports accept observed `location`/`method` and legacy `url`/`http-method`.
-If either endpoint fact is missing, `endpoint` is absent and the missing fields are
-recorded; no root path or GET method is invented. Prefer full `get_issue` records.
-The exporter writes DAST details to `dast-types.json`, keyed by original issue ID,
-and static details to weakness-keyed `types.json`. The importer prefers the separate
-DAST sidecar; legacy DAST-only `types.json` must use original issue IDs as keys. A weakness ID
-can describe multiple DAST types and is not a safe lookup key. SAST/SCA sidecars
-continue to use weakness IDs.
+The DAST location and method mapping was checked against six real issue details from
+a separate sample project. That sample doesn't prove the pilot's coverage. Run the
+census on the real pilot export before you trust its fields.
 
-Structured DAST evidence retains attack scope/segment and content-addressed
+The DAST importer reads `location` and `method`, and falls back to the older `url` and
+`http-method`. If either value is missing, the finding has no `endpoint` and records
+which fields are missing. The importer never invents a root path or a GET method.
+Prefer full `get_issue` records.
+
+The exporter writes DAST type details to `dast-types.json`, keyed by original issue ID,
+and static type details to `types.json`, keyed by weakness ID. One weakness ID can
+cover several DAST types, so it is not a safe key for DAST. The importer reads DAST
+types from `dast-types.json`. An older export that has only `types.json` still works if
+that file keys its DAST entries by original issue ID.
+
+Structured DAST evidence keeps the attack scope and segment, plus content-addressed
 references into the adapter's unwrapped `/issues` view. Internal or signed download
-URLs and raw attack targets stay in the original export. Artifact references are
-not request/response bodies; retrieve and redact those separately when available.
-Do not infer a parameter name from an unverified attack-target field.
+URLs and raw attack targets stay in the original export. An artifact reference is not a
+request or response body. Retrieve and redact bodies separately when they exist. Don't
+infer a parameter name from an unverified attack-target field.
 
-Review `link-review.json` against the export and pinned source. Check route, handler,
-parameter, CWE and scanner observation for each high-confidence link. Copy and fill
-`approval-template.json` with `decision: approved`, reviewer and rationale for each
-accepted link. Approval binds source/profile/export hashes, including `types.json`.
-Repeat preparation into a fresh output directory with `--approved-links <filled.json>`.
-Unapproved links cannot supply runtime support. Approval creates no human confirmation
-evidence. Access headers are redacted before excerpts enter model packets.
+To approve DAST links:
 
-`cases.jsonl` preserves every duplicate's original ID and origin. `coverage.json` keeps
+1. Open `link-review.json` next to the export and the pinned source.
+2. For each high-confidence link, check the route, handler, parameter, CWE and scanner
+   observation.
+3. Copy `approval-template.json`. For each link you accept, set `decision` to
+   `approved` and fill in `reviewer` and `rationale`.
+4. Run preparation again into a new output directory with
+   `--approved-links <filled.json>`.
+
+An approval is bound to the source, profile and export hashes, including `types.json`
+and `dast-types.json`. Unapproved links can't supply runtime support. An approval is not
+human confirmation evidence. Access headers are redacted before any excerpt reaches a
+model packet.
+
+`cases.jsonl` keeps every duplicate's original ID and origin. `coverage.json` counts
 DAST-only reports outside the static-case denominator. `prepared.json` hashes the frozen
-case packets, redacted source, assessment prompt/schema and review artifacts. Use fresh
-directories for changes; never edit a frozen packet.
+case packets, the redacted source, the assessment prompt and schema, and the review
+files. To change anything, prepare into a new directory. Never edit a frozen packet.
 
-## Freeze labels, smoke, then run
+## Freeze labels, then run the smoke and the batch
 
-Have a human assign private gold rows before any responses exist. Each row uses
-`case_id`, `expected_verdict` and `rationale`. Optional `verified_security` and `runtime`
-fields preserve separately verified security/runtime status. The legacy key format
-also remains supported. Create a label receipt containing only `reviewer`,
-`prepared_sha256` from `prepared.json`, and the private gold file's SHA256 as
-`gold_sha256`. The preparation and run commands accept no gold path or labels.
+Before any model response exists, a human writes a private gold row for every case.
+Each row has `case_id`, `expected_verdict` and `rationale`:
+
+- Use `needs_review` when the available evidence can't decide.
+- Use `likely` for strong static support.
+- Use `confirmed` only with independently verified runtime or human evidence.
+- Write a specific rationale. A dependency advisory or a model allegation alone doesn't
+  show exploitation.
+
+Optional `verified_security` and `runtime` fields record security and runtime status
+that was verified separately. The older ledger format still loads. Keep blank labeling
+forms and receipts outside the frozen preparation, and keep filled labels in the
+private area.
+
+Then create a label receipt with only three fields. `reviewer` names the person who
+labeled. `prepared_sha256` comes from `prepared.json`. `gold_sha256` is the SHA-256 of
+the private gold file. Preparation and run accept no gold path and no labels.
 
 ```powershell
 python -m fva eval run data/eval/prepared-01 --model gpt-6-sol --labels-receipt data/eval/labels-receipt.json --smoke --out data/eval/smoke-01
 python -m fva eval run data/eval/prepared-01 --model gpt-6-sol --labels-receipt data/eval/labels-receipt.json --smoke-run data/eval/smoke-01 --out data/eval/run-01
 ```
 
-The smoke calls the first case. The batch reuses that response and calls each remaining
-case once, without an assessment cache or routing. Inspect `call.json` for requested and
-observed model, timing, available usage and tool audit. Missing/mismatched identity,
-unexpected tools or incomplete audit stop processing. Fresh Codex calls ignore user
-configuration and run in an empty directory, but isolation acceptance depends on the
-event audit. Session metadata fallback reads only that call's session.
+The smoke calls the model for the first case. The batch reuses that response and calls
+the model once for each remaining case, with no assessment cache and no routing. Each
+`call.json` records the requested and observed model, timing, available usage and the
+tool audit. Processing stops on a missing or mismatched model identity, unexpected tool
+use, or an incomplete audit. Each Codex call ignores user configuration and runs in an
+empty directory. The event audit is what proves isolation. If the CLI doesn't report the
+model, the client reads only that call's own session metadata.
 
-Rules-only and hybrid receive identical deterministic and approved DAST evidence.
-LLM-only uses raw stances. Hybrid replays the same response through FVA citation checks
-and invariants. Malformed answers remain processing failures. Raw responses are saved
-directly. Each `human-review.json` row grades the one shared response and every dropped
-claim. Copy that template to another file to grade it; frozen outputs must remain intact.
+Rules-only and hybrid get the same deterministic evidence and the same approved DAST
+evidence. LLM-only maps the raw claim stances. Hybrid replays the same response through
+FVA's citation checks and invariants. A malformed answer is recorded as a processing
+failure. Raw responses are saved as received.
 
-## Score and human adjudication
+## Score the run and adjudicate discovery
 
-Before assessment, a human fills a private expected-label row for every case.
-Use `needs_review` when the available evidence cannot decide. Use `likely` for
-strong static support, and `confirmed` only with independently verified runtime
-or human evidence. Record a specific rationale. A dependency advisory or a model
-allegation alone does not establish exploitation. Keep blank labeling forms and
-receipts outside the frozen preparation; filled labels stay in the private area.
+After the batch, copy its `human-review.json` to a new grading file. The frozen outputs
+must stay unchanged. Each row covers one shared response and every claim FVA dropped
+from it. For each row:
 
-Discovery adjudication is separate: mark each accepted and rejected candidate
-as verified, refuted or unresolved, cite the independent evidence, and record
-scanner overlap only after adjudication. Citation acceptance does not validate
-the security claim. A rejected true candidate remains a discovery citation failure.
+- Grade the reasoning as `supported`, `unsupported` or `uncertain` against the cited
+  evidence.
+- Record hidden assumptions, how the response treats uncertainty, and whether the stated
+  risk matches the demonstrated path.
+- Grade each dropped claim as `correct`, `incorrect` or `uncertain`, with a rationale.
+- Leave the response and packet hashes unchanged.
 
-After the batch, copy its generated `human-review.json` to a grading file. Grade
-reasoning as supported, unsupported or uncertain against the cited evidence.
-Record hidden assumptions, treatment of uncertainty and whether the stated risk
-matches the demonstrated path. Grade each dropped claim as correct, incorrect or
-uncertain with a rationale. Keep response and packet hashes unchanged. Do not
-pre-fill response grades before the model answers or use a model as the judge.
+Don't fill in grades before the model answers, and don't use a model as the judge.
 
 ```powershell
 python -m fva eval score data/eval/prepared-01 data/eval/run-01 --gold <private-gold-path> --human-review data/eval/graded-review.json
 ```
 
-Scoring first verifies frozen artifacts, then loads gold and checks its receipt hash.
-Headline agreement treats confirmed/likely as equivalent. Exact agreement is shown too.
-LLM-only cannot produce confirmed. `score.json` records counts/denominators, failures,
-DAST-backed cases/confirmed decisions and approved link references in the result rows.
-Decision errors and abstention categories compare expected verdicts; they do not infer
-verified security from a label alone. Unsupported reasoning and drop correctness remain
-unmeasured until a human grades them. Reasoning support accepts `supported`, `unsupported`
-or `uncertain`; drop correctness accepts `correct`, `incorrect` or `uncertain`.
+Scoring verifies the frozen artifacts first, then loads the gold file and checks it
+against the receipt hash. Headline agreement counts `confirmed` and `likely` as the same
+answer. Exact agreement is reported too. LLM-only can't produce `confirmed`.
 
-Discovery overlap and verified LLM-only additions are separate from validation quality.
-Structural case groups are reported as origins only, not logical issue overlap or
-verified unique discoveries. Those metrics remain unmeasured until human issue
-adjudication reconciles scanner reports, accepted/rejected discoveries and private
-verification evidence. Normalized CWE strings and matching lines do not prove equivalence.
-Rejected true discoveries and verified plants missed by both require separate private
-human reconciliation. Pending scans are unknown, never zero findings. Keep raw failures
-as replayable offline cases and retain human grades for later judge calibration. No LLM
-judge is implemented. Do not tune the frozen assessment prompt during the pilot.
+`score.json` records counts with their denominators, processing failures, DAST-backed
+cases and confirmed decisions, and the approved link references in each result row.
+Decision errors and abstention categories compare against the expected verdicts. They
+don't treat a label alone as verified security. Unsupported reasoning and drop
+correctness stay unmeasured until a human grades them.
+
+Discovery adjudication is separate from validation quality. For each accepted and
+rejected candidate, mark it verified, refuted or unresolved, and cite the independent
+evidence. A verified citation doesn't validate the security claim. A rejected true
+candidate still counts as a discovery citation failure.
+
+Scoring reports only which origins each structural case group came from. It doesn't
+measure overlap between discovery and Polaris, or verified discoveries that only the
+model made. Those stay unmeasured until a human reconciles the scanner reports, the
+accepted and rejected candidates, and the private verification evidence. Matching CWEs
+or lines don't prove two reports describe the same issue. Rejected true discoveries,
+and verified plants that both missed, also need separate private reconciliation.
+
+A pending scan is unknown, never zero findings. Keep raw failures as replayable offline
+cases, and keep human grades for later judge calibration. No LLM judge exists yet. Don't
+tune the frozen assessment prompt during the pilot.

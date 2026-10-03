@@ -4,15 +4,16 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Current state
 
-- PR #9 is draft. Review fixes address Git helper execution, source/evidence
-  redaction boundaries, DAST type export/import, CLI isolation and discovery metrics.
+- PR #9 is in review. Its fixes cover Git helper execution during pinning, separate
+  redaction for source and HTTP evidence, DAST type export and import, CLI isolation,
+  and discovery metrics.
 - The static pilot scanned and imported six findings. Fresh Sol 6 discovery produced
   six cited allegations; a 12-case preparation and blank human forms are frozen.
   These are not validated vulnerabilities. Exact identities, hosted target, paths
   and artifact locations are in ignored `data/LOCAL-NOTES.md`.
 - Fixed pilot model is `gpt-6-sol`, explicitly approved while Sol 6.1 CLI access is
   unavailable. Later model comparisons require new smoke/batch outputs.
-- PR review fixes passed 258 local tests, with 5 skips, plus an independent
+- PR review fixes passed 260 local tests, with 5 skips, plus an independent
   security-boundary review. The original fsmonitor callback was reproduced in a
   disposable checkout; hardened pinning left callback markers absent and retained
   clean/dirty detection without changing Git config/index. Source auth syntax stays
@@ -20,16 +21,17 @@ Last updated: 2026-10-03. Update this file when status changes.
   round-trip by issue ID and bind to evaluation scope hashes. No detected plant
   comment hints or redacted-source changes in the six-file frozen discovery packet.
   The empty demo repository is now private. CI and human re-review remain merge gates.
-- Re-review's submodule filter execution path is fixed. Child clean/process
-  callbacks reproduce with the unsafe diff and stay absent during pinning. Dirty
-  status now excludes submodule changes, consistent with source hash coverage.
+- The re-review found that pinning ran submodule clean and process filters. That is
+  fixed: a test shows the unsafe diff runs them and pinning doesn't. The dirty flag
+  now ignores submodule changes, matching the source hash, which never covered them.
 
 ## Blocked on / next
 
 - Human-frozen private labels and matching receipt before assessment smoke/batch.
   Human issue adjudication is also required for discovery overlap and unique additions.
-- DAST entitlement before our app's scan; coverage remains unknown. Separate sample
-  compatibility does not prove our app's coverage, evidence bodies or links.
+- The pilot app's DAST scan waits on entitlement, so its coverage is unknown. The
+  separate sample proves importer compatibility, not the pilot app's coverage,
+  evidence bodies or links.
 - Review and CI must pass before merge. No case smoke, batch or score has run.
 - Next: select scanner-only or static-plus-discovery scope, obtain its label receipt,
   smoke with audit, batch reusing smoke, human-grade, then score. Add DAST later in

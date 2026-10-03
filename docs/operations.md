@@ -4,20 +4,28 @@ This guide is for people who run the Finding Validation Agent (fva) and tune its
 operator detail: how scoring works, how each finding is routed to a model tier, and which command-line options
 change a run. For what the tool is and why it exists, start with the [README](../README.md).
 
-## Assess options
+## Source pinning needs Git and never runs repository helpers
 
-Source pinning requires Git for a checkout containing `.git`, including worktrees.
-If Git is missing or the tracked inventory is unreadable, `assess`, discovery and
-evaluation stop rather than walking untracked files. Check Git installation and
-repository permissions. A source archive without `.git` can still use file walking.
-Pinning disables repository fsmonitor, external diff, textconv and configured
-clean/process helpers without writing repository configuration or the index.
-Helper-managed content is compared as raw source with CRLF normalization; its
-dirty status can differ from the repository's filter-transformed comparison.
-Submodule contents are excluded from source hashes. Pinning never enters child
-repositories, and dirty status excludes all submodule changes, including gitlink
-commit changes. To include a submodule's source, scan its checkout separately.
-Do not mutate the scanned checkout or its Git configuration during pinning.
+`assess`, `discover` and `eval` pin the source checkout before they read it.
+`fva/correlation/source_pin.py` hashes the tracked files and records `HEAD` and a
+dirty flag.
+
+- A checkout that contains `.git`, including a worktree, needs Git. If Git is missing
+  or cannot list the tracked files, the command stops. It does not fall back to
+  walking the directory, because that would hash untracked files. Check that Git is
+  installed and that you can read the repository.
+- A source archive without `.git` is pinned by walking its files.
+- Pinning turns off the repository's fsmonitor, external diff, textconv, and clean
+  and process filters. It writes neither Git configuration nor the index. Files that
+  a filter manages are compared as raw source with CRLF normalized, so the dirty flag
+  can differ from what `git status` reports.
+- Pinning never enters submodules. Their contents are not in the source hash, and the
+  dirty flag ignores every submodule change, including a submodule moved to another
+  commit. To include a submodule's source, pin its checkout separately.
+
+Don't change the checkout or its Git configuration while a pin runs.
+
+## Assess options
 
 These options change how `python -m fva assess` runs. Output goes to `data/runs/<timestamp>-<client>/`.
 
