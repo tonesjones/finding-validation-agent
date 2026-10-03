@@ -32,6 +32,8 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   Tokenomics: parent runtime verified Sol 6.1 medium; bounded read-only interface
   collection requested Luna and observed `gpt-6-luna` in its matching session metadata.
   Source review was usable; integration/final review remained in Sol. No savings measured.
+  Review: draft PR #9, https://github.com/tonesjones/finding-validation-agent/pull/9.
+  Implementation commit `ebd99d7` passed all Linux/Windows CI jobs on Python 3.10/3.12.
 
 - 2026-10-02 (branch `claude/compassionate-ramanujan-vjgzq0`, after a whole-project review):
   - **Rule closures now cite evidence.** Before, 430 of 573 worksheet rows were closed `not_applicable` with no evidence
