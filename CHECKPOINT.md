@@ -29,9 +29,21 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   A Git inventory failure previously caused an unsafe archive fallback with untracked
   files. Source pinning now uses a scoped safe.directory and refuses that fallback.
   Model-call failures are retained as processing-failure.json; audit state resets per call.
-  Next discovery step: explicit user authorization for a fresh in-app Sol 6.1 subagent,
-  or correction of CLI model access. The prepared source-only packet is ready; neither
-  candidate discovery nor paired assessment is complete. Do not report zero discoveries.
+  User explicitly authorized fresh in-app Sol 6.1 discovery. Two single-read attempts
+  stopped on tool-output truncation and assessed no candidates; both failures are saved
+  under ignored `data/eval/record-desk-discovery-app-read-failure-*`.
+  The completed fresh session read 13 losslessly split source-only packet parts. Runtime
+  metadata verified requested/observed `gpt-6.1-sol`; exactly the permitted 13 packet
+  reads occurred, with no unexpected tools. Raw response replay through the discovery
+  processor accepted 6 candidates and rejected 0; all candidate citations verified.
+  Frozen discovery artifacts: `data/eval/record-desk-discovery-app-01/`, including canonical
+  `findings.jsonl`, direct `response.txt`, `call.json`, `app-session-audit.json`, and
+  `discovery-frozen.json`. Human adjudication template is
+  `data/eval/record-desk-discovery-human-review.json`. These remain unvalidated allegations,
+  not supporting confirmation evidence. No private/scanner evidence or runtime probes used.
+  Source-only discovery is complete. Paired preparation/assessment awaits real exports,
+  link review/approvals, frozen gold and human grading. Standalone CLI model access is
+  still unresolved for future batches; keep the fixed model and do not silently substitute.
   Discovery and frozen paired prepare/run/score tooling are now implemented. See
   `docs/blind-pilot.md` for exact invocations and file contracts. Fixed `gpt-6.1-sol`
   calls audit tool events and require observed identity; no routing/cache in evaluation.
@@ -39,7 +51,7 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   link approval. Private gold remains absent from preparation/run and model inputs;
   a label-free receipt freezes its hash before the smoke. One raw response feeds all
   three arms. Explicit case gold and legacy key formats both work. Counts only; no judge.
-  Verification: local dev environment installed; 228 passed, 5 skipped on Windows.
+  Verification: local dev environment installed; 229 passed, 5 skipped on Windows.
   Private-data/source tests and POSIX-only CLI stand-ins are among the skips.
   A source pinning fix prevents an archive nested under another Git checkout from
   accidentally using its parent's tracked-file inventory. Tests run under ignored data/.
@@ -47,7 +59,7 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   expected method/path/handler list, and resolved inventory. Run source-only preflight
   first. Then discover, census actual Polaris exports, prepare/review links, re-prepare
   approved packets, freeze private labels and their receipt, smoke, batch, human-grade,
-  score. Fresh discovery was attempted but returned no answer; no actual evaluation result exists.
+  score. Fresh discovery produced 6 cited allegations; no paired validation score exists.
   Real DAST ingestion validation remains blocked on an actual export sample. Do not
   reinterpret fixture tests as real DAST verification. Rejected true discoveries and
   missed verified plants remain unmeasured until private human reconciliation.

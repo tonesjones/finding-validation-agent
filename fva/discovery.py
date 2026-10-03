@@ -125,8 +125,8 @@ def discover(source: Path, profile, out: Path, client=None, *, max_bytes=500_000
     accepted, rejected = [], []
     try:
         raw = json.loads(text)
-        if not isinstance(raw, dict) or not isinstance(raw.get("candidates"), list):
-            raise ValueError("response must contain a candidates list")
+        if not isinstance(raw, dict) or set(raw) != {"candidates"} or not isinstance(raw.get("candidates"), list):
+            raise ValueError("response must contain only a candidates list; error responses are not empty discoveries")
     except ValueError as exc:
         write_json(out / "processing-failure.json", {"error": str(exc)})
         raise

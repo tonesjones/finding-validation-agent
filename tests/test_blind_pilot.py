@@ -97,6 +97,16 @@ def test_discovery_call_failure_is_retained(pilot, tmp_path):
     assert not (out / "findings.jsonl").exists()
 
 
+def test_discovery_error_response_is_not_empty_success(pilot, tmp_path):
+    source, profile = pilot
+    out = tmp_path / "error-discovery"
+    client = AuditedClient(['{"candidates":[],"error":"input was truncated"}'])
+    with pytest.raises(ValueError, match="not empty discoveries"):
+        discover(source, profile, out, client)
+    assert (out / "response.txt").exists() and (out / "processing-failure.json").exists()
+    assert not (out / "findings.jsonl").exists()
+
+
 def test_redaction_and_bounds(pilot, tmp_path):
     source, profile = pilot
     (source / "search.js").write_text('const token = "supersecret"\n')
