@@ -113,10 +113,16 @@ class _CliClient:
     def last_tokens(self, value: int | None) -> None:
         self._local.last_tokens = value
 
-    def __init__(self, command: str | None = None, timeout: int = 600, model: str | None = None):
+    def __init__(self, command: str | None = None, timeout: int = 600, model: str | None = None,
+                 schema_file: Path | None = None, audit: bool = False):
         self._local = threading.local()
+        self.schema_file = schema_file or SCHEMA_FILE
+        self.audit = audit
         cmd = command or os.environ.get(self.env_var) or self.default_cmd
         self._argv = shlex.split(cmd, posix=(os.name != "nt"))
+        if audit and isinstance(self, CodexCliClient) and "--json" not in self._argv:
+            self._argv.insert(2, "--json")
+            self._argv.insert(3, "--ignore-user-config")
         if model:  # insert right after the subcommand words, before the trailing '-' (stdin) if present
             at = len(self._argv) - 1 if self._argv[-1] == "-" else len(self._argv)
             self._argv[at:at] = [self.model_flag, model]
@@ -128,7 +134,7 @@ class _CliClient:
         self._timeout = timeout
 
     def _run(self, prompt: str, workdir: Path) -> str:
-        argv = [a.replace("{out}", str(workdir / "last_message.txt")).replace("{schema}", str(SCHEMA_FILE))
+        argv = [a.replace("{out}", str(workdir / "last_message.txt")).replace("{schema}", str(self.schema_file))
                 for a in self._argv]
         self.last_reported_model = self.last_tokens = None
         r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -146,6 +152,35 @@ class _CliClient:
         self.last_reported_model = m.group(1) if m else None
         t = re.search(r"^tokens used\s*\n\s*([\d,]+)", log, re.M)
         self.last_tokens = int(t.group(1).replace(",", "")) if t else None
+        if self.audit:
+            events, tools, unknown = [], [], []
+            for line in r.stdout.splitlines():
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    unknown.append("non-JSON event")
+                    continue
+                events.append(event)
+                kind = event.get("type")
+                if kind not in {"thread.started", "turn.started", "turn.completed", "item.started",
+                                "item.updated", "item.completed", "error", "turn.failed"}:
+                    unknown.append(str(kind))
+                item = event.get("item", {})
+                if item and item.get("type") not in {"agent_message", "reasoning"}:
+                    tools.append(item.get("type", "unknown"))
+            thread = next((e.get("thread_id") for e in events if e.get("type") == "thread.started"), None)
+            if not self.last_reported_model and thread:
+                # Read only the fresh call's session metadata, never other sessions or config defaults.
+                sessions = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "sessions"
+                for path in sessions.glob(f"**/*{thread}.jsonl"):
+                    for line in path.read_text(encoding="utf-8").splitlines():
+                        row = json.loads(line)
+                        if row.get("type") == "turn_context":
+                            self.last_reported_model = row.get("payload", {}).get("model")
+            usage = next((e.get("usage") for e in events if e.get("type") == "turn.completed"), None)
+            self._local.last_audit = {"thread_id": thread, "tool_items": tools, "unknown_events": unknown,
+                                      "usage": usage, "observed_model": self.last_reported_model,
+                                      "complete": any(e.get("type") == "turn.completed" for e in events)}
         out_file = workdir / "last_message.txt"
         return out_file.read_text(encoding="utf-8") if out_file.exists() else r.stdout
 
@@ -167,7 +202,16 @@ class CodexCliClient(_CliClient):
 
     @property
     def cache_tag(self) -> str:
-        return "schema-v1" if any("{schema}" in a for a in self._argv) else ""
+        if not any("{schema}" in a for a in self._argv):
+            return ""
+        if self.schema_file == SCHEMA_FILE:
+            return "schema-v1"
+        import hashlib
+        return "schema:" + hashlib.sha256(self.schema_file.read_bytes()).hexdigest()
+
+    @property
+    def last_audit(self):
+        return getattr(self._local, "last_audit", None)
 
 
 class ClaudeCodeClient(_CliClient):

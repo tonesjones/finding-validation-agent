@@ -58,9 +58,20 @@ def load_key(path: Path) -> dict[str, dict]:
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         if line.strip():
             r = json.loads(line)
-            code = reason_codes.LEGACY_POC_MAP[r["classification"]]
-            key[r["candidate_id"]] = {"verdict": reason_codes.verdict_for(code).value, "code": code,
-                                      "classification": r["classification"]}
+            if "case_id" in r:
+                if not r.get("rationale", "").strip():
+                    raise ValueError("explicit gold rows require a rationale")
+                case_id = r["case_id"]
+                value = {**r, "verdict": V(r["expected_verdict"]).value, "code": "",
+                         "classification": r["rationale"]}
+            else:
+                code = reason_codes.LEGACY_POC_MAP[r["classification"]]
+                case_id = r["candidate_id"]
+                value = {"verdict": reason_codes.verdict_for(code).value, "code": code,
+                         "classification": r["classification"]}
+            if case_id in key:
+                raise ValueError(f"duplicate gold id: {case_id}")
+            key[case_id] = value
     return key
 
 

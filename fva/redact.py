@@ -5,6 +5,7 @@ import re
 
 MASK = "[REDACTED]"
 _PATTERNS = [
+    re.compile(r"(?im)^\s*(?:cf-access-client-id|cf-access-client-secret|cf-access-jwt-assertion|authorization)\s*:\s*[^\r\n]+"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S),
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*"),  # JWT
     re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
@@ -31,3 +32,14 @@ def redact(text: str, *, all_strings: bool = False) -> str:
     if all_strings:
         text = _STRING.sub(lambda m: f"{m.group(1)}{MASK}{m.group(1)}" if m.group(2) else m.group(0), text)
     return text
+
+
+def redact_value(value):
+    """Redact strings before JSON serialization escapes header line breaks."""
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, dict):
+        return {key: redact_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [redact_value(item) for item in value]
+    return value

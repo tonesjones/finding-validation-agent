@@ -4,6 +4,35 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
 
 ## Resume here
 
+- 2026-10-02, `codex/blind-evaluation-pilot`: implementing the attached blind pilot plan.
+  External `--profile-file` and `eval prepare` source/profile preflight are available.
+  Preflight records each file's boundary rule, import reachability, dependency inventory,
+  pinned source/profile hashes and the existing Express route map. Expected routes are
+  required for DAST readiness; missing/incorrect handlers block launch.
+  The demo checkout currently contains only `.git`. No private ledger has been read.
+  Discovery and frozen paired prepare/run/score tooling are now implemented. See
+  `docs/blind-pilot.md` for exact invocations and file contracts. Fixed `gpt-6.1-sol`
+  calls audit tool events and require observed identity; no routing/cache in evaluation.
+  The smoke response is reused in the batch. Source/profile/export hashes bind human
+  link approval. Private gold remains absent from preparation/run and model inputs;
+  a label-free receipt freezes its hash before the smoke. One raw response feeds all
+  three arms. Explicit case gold and legacy key formats both work. Counts only; no judge.
+  Verification: local dev environment installed; 224 passed, 5 skipped on Windows.
+  Private-data/source tests and POSIX-only CLI stand-ins are among the skips.
+  A source pinning fix prevents an archive nested under another Git checkout from
+  accidentally using its parent's tracked-file inventory. Tests run under ignored data/.
+  Next application-session inputs: tracked demo source, external DeploymentProfile,
+  expected method/path/handler list, and resolved inventory. Run source-only preflight
+  first. Then discover, census actual Polaris exports, prepare/review links, re-prepare
+  approved packets, freeze private labels and their receipt, smoke, batch, human-grade,
+  score. No live pilot/model/scanner call has been made; no actual evaluation result exists.
+  Real DAST ingestion validation remains blocked on an actual export sample. Do not
+  reinterpret fixture tests as real DAST verification. Rejected true discoveries and
+  missed verified plants remain unmeasured until private human reconciliation.
+  Tokenomics: parent runtime verified Sol 6.1 medium; bounded read-only interface
+  collection requested Luna and observed `gpt-6-luna` in its matching session metadata.
+  Source review was usable; integration/final review remained in Sol. No savings measured.
+
 - 2026-10-02 (branch `claude/compassionate-ramanujan-vjgzq0`, after a whole-project review):
   - **Rule closures now cite evidence.** Before, 430 of 573 worksheet rows were closed `not_applicable` with no evidence
     record. Skipped findings now keep a `deployment_boundary` record (path rule) or their `dependency_resolution` /

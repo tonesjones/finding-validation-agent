@@ -8,6 +8,7 @@ CRLF checkout and a Linux LF checkout of the same source pin identically.
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,7 +35,8 @@ def _git(root: Path, *args: str) -> str | None:
     try:
         # --no-optional-locks: never write .git/index (we must not leave lock files in user repos)
         r = subprocess.run(["git", "--no-optional-locks", "-C", str(root), *args],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+                           env={**os.environ, "GIT_CEILING_DIRECTORIES": str(root.resolve().parent)})
     except (OSError, subprocess.TimeoutExpired):
         return None
     return (r.stdout or "").strip() if r.returncode == 0 else None
