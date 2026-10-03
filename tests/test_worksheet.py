@@ -88,3 +88,24 @@ def test_rule_skip_without_evidence_stays_open(run):
     rows = {r["source_finding_id"]: r for r in csv.DictReader(open(run / "worksheet.csv", encoding="utf-8-sig"))}
     assert rows["POL-t"]["fva_verdict"] == "needs_review" and rows["POL-t"]["evidence_ids"] == ""
     assert "1 rule-skipped" in s["warning"]
+
+
+def test_runtime_and_precondition_evidence_decide_without_human_grading(tmp_path):
+    rows = [_row("runtime", "sast", "assess"), _row("absent", "sca", "assess"),
+            _row("model", "sca", "assess"), _row("conflict", "sca", "assess")]
+    (tmp_path / "findings.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    evs = [_ev("probe", "runtime", EvidenceType.runtime_probe, Stance.supports),
+           _ev("precondition", "absent", EvidenceType.advisory_precondition, Stance.refutes),
+           _ev("claim", "model", EvidenceType.model_assessment, Stance.refutes),
+           _ev("absent-conflict", "conflict", EvidenceType.advisory_precondition, Stance.refutes),
+           _ev("probe-conflict", "conflict", EvidenceType.runtime_probe, Stance.supports)]
+    (tmp_path / "evidence.jsonl").write_text("\n".join(evs) + "\n")
+    worksheet.write(tmp_path)
+    with open(tmp_path / "worksheet.csv", encoding="utf-8-sig") as fh:
+        actual = {r["source_finding_id"]: (r["fva_verdict"], r["reason_codes"]) for r in csv.DictReader(fh)}
+    assert actual == {
+        "POL-runtime": ("confirmed", "RUNTIME_CONFIRMED"),
+        "POL-absent": ("not_applicable", "ADVISORY_PRECONDITION_ABSENT"),
+        "POL-model": ("needs_review", "INSUFFICIENT_EVIDENCE"),
+        "POL-conflict": ("needs_review", "CONFLICTING_EVIDENCE"),
+    }

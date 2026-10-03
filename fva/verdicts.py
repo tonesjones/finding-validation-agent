@@ -53,6 +53,14 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord]) -> tuple[V, tuple[str,
         return V.confirmed, ("DAST_OBSERVED",), "high", evs
     if Stance.supports in stances and Stance.refutes in stances:
         return V.needs_review, ("CONFLICTING_EVIDENCE",), "medium", evs
+    runtime = [e for e in evs if e.evidence_type is EvidenceType.runtime_probe and e.stance is Stance.supports]
+    if runtime and check_suggestion(row["finding_id"], V.confirmed, ("RUNTIME_CONFIRMED",), evs, "high"):
+        return V.confirmed, ("RUNTIME_CONFIRMED",), "high", evs
+    preconditions = [e for e in evs if e.evidence_type is EvidenceType.advisory_precondition
+                     and e.stance is Stance.refutes]
+    if row["finding_type"] == "sca" and preconditions and check_suggestion(
+            row["finding_id"], V.not_applicable, ("ADVISORY_PRECONDITION_ABSENT",), evs, "medium"):
+        return V.not_applicable, ("ADVISORY_PRECONDITION_ABSENT",), "medium", evs
     if Stance.non_security in stances and Stance.supports not in stances:
         if check_suggestion(row["finding_id"], V.valid_non_security, ("QUALITY_NOT_SECURITY",), evs, "medium"):
             return V.valid_non_security, ("QUALITY_NOT_SECURITY",), "medium", evs

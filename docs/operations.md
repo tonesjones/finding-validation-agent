@@ -187,3 +187,18 @@ read-only and write only summaries that are safe to share.
   real). The output is totals only.
 
 The census ran on the saved Polaris export. The full correlation check against live DAST data is still open.
+
+## Decisions from validation evidence
+
+The worksheet can decide cases from recorded evidence without a filled human review form.
+Supporting `runtime_probe` evidence produces `confirmed` with `RUNTIME_CONFIRMED`.
+For SCA, refuting `advisory_precondition` evidence produces `not_applicable` with
+`ADVISORY_PRECONDITION_ABSENT`. Record the specific missing prerequisite and the
+source or runtime evidence that establishes its absence. A model refutation alone
+still produces `needs_review`, as does conflicting supporting and refuting evidence.
+
+Keep evidence for different deployments in separate runs with distinct profiles.
+A reproduction on local Node does not confirm a Cloudflare deployment. A failed
+probe does not establish non-applicability. The runtime probe runner and a general
+validation-evidence import command are not implemented; current pilot evidence is
+collected separately and supplied to the existing worksheet evidence records.
