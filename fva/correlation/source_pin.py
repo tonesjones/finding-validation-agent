@@ -34,10 +34,28 @@ class SourceSnapshot(BaseModel):
 def _git(root: Path, *args: str) -> str | None:
     try:
         # --no-optional-locks: never write .git/index (we must not leave lock files in user repos)
-        r = subprocess.run(["git", "-c", f"safe.directory={root.resolve().as_posix()}",
-                            "--no-optional-locks", "-C", str(root), *args],
+        command = ["git", "-c", f"safe.directory={root.resolve().as_posix()}",
+                   "-c", "core.fsmonitor=", "-c", f"core.hooksPath={os.devnull}",
+                   "--no-optional-locks", "-C", str(root)]
+        env = {**os.environ, "GIT_CEILING_DIRECTORIES": str(root.resolve().parent)}
+        if args and args[0] == "diff":
+            # Worktree diffs can run clean/process filters even without textconv.
+            config = subprocess.run(command + ["config", "--includes", "--null", "--name-only",
+                                    "--get-regexp", r"^filter\..*\.(clean|process|required)$"],
+                                    capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                    timeout=120, env=env)
+            if config.returncode not in (0, 1):
+                return None
+            drivers = {key.rsplit(".", 1)[0] for key in config.stdout.split("\0") if key}
+            for driver in sorted(drivers):
+                if "=" in driver:
+                    return None
+                command += ["-c", f"{driver}.clean=", "-c", f"{driver}.process=",
+                            "-c", f"{driver}.required=false"]
+            args = ("diff", "--no-ext-diff", "--no-textconv", *args[1:])
+        r = subprocess.run([*command, *args],
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
-                           env={**os.environ, "GIT_CEILING_DIRECTORIES": str(root.resolve().parent)})
+                           env=env)
     except (OSError, subprocess.TimeoutExpired):
         return None
     return (r.stdout or "").strip() if r.returncode == 0 else None
@@ -47,7 +65,8 @@ def iter_files(root: Path, excludes=DEFAULT_EXCLUDES):
     """Tracked files when `root` is a git repo (ignores untracked outputs dropped into it), else a walk."""
     tracked = _git(root, "ls-files", "-z")
     if tracked is None and (root / ".git").exists():
-        raise ValueError("cannot read Git tracked-file inventory; refusing archive fallback")
+        raise ValueError("cannot read Git tracked-file inventory; refusing archive fallback. "
+                         "Check that Git is installed and the repository is readable.")
     if tracked is not None:
         for rel in sorted(t for t in tracked.split("\0") if t):
             if not any(part in excludes for part in rel.split("/")) and (root / rel).is_file():

@@ -45,6 +45,9 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
   under `tests/fixtures/`, and check them for real ids before committing.
 - **Never print or log tokens.** Polaris access is read-only; only the tools in `READ_ONLY_TOOLS`.
 - **`likely` is not `confirmed`.** It needs rule-derived static evidence, never model output alone.
+- **Evaluation baseline exception:** `eval` stores `llm_only` as an experimental
+  stance mapping, including `supports` to `likely`. It is never an FVA verdict or
+  confirmation evidence. Rules-only and hybrid still enforce the evidence invariants.
 - **The model never confirms.** `confirmed` needs runtime, negative-control, human-review or imported
   evidence (enforced in `fva/invariants.py`). Model and static evidence can only argue, cite, or refute.
 - **Only redacted code goes to a model** (`fva/redact.py`), and every model citation is verified against the

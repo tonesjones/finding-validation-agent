@@ -5,7 +5,6 @@ import re
 
 MASK = "[REDACTED]"
 _PATTERNS = [
-    re.compile(r"(?im)^\s*(?:cf-access-client-id|cf-access-client-secret|cf-access-jwt-assertion|authorization)\s*:\s*[^\r\n]+"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S),
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*"),  # JWT
     re.compile(r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
@@ -20,6 +19,11 @@ _ASSIGN = re.compile(
      \s*[:=]\s*)
     (['"`])(.*?)\2""")
 _STRING = re.compile(r"""(['"`])((?:\\.|(?!\1).)*)\1""")
+_HEADERS = re.compile(
+    r"(?im)^([ \t]*(?:cf-access-client-id|cf-access-client-secret|cf-access-jwt-assertion|authorization)"
+    r"[ \t]*:)[ \t]*[^\r\n]+")
+_DYNAMIC_CREDENTIAL_REF = re.compile(
+    r"(?:Bearer |Basic )?\$\{[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*(?:\(\))?\}", re.I)
 
 # CWEs where any string literal on the line may itself be the secret
 CREDENTIAL_CWES = {"CWE-798", "CWE-259", "CWE-321", "CWE-522", "CWE-547"}
@@ -28,16 +32,23 @@ CREDENTIAL_CWES = {"CWE-798", "CWE-259", "CWE-321", "CWE-522", "CWE-547"}
 def redact(text: str, *, all_strings: bool = False) -> str:
     for p in _PATTERNS:
         text = p.sub(MASK, text)
-    text = _ASSIGN.sub(lambda m: f"{m.group(1)}{m.group(2)}{MASK}{m.group(2)}", text)
+    text = _ASSIGN.sub(lambda m: m.group(0) if m.group(2) == "`" and
+                       _DYNAMIC_CREDENTIAL_REF.fullmatch(m.group(3))
+                       else f"{m.group(1)}{m.group(2)}{MASK}{m.group(2)}", text)
     if all_strings:
         text = _STRING.sub(lambda m: f"{m.group(1)}{MASK}{m.group(1)}" if m.group(2) else m.group(0), text)
     return text
 
 
+def redact_http(text: str) -> str:
+    """Mask complete credential headers in HTTP evidence, preserving source syntax elsewhere."""
+    return redact(_HEADERS.sub(lambda m: f"{m.group(1)} {MASK}", text))
+
+
 def redact_value(value):
     """Redact strings before JSON serialization escapes header line breaks."""
     if isinstance(value, str):
-        return redact(value)
+        return redact_http(value)
     if isinstance(value, dict):
         return {key: redact_value(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):

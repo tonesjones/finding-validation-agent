@@ -120,11 +120,18 @@ class _CliClient:
         self.audit = audit
         cmd = command or os.environ.get(self.env_var) or self.default_cmd
         self._argv = shlex.split(cmd, posix=(os.name != "nt"))
-        if audit and isinstance(self, CodexCliClient) and "--json" not in self._argv:
-            self._argv.insert(2, "--json")
-            self._argv.insert(3, "--ignore-user-config")
+        if audit and isinstance(self, CodexCliClient):
+            if "exec" not in self._argv:
+                raise ValueError("audited Codex command must contain the exec subcommand")
+            at = self._argv.index("exec") + 1
+            end = self._argv.index("--", at) if "--" in self._argv[at:] else len(self._argv)
+            options = self._argv[at:end]
+            flags = [flag for flag in ("--json", "--ignore-user-config") if flag not in options]
+            self._argv[at:at] = flags
         if model:  # insert right after the subcommand words, before the trailing '-' (stdin) if present
             at = len(self._argv) - 1 if self._argv[-1] == "-" else len(self._argv)
+            if "--" in self._argv:
+                at = self._argv.index("--")
             self._argv[at:at] = [self.model_flag, model]
             self.model_id = f"{self.model_id}:{model}"
         exe = shutil.which(self._argv[0])

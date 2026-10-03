@@ -2,7 +2,7 @@
 
 Use the local `.venv\Scripts\python.exe` in place of `python` below if the package
 is not installed in your default interpreter. Evaluation/model artifacts belong under ignored `data/`.
-Keep the demo in `C:\TestCode\fva-eval-demo` and its ledger/receipts outside this repository.
+Keep the demo in a separate private checkout and its ledger/receipts outside this repository.
 
 On 2026-10-03 the user approved `gpt-6-sol` as the fixed pilot model while CLI
 access to `gpt-6.1-sol` is unavailable. Discovery and assessment enforce the same
@@ -18,7 +18,7 @@ Workers adapter. Routes use the existing Express parser. Unsupported syntax prod
 missing mappings and blocks DAST readiness, rather than guessing a handler.
 
 ```powershell
-python -m fva eval prepare --source C:\TestCode\fva-eval-demo --profile-file data/eval/profile.json --expected-routes data/eval/routes.json --out data/eval/preflight
+python -m fva eval prepare --source .\demo-source --profile-file data/eval/profile.json --expected-routes data/eval/routes.json --out data/eval/preflight
 ```
 
 Outputs are `preflight.json` and `preflight.md`. The JSON includes every tracked file's
@@ -42,13 +42,18 @@ Use `eval` for the pilot's approval filtering and frozen paired comparisons.
 ## Discovery
 
 ```powershell
-python -m fva discover --source C:\TestCode\fva-eval-demo --profile-file data/eval/profile.json --model gpt-6-sol --out data/eval/discovery-01
+python -m fva discover --source .\demo-source --profile-file data/eval/profile.json --model gpt-6-sol --out data/eval/discovery-01
 ```
 
 The packet contains only redacted application code and supported package manifests,
 with line numbers and dependency inventory. Markdown notes, scanner exports, receipts,
 private evidence and `data/` are excluded. The packet rejects sources over its byte bound
 rather than truncating them. `--max-bytes` changes that bound explicitly.
+Freezing also refuses obvious plant/answer markers in comments. The marker tuple in
+`fva/discovery.py` is a conservative check, not proof that a packet is blind: inspect
+the frozen source for issue notes, answer hints and plant-specific tests before using
+discovery results. Keep the demo repository private; obtain a new neutral source
+identity and fresh discovery if hints require source changes.
 
 `findings.jsonl` contains canonical allegations with synthesized stable IDs and raw
 response pointers. `response.txt`, `call.json`, `packet.json`, and `rejected.json` retain
@@ -58,7 +63,7 @@ A true candidate with failed citations counts as discovery with citation failure
 ## Prepare cases and review DAST links
 
 ```powershell
-python -m fva eval prepare --source C:\TestCode\fva-eval-demo --profile-file data/eval/profile.json --expected-routes data/eval/routes.json --findings 'data/eval/polaris/page-*.json' --canonical data/eval/discovery-01/findings.jsonl --out data/eval/review-01
+python -m fva eval prepare --source .\demo-source --profile-file data/eval/profile.json --expected-routes data/eval/routes.json --findings 'data/eval/polaris/page-*.json' --canonical data/eval/discovery-01/findings.jsonl --out data/eval/review-01
 ```
 
 Findings and canonical inputs are repeatable and optional. Without them, this is only
@@ -70,7 +75,9 @@ with the census before trusting its fields; the sample does not prove pilot cove
 DAST imports accept observed `location`/`method` and legacy `url`/`http-method`.
 If either endpoint fact is missing, `endpoint` is absent and the missing fields are
 recorded; no root path or GET method is invented. Prefer full `get_issue` records.
-For DAST, a `types.json` sidecar must use original issue IDs as keys. A weakness ID
+The exporter writes DAST details to `dast-types.json`, keyed by original issue ID,
+and static details to weakness-keyed `types.json`. The importer prefers the separate
+DAST sidecar; legacy DAST-only `types.json` must use original issue IDs as keys. A weakness ID
 can describe multiple DAST types and is not a safe lookup key. SAST/SCA sidecars
 continue to use weakness IDs.
 
@@ -142,7 +149,7 @@ uncertain with a rationale. Keep response and packet hashes unchanged. Do not
 pre-fill response grades before the model answers or use a model as the judge.
 
 ```powershell
-python -m fva eval score data/eval/prepared-01 data/eval/run-01 --gold C:\TestCode\fva-eval-private\gold.jsonl --human-review data/eval/graded-review.json
+python -m fva eval score data/eval/prepared-01 data/eval/run-01 --gold <private-gold-path> --human-review data/eval/graded-review.json
 ```
 
 Scoring first verifies frozen artifacts, then loads gold and checks its receipt hash.
@@ -155,6 +162,10 @@ unmeasured until a human grades them. Reasoning support accepts `supported`, `un
 or `uncertain`; drop correctness accepts `correct`, `incorrect` or `uncertain`.
 
 Discovery overlap and verified LLM-only additions are separate from validation quality.
+Structural case groups are reported as origins only, not logical issue overlap or
+verified unique discoveries. Those metrics remain unmeasured until human issue
+adjudication reconciles scanner reports, accepted/rejected discoveries and private
+verification evidence. Normalized CWE strings and matching lines do not prove equivalence.
 Rejected true discoveries and verified plants missed by both require separate private
 human reconciliation. Pending scans are unknown, never zero findings. Keep raw failures
 as replayable offline cases and retain human grades for later judge calibration. No LLM

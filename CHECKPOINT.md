@@ -1,194 +1,42 @@
 # Checkpoint
 
-Last updated: 2026-10-03. Update this file at every commit that changes status.
+Last updated: 2026-10-03. Update this file when status changes.
 
-## Resume here
+## Current state
 
-- 2026-10-03 consolidated checkpoint: SAST/SCA scans and six-finding ingestion are
-  complete. DAST remains NOT_LAUNCHED pending entitlement; coverage is UNKNOWN.
-  Source remains clean at 9ac51601c57e95f37cd5720dad3e6e6ab21ba2a2 with content hash
-  a7a5ddfc0089ea4b967a326f580295f1e1b97c56876da89eb2b28e261addb499.
-  User explicitly approved fixed gpt-6-sol while gpt-6.1-sol CLI access is unavailable.
-  Discovery and evaluation CLI/audit gates now enforce Sol 6. A later Sol 6.1 run
-  must have new smoke/batch outputs; neither old responses nor labels may be silently
-  relabeled. Earlier Sol 6.1 discovery remains bound to the old app revision.
-  Fresh isolated CLI discovery completed on the current revision with 6 accepted,
-  0 rejected candidates, verified citations, observed gpt-6-sol and a complete audit
-  with no tools or unknown events. These are unvalidated allegations.
-  Raw response, packet, citations, audit and sealed artifacts are under ignored
-  data/eval/record-desk-discovery-sol6-20261003-01/.
-  Frozen static-plus-discovery preparation has 12 cases, preserving 6 scanner and
-  6 synthesized discovery IDs, with zero approved DAST links:
-  data/eval/record-desk-static-discovery-sol6-20261003-01/.
-  Blank label forms, label-free receipt template, case index and discovery
-  adjudication form are in data/eval/record-desk-review-materials-sol6-20261003-01/.
-  Scanner-only forms remain separately available in
-  data/eval/record-desk-scanner-review-materials-sol6-20261003-01/ for the original
-  6-case preparation. Ignored data/eval/prepare-review-materials.py generates these
-  forms from verified seals without reading private labels or choosing verdicts.
-  Human grading guidance is in docs/blind-pilot.md. No private ledger or labels were
-  read; no case assessment smoke, batch or score ran. Static rules-only remains
-  6/6 needs_review. Choose the preparation scope and have a human freeze its private
-  labels, then supply only the matching receipt path. Sol 6 discovery establishes
-  model transport/audit access; the assessment smoke still requires that receipt.
-  Importer repairs, model selection and current workstream notes are reviewed for
-  draft PR #9 on codex/blind-evaluation-pilot. Keep data/ and raw exports out of Git.
-  Final local suite: 237 passed, 5 skipped; git diff --check passed. Added an explicit
-  rejection test for Sol 6.1 responses under the Sol 6 pilot. Remote CI for the new
-  commit must pass before merge; PR remains draft. All ignored evaluation seals verified.
-  Next after labels: smoke, inspect audit, batch reusing the smoke, human-grade,
-  score. When DAST is available: verify pilot export/body retrieval and traffic,
-  approve actual links, create a new combined preparation and private label receipt.
+- PR #9 is draft. Review fixes address Git helper execution, source/evidence
+  redaction boundaries, DAST type export/import, CLI isolation and discovery metrics.
+- The static pilot scanned and imported six findings. Fresh Sol 6 discovery produced
+  six cited allegations; a 12-case preparation and blank human forms are frozen.
+  These are not validated vulnerabilities. Exact identities, hosted target, paths
+  and artifact locations are in ignored `data/LOCAL-NOTES.md`.
+- Fixed pilot model is `gpt-6-sol`, explicitly approved while Sol 6.1 CLI access is
+  unavailable. Later model comparisons require new smoke/batch outputs.
+- PR review fixes passed 256 local tests, with 5 skips, plus an independent
+  security-boundary review. The original fsmonitor callback was reproduced in a
+  disposable checkout; hardened pinning left callback markers absent and retained
+  clean/dirty detection without changing Git config/index. Source auth syntax stays
+  visible while HTTP headers and literal template secrets are masked. DAST sidecars
+  round-trip by issue ID and bind to evaluation scope hashes. No detected plant
+  comment hints or redacted-source changes in the six-file frozen discovery packet.
+  The empty demo repository is now private. CI and human re-review remain merge gates.
 
-- 2026-10-03: user authorized DAST adapter repair and static export ingestion.
-  Six real DAST details from a separately authorized sample project now preserve
-  all paths and methods; before the repair all six paths became root and three
-  POST methods became GET. Missing endpoint facts now leave endpoint absent.
-  Structured evidence and attack targets retain raw references rather than signed
-  URLs or unredacted values. No artifact bodies were retrieved. DAST type lookup
-  uses inline details or issue-ID sidecars; weakness IDs were observed to collide.
-  Added a fully synthetic fixture and regression checks. All real sample data stays
-  under ignored data/compatibility/altoro-dast-20261003/, outside the pilot.
-  The six-record sample is not proof of Record Desk DAST coverage or confirmation.
-  Own-app DAST remains NOT_LAUNCHED until entitlement becomes available.
-  SAST and SCA completed, and their hash-checked exports imported to
-  data/ingestion/record-desk-static-20261003/: one SAST and five SCA findings.
-  Original IDs, severity, CWE, titles, static locations/lines, dependency versions,
-  advisory IDs, linked advisory IDs, technical descriptions and declarations were
-  checked. Re-import IDs are stable. Source files still match the scanned manifest
-  for commit 9ac51601c57e95f37cd5720dad3e6e6ab21ba2a2. This is import validation only:
-  no gold, private receipts, model answers, case labels or verdicts were read/run.
-  Remaining unused vendor fields are listed in the saved census and preserved raw.
-  Local Windows suite: 236 passed, 5 skipped. No source/runtime change, scan launch,
-  or cross-chat message. Fresh discovery and fixed-model assessment access remain
-  outstanding before case preparation and the final blind comparison.
+## Blocked on / next
 
-- 2026-10-02: replacement neutral handoff received and inspected. Current clean demo
-  commit is 9ac51601c57e95f37cd5720dad3e6e6ab21ba2a2 (verified directly with Git);
-  reported FVA content hash is a7a5ddfc0089ea4b967a326f580295f1e1b97c56876da89eb2b28e261addb499.
-  Current reports are handoff/public-preflight/preflight.json and .md; the neutral
-  handoff reports all 12 routes and 9 boundaries passing. Hosted target is public,
-  with no X-Desk-Key required. Reported deployment 4b8ac602-2d82-479f-8dbd-c59b68429a54,
-  version 78581ed9-52bf-4594-a7b4-ba86f0d89da7. Older source/profile/preflight identities
-  below are historical. SAST/SCA/DAST still NOT_LAUNCHED per neutral handoff.
-  Fresh source-only discovery is required for an evaluation on this new revision.
-  No rerun started: this chat remains held for review per the user's workstream split.
+- Human-frozen private labels and matching receipt before assessment smoke/batch.
+  Human issue adjudication is also required for discovery overlap and unique additions.
+- DAST entitlement before our app's scan; coverage remains unknown. Separate sample
+  compatibility does not prove our app's coverage, evidence bodies or links.
+- Review and CI must pass before merge. No case smoke, batch or score has run.
+- Next: select scanner-only or static-plus-discovery scope, obtain its label receipt,
+  smoke with audit, batch reusing smoke, human-grade, then score. Add DAST later in
+  a new preparation with approved links and a new private label receipt.
 
-- 2026-10-02: the app-authoring chat reports a user-requested removal of the
-  X-Desk-Key hosting gate, with worker.js changes, redeployment and a new freeze
-  pending. The previous source/deployment identity must not be used for new scans
-  or treated as the identity of the updated app. Preserve all six discovery candidates
-  and their audit against the OLD revision 7707c673bb709e7d820fd8dd2980e83b1f133db0.
-  Await the new neutral source/profile/runtime identity and passing preflight. Then
-  decide how to obtain fresh source-only discovery for a comparison on the new revision;
-  do not relabel or silently reuse the old discovery as a scan of the updated source.
-  No new discovery, scan or assessment was launched in response to this notice.
+## Historical development log
 
-- 2026-10-02: user split the pilot into two chats. This chat retains non-Polaris FVA
-  evaluation and will review it once required inputs arrive. A separate chat owns
-  Polaris setup, SAST/SCA/DAST execution, complete exports, real DAST ingestion checks
-  and a repeatable runbook. See `docs/pilot-workstreams.md` for scope and return contract.
-  Preserve frozen discovery and source; no private ledger or discovery candidates
-  enter the Polaris workflow. No scans were launched during this split.
-
-- 2026-10-02, `codex/blind-evaluation-pilot`: implementing the attached blind pilot plan.
-  External `--profile-file` and `eval prepare` source/profile preflight are available.
-  Preflight records each file's boundary rule, import reachability, dependency inventory,
-  pinned source/profile hashes and the existing Express route map. Expected routes are
-  required for DAST readiness; missing/incorrect handlers block launch.
-  Final clean source and hosted metadata have arrived in the neutral handoff directory.
-  Verified source commit `7707c673bb709e7d820fd8dd2980e83b1f133db0`, clean tracked tree,
-  content SHA256 `52a2ffe9bf4742e809cece3fcca866e4e40f5222ab1d2f8b6414db3f02df705d`.
-  No private ledger has been read. SAST/SCA/DAST remain NOT_LAUNCHED pending project setup.
-  Source-only preflight accepts explicitly selected external report output; source
-  overlap, Git metadata, escaped report paths and frozen runs are rejected. Discovery
-  and paired evaluation artifacts still require ignored data/.
-  Preliminary preflight completed with the app session's neutral handoff inputs.
-  Reports: `C:\TestCode\fva-eval-private\handoff\preliminary-preflight\preflight.json`
-  and `preflight.md`. Route readiness passed; this is preliminary, not authorization
-  to launch scans. No discovery/model/scanner call or private ledger read occurred.
-  Discovery attempts are in ignored `data/eval/record-desk-discovery-01` and `-02`.
-  Attempt 01 could not access Codex home under the sandbox. Attempt 02 ran with the
-  user login but the CLI endpoint rejected requested `gpt-6.1-sol` for its ChatGPT
-  account; no model answer exists and no substitute was used. Both failures are retained.
-  The packet contains six tracked code/manifest files and 69 installed packages, with
-  no scanner results, route expectations, handoff history, private receipts or credential.
-  A Git inventory failure previously caused an unsafe archive fallback with untracked
-  files. Source pinning now uses a scoped safe.directory and refuses that fallback.
-  Model-call failures are retained as processing-failure.json; audit state resets per call.
-  User explicitly authorized fresh in-app Sol 6.1 discovery. Two single-read attempts
-  stopped on tool-output truncation and assessed no candidates; both failures are saved
-  under ignored `data/eval/record-desk-discovery-app-read-failure-*`.
-  The completed fresh session read 13 losslessly split source-only packet parts. Runtime
-  metadata verified requested/observed `gpt-6.1-sol`; exactly the permitted 13 packet
-  reads occurred, with no unexpected tools. Raw response replay through the discovery
-  processor accepted 6 candidates and rejected 0; all candidate citations verified.
-  Frozen discovery artifacts: `data/eval/record-desk-discovery-app-01/`, including canonical
-  `findings.jsonl`, direct `response.txt`, `call.json`, `app-session-audit.json`, and
-  `discovery-frozen.json`. Human adjudication template is
-  `data/eval/record-desk-discovery-human-review.json`. These remain unvalidated allegations,
-  not supporting confirmation evidence. No private/scanner evidence or runtime probes used.
-  Source-only discovery is complete. Paired preparation/assessment awaits real exports,
-  link review/approvals, frozen gold and human grading. Standalone CLI model access is
-  still unresolved for future batches; keep the fixed model and do not silently substitute.
-  Discovery and frozen paired prepare/run/score tooling are now implemented. See
-  `docs/blind-pilot.md` for exact invocations and file contracts. Fixed `gpt-6.1-sol`
-  calls audit tool events and require observed identity; no routing/cache in evaluation.
-  The smoke response is reused in the batch. Source/profile/export hashes bind human
-  link approval. Private gold remains absent from preparation/run and model inputs;
-  a label-free receipt freezes its hash before the smoke. One raw response feeds all
-  three arms. Explicit case gold and legacy key formats both work. Counts only; no judge.
-  Verification: local dev environment installed; 229 passed, 5 skipped on Windows.
-  Private-data/source tests and POSIX-only CLI stand-ins are among the skips.
-  A source pinning fix prevents an archive nested under another Git checkout from
-  accidentally using its parent's tracked-file inventory. Tests run under ignored data/.
-  Next application-session inputs: tracked demo source, external DeploymentProfile,
-  expected method/path/handler list, and resolved inventory. Run source-only preflight
-  first. Then discover, census actual Polaris exports, prepare/review links, re-prepare
-  approved packets, freeze private labels and their receipt, smoke, batch, human-grade,
-  score. Fresh discovery produced 6 cited allegations; no paired validation score exists.
-  Real DAST ingestion validation remains blocked on an actual export sample. Do not
-  reinterpret fixture tests as real DAST verification. Rejected true discoveries and
-  missed verified plants remain unmeasured until private human reconciliation.
-  Tokenomics: parent runtime verified Sol 6.1 medium; bounded read-only interface
-  collection requested Luna and observed `gpt-6-luna` in its matching session metadata.
-  Source review was usable; integration/final review remained in Sol. No savings measured.
-  Review: draft PR #9, https://github.com/tonesjones/finding-validation-agent/pull/9.
-  Implementation commit `ebd99d7` passed all Linux/Windows CI jobs on Python 3.10/3.12.
-
-- 2026-10-02 (branch `claude/compassionate-ramanujan-vjgzq0`, after a whole-project review):
-  - **Rule closures now cite evidence.** Before, 430 of 573 worksheet rows were closed `not_applicable` with no evidence
-    record. Skipped findings now keep a `deployment_boundary` record (path rule) or their `dependency_resolution` /
-    reachability records, and the closure passes `check_verdict`. Prompts are unchanged, so **re-run `assess` on the
-    real export (all cache hits, free), then `worksheet` and `score`**: expect the same 430 `not_applicable`, each
-    with `evidence_ids`. Older run dirs now show those rows as needs_review, with a warning.
-  - Verdict suggestion logic moved to `fva/verdicts.py` (worksheet and score import it).
-  - `assess --workers N` (parallel model calls, ordered output), `--credential-model skip` (opt-in; compare with
-    `score` against `ask` before making it the default), missing-lockfile warning. CI on Linux + Windows.
-  - **No DAST exists in the PoC tenant.** The DAST adapter, SAST↔DAST linker and DAST evidence are frozen and
-    unverified (built from a guessed format).
-  - Polaris data tools (built, tested on fixtures/stubs, not yet run on live data): `python -m fva.polaris_mcp
-    inventory`, `python -m fva census <dir>`, `python -m fva correlation-value --source <checkout>`.
-    **Next action once Polaris access is back:** run inventory + census (anywhere), then correlation-value on the
-    laptop (needs the PoC ledger), and record the tables here. Cloud sessions read `POLARIS_ACCESS_TOKEN` from the
-    environment settings.
-  - README restructured (plain-language top, built vs planned), operator detail moved to `docs/operations.md`,
-    PROJECT_STATUS.md removed (status lives here).
-- PRs #4, #5 and #6 are merged into `main` (v0.4 + routing). **Luna/Sol routing is the default** for codex;
-  `--no-route` or `--model` runs one model.
-- 2026-10-01 (branch `claude/stoic-shannon-3wy7sq`): scanner mix without DAST, `likely` verdict, triage worksheet
-  and review re-import (see "Scanner mix and write-back" below). Not yet run on the real Juice Shop export:
-  run `assess` locally, then `python -m fva worksheet <run_dir>`.
-- First real worksheet (`data/runs/20261001-153602-codex/`): 573 rows, 499 issues; 430 not_applicable,
-  42 likely, 99 needs_review, 2 valid_non_security. Next: `python -m fva score <run_dir>` (added 2026-10-01).
-- **Next action:** "Open / next" items 1-2 (stance semantics, SCA advisory context), then a routed re-run
-  compared against `data/runs/20260928-ab-routed/` (baseline for the current prompt; Sol-only baseline
-  `data/runs/20260928-ab-sol/`).
-- Review scripts (local, not committed): `python data/review/review_run.py <run_dir>`,
-  `python data/review/compare_ab.py <routed_run> <sol_run>`,
-  `python data/review/measure_usage.py <dry_run_dir> <n>` (exact token split via `codex exec --json`).
-- Caveat: the per-call `tokens` field in run summaries is Codex's footer count, not total usage; use
-  `measure_usage.py` figures for cost (item 8).
+The detailed dated pilot/authoring history and local identities were moved to
+`data/LOCAL-NOTES.md`. The reference implementation notes below are historical;
+they are not instructions to rerun or replace the frozen pilot.
 
 ## Built (package `fva`, Python >= 3.10, tests: `python -m pytest`)
 
@@ -381,7 +229,7 @@ After the move to the company's enterprise GitHub, personal Codex is not availab
   from GPT-6 do not carry over), and confirm gateway logging/retention in the data-handling sign-off.
 - Ask the gateway owner: exact model aliases, and whether JSON-schema output is enabled per model.
 
-## Open / next
+## Historical backlog
 
 Done 2026-09-28: structured output (`--output-schema`), no low-confidence escalation for credential CWEs,
 token accounting per call and tier, routed vs Sol-only comparison (routing stays the default on price).

@@ -8,7 +8,7 @@ from fva.discovery import FIXED_MODEL, discover, freeze_source
 from fva.evaluation import (digest, preflight, prepare_cases, raw_verdict, run_cases,
                             score_cases, verify_seal, write_json)
 from fva.reasoning.model import CodexCliClient, ScriptedClient
-from fva.redact import redact
+from fva.redact import redact, redact_http
 from fva.schemas import DeploymentProfile, Finding
 
 
@@ -114,7 +114,7 @@ def test_redaction_and_bounds(pilot, tmp_path):
     assert "supersecret" not in contents["search.js"] and "[REDACTED]" in contents["search.js"]
     with pytest.raises(ValueError, match="no silent truncation"):
         freeze_source(source, profile, tmp_path / "too-big", max_bytes=5)
-    assert "real-secret" not in redact("CF-Access-Client-Secret: real-secret\nCF-Access-Client-ID: real-secret")
+    assert "real-secret" not in redact_http("CF-Access-Client-Secret: real-secret\nCF-Access-Client-ID: real-secret")
 
 
 def test_duplicate_origins_and_gold_exclusion(pilot, tmp_path):
@@ -123,6 +123,24 @@ def test_duplicate_origins_and_gold_exclusion(pilot, tmp_path):
     assert len(packet["original_findings"]) == 2
     assert "gold" not in packet["prompt"].lower()
     assert len(packet["evidence"]) == 4
+
+
+def test_dast_sidecar_is_bound_to_preparation_scope(pilot, tmp_path):
+    source, profile = pilot
+    exported = tmp_path / "export"
+    exported.mkdir()
+    issue = {"id": "sample-dast", "weaknessId": "shared", "context": {"toolType": "dast"},
+             "occurrenceProperties": [{"key": "location", "value": "/search"},
+                                      {"key": "method", "value": "GET"}]}
+    path = exported / "page-0001.json"
+    write_json(path, {"_items": [issue]})
+    sidecar = exported / "dast-types.json"
+    write_json(sidecar, {"sample-dast": {"altName": "Sample DAST", "cwe": "CWE-89"}})
+    out = tmp_path / "prepared"
+    report = preflight(source, profile, out)
+    prepare_cases(source, profile, out, report, findings_specs=[str(path)])
+    scope = json.loads((out / "link-review.json").read_text())["scope"]
+    assert scope["exports"][str(sidecar.resolve())] == hashlib.sha256(sidecar.read_bytes()).hexdigest()
 
 
 def test_one_response_reused_all_arms_and_smoke(pilot, tmp_path):
@@ -142,6 +160,8 @@ def test_one_response_reused_all_arms_and_smoke(pilot, tmp_path):
     assert result["arms"]["hybrid"]["relaxed_agreement"] == 1
     assert result["arms"]["hybrid"]["exact_agreement"] == 0
     assert result["human_metrics"]["unsupported_reasoning"] == "unmeasured"
+    assert result["discovery_coverage"]["overlap_cases"] == "unmeasured; requires human issue adjudication"
+    assert result["discovery_coverage"]["verified_llm_only_additions"] == "unmeasured; requires human issue adjudication"
     assert "%" not in (batch / "score.md").read_text()
 
 

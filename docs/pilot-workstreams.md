@@ -12,14 +12,14 @@ source-only discovery completed for this revision using the user-approved fixed
 `gpt-6-sol` model: six cited candidates, zero rejected, still unvalidated. See
 CHECKPOINT.md for the audit, frozen 12-case preparation and human review materials.
 
-As of 2026-10-03, SAST and SCA are complete in Record Desk Pilot / record-desk-source.
+As of 2026-10-03, SAST and SCA are complete in the dedicated pilot application/project.
 The reconciled exports contain one low SAST issue and five SCA issues (two high,
 three medium). FVA imported all six and prepared scanner-only cases; rules-only
 returned six needs_review suggestions. DAST remains NOT_LAUNCHED because the user
 has no entitlement. Its findings and coverage remain unknown.
 
 The separate DAST sample proved endpoint/method importer compatibility and exposed
-bugs now repaired. It supplies no evidence for Record Desk. Actual pilot DAST bodies,
+bugs now repaired. It supplies no evidence for the pilot app. Actual pilot DAST bodies,
 links and scanner traffic remain unverified. The latest static import audit is under
 ignored data/ingestion/record-desk-static-20261003/.
 
@@ -52,7 +52,7 @@ ignored data/ingestion/record-desk-static-20261003/.
 
 The separate chat must not change the frozen demo source, inspect the private planting
 ledger or receipts, read discovery candidates, or grade FVA results. Only clean source
-and the neutral `C:\TestCode\fva-eval-private\handoff` directory are available to it.
+and the neutral handoff directory recorded in `data/LOCAL-NOTES.md` are available to it.
 Any necessary source/runtime change must be raised with the user because it would
 require a new identity and could invalidate the completed discovery comparison.
 

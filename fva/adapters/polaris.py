@@ -97,14 +97,14 @@ def _snippet(text, url: str) -> str | None:
         return None
     import re
     from urllib.parse import urlsplit
-    from fva.redact import redact
+    from fva.redact import redact_http
     t = str(text)
     host = urlsplit(url.strip()).netloc
     if host:
         t = re.sub(re.escape(host), "[HOST]", t, flags=re.I)
         t = re.sub(re.escape(host.rsplit("@", 1)[-1].split(":")[0]), "[HOST]", t, flags=re.I)
     t = re.sub(r"(?im)^\s*host\s*:.*$", "Host: [HOST]", t)
-    return redact(t)[:_SNIPPET_MAX]
+    return redact_http(t)[:_SNIPPET_MAX]
 
 
 def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types: dict | None = None) -> _Finding:
@@ -259,11 +259,15 @@ def load_mcp(paths, *, source_commit: str | None = None):
                ingested_at=_dt.now(_tz.utc))
     types_file = paths[0].parent / "types.json"
     types = _json.loads(types_file.read_text(encoding="utf-8")) if types_file.exists() else None
+    dast_types_file = paths[0].parent / "dast-types.json"
+    dast_types = _json.loads(dast_types_file.read_text(encoding="utf-8")) if dast_types_file.exists() else None
     out = []
     for p in sorted(paths):
         digest = _sha(p)
         for i, issue in enumerate(_unwrap(_json.loads(p.read_text(encoding="utf-8")))):
-            out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}", types=types))
+            is_dast = str((issue.get("context") or {}).get("toolType", "")).lower() == "dast"
+            out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}",
+                                  types=(dast_types if dast_types is not None else types) if is_dast else types))
     return run, out
 
 

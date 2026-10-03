@@ -51,9 +51,10 @@ def prepare_cases(source, profile, out, report, *, findings_specs=(), canonical_
         paths = sorted(glob.glob(spec)) or [spec]
         for path in paths:
             exports[str(Path(path).resolve())] = hashlib.sha256(Path(path).read_bytes()).hexdigest()
-            types_file = Path(path).parent / "types.json"
-            if types_file.exists():
-                exports[str(types_file.resolve())] = hashlib.sha256(types_file.read_bytes()).hexdigest()
+            for name in ("types.json", "dast-types.json"):
+                types_file = Path(path).parent / name
+                if types_file.exists():
+                    exports[str(types_file.resolve())] = hashlib.sha256(types_file.read_bytes()).hexdigest()
         findings.extend(pipeline.load_findings(spec))
     for path in canonical_paths:
         exports[str(Path(path).resolve())] = hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -330,20 +331,19 @@ def score_cases(prepared: Path, run: Path, gold: Path, *, review: Path | None = 
         sum(bool(c.get("dropped_citations")) for c in r.get("accepted_claims", [])) for r in rows),
                                      "denominator": sum(len(r.get("raw_claims", [])) for r in rows)}
     discovery_counts = Counter()
-    verified_cases = 0
     for packet in all_cases:
         origins = {f["source_tool"] for f in packet["original_findings"]}
         discovery, polaris = "llm-discovery" in origins, "polaris" in origins
         if discovery and polaris:
-            discovery_counts["overlap_cases"] += 1
+            discovery_counts["mixed_origin_groups"] += 1
         elif polaris:
-            discovery_counts["polaris_only_cases"] += 1
+            discovery_counts["polaris_origin_groups"] += 1
         elif discovery:
-            discovery_counts["llm_only_cases"] += 1
-            if key.get(packet["case_id"], {}).get("verified_security") is True:
-                verified_cases += 1
-    summary["discovery_coverage"] = {**dict(discovery_counts), "case_denominator": len(all_cases),
-                                     "verified_llm_only_additions": verified_cases,
+            discovery_counts["discovery_origin_groups"] += 1
+    summary["discovery_coverage"] = {"structural_group_origins": dict(discovery_counts),
+                                     "case_denominator": len(all_cases),
+                                     "overlap_cases": "unmeasured; requires human issue adjudication",
+                                     "verified_llm_only_additions": "unmeasured; requires human issue adjudication",
                                      "rejected_true_discoveries": "unmeasured; adjudicate rejected.json separately",
                                      "verified_plants_missed_by_both": "unmeasured; requires private coverage reconciliation"}
     graded, unsupported, drops = 0, 0, Counter()

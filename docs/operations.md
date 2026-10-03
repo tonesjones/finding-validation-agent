@@ -6,6 +6,16 @@ change a run. For what the tool is and why it exists, start with the [README](..
 
 ## Assess options
 
+Source pinning requires Git for a checkout containing `.git`, including worktrees.
+If Git is missing or the tracked inventory is unreadable, `assess`, discovery and
+evaluation stop rather than walking untracked files. Check Git installation and
+repository permissions. A source archive without `.git` can still use file walking.
+Pinning disables repository fsmonitor, external diff, textconv and configured
+clean/process helpers without writing repository configuration or the index.
+Helper-managed content is compared as raw source with CRLF normalization; its
+dirty status can differ from the repository's filter-transformed comparison.
+Do not mutate the scanned checkout or its Git configuration during pinning.
+
 These options change how `python -m fva assess` runs. Output goes to `data/runs/<timestamp>-<client>/`.
 
 | Option | What it does |
