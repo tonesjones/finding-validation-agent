@@ -115,7 +115,12 @@ def discover(source: Path, profile, out: Path, client=None, *, max_bytes=500_000
     schema = out / "discovery.schema.json"
     write_json(schema, DiscoveryResponse.model_json_schema())
     client = client or CodexCliClient(model=FIXED_MODEL, schema_file=schema.resolve(), audit=True)
-    text, _ = checked_call(client, SYSTEM, prompt, out)
+    try:
+        text, _ = checked_call(client, SYSTEM, prompt, out)
+    except (ValueError, RuntimeError, OSError) as exc:
+        write_json(out / "processing-failure.json", {"error": redact(str(exc)), "requested_model": FIXED_MODEL,
+                                                    "observed_model": getattr(client, "last_reported_model", None)})
+        raise
     idx = SourceIndex(out / "source", list(contents))
     accepted, rejected = [], []
     try:
@@ -165,7 +170,7 @@ def main(argv=None):
     try:
         print(discover(Path(args.source), load_profile(args.profile, args.profile_file), artifact_dir(args.out),
                        max_bytes=args.max_bytes))
-    except (ValueError, OSError) as exc:
+    except (ValueError, RuntimeError, OSError) as exc:
         parser.error(str(exc))
 
 

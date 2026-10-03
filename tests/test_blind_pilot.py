@@ -83,6 +83,20 @@ def test_discovery_provenance_and_rejections(pilot, tmp_path):
     assert json.loads((out / "rejected.json").read_text())[0]["human_adjudication"] == "pending"
 
 
+def test_discovery_call_failure_is_retained(pilot, tmp_path):
+    source, profile = pilot
+    class FailedClient:
+        last_reported_model = None
+        def complete(self, *args):
+            raise RuntimeError("requested model unavailable")
+    out = tmp_path / "failed-discovery"
+    with pytest.raises(RuntimeError, match="unavailable"):
+        discover(source, profile, out, FailedClient())
+    failure = json.loads((out / "processing-failure.json").read_text())
+    assert failure["requested_model"] == FIXED_MODEL and failure["observed_model"] is None
+    assert not (out / "findings.jsonl").exists()
+
+
 def test_redaction_and_bounds(pilot, tmp_path):
     source, profile = pilot
     (source / "search.js").write_text('const token = "supersecret"\n')

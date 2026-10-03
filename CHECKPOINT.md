@@ -9,16 +9,29 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   Preflight records each file's boundary rule, import reachability, dependency inventory,
   pinned source/profile hashes and the existing Express route map. Expected routes are
   required for DAST readiness; missing/incorrect handlers block launch.
-  The app session now reports staged source and neutral handoff profile/expected routes.
-  Final source freeze and hosted metadata are pending. No private ledger has been read.
+  Final clean source and hosted metadata have arrived in the neutral handoff directory.
+  Verified source commit `7707c673bb709e7d820fd8dd2980e83b1f133db0`, clean tracked tree,
+  content SHA256 `52a2ffe9bf4742e809cece3fcca866e4e40f5222ab1d2f8b6414db3f02df705d`.
+  No private ledger has been read. SAST/SCA/DAST remain NOT_LAUNCHED pending project setup.
   Source-only preflight accepts explicitly selected external report output; source
   overlap, Git metadata, escaped report paths and frozen runs are rejected. Discovery
-  and paired evaluation artifacts still require ignored data/. Do not start discovery
-  or scans until the application session supplies final freeze/hosted metadata.
+  and paired evaluation artifacts still require ignored data/.
   Preliminary preflight completed with the app session's neutral handoff inputs.
   Reports: `C:\TestCode\fva-eval-private\handoff\preliminary-preflight\preflight.json`
   and `preflight.md`. Route readiness passed; this is preliminary, not authorization
   to launch scans. No discovery/model/scanner call or private ledger read occurred.
+  Discovery attempts are in ignored `data/eval/record-desk-discovery-01` and `-02`.
+  Attempt 01 could not access Codex home under the sandbox. Attempt 02 ran with the
+  user login but the CLI endpoint rejected requested `gpt-6.1-sol` for its ChatGPT
+  account; no model answer exists and no substitute was used. Both failures are retained.
+  The packet contains six tracked code/manifest files and 69 installed packages, with
+  no scanner results, route expectations, handoff history, private receipts or credential.
+  A Git inventory failure previously caused an unsafe archive fallback with untracked
+  files. Source pinning now uses a scoped safe.directory and refuses that fallback.
+  Model-call failures are retained as processing-failure.json; audit state resets per call.
+  Next discovery step: explicit user authorization for a fresh in-app Sol 6.1 subagent,
+  or correction of CLI model access. The prepared source-only packet is ready; neither
+  candidate discovery nor paired assessment is complete. Do not report zero discoveries.
   Discovery and frozen paired prepare/run/score tooling are now implemented. See
   `docs/blind-pilot.md` for exact invocations and file contracts. Fixed `gpt-6.1-sol`
   calls audit tool events and require observed identity; no routing/cache in evaluation.
@@ -26,7 +39,7 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   link approval. Private gold remains absent from preparation/run and model inputs;
   a label-free receipt freezes its hash before the smoke. One raw response feeds all
   three arms. Explicit case gold and legacy key formats both work. Counts only; no judge.
-  Verification: local dev environment installed; 226 passed, 5 skipped on Windows.
+  Verification: local dev environment installed; 228 passed, 5 skipped on Windows.
   Private-data/source tests and POSIX-only CLI stand-ins are among the skips.
   A source pinning fix prevents an archive nested under another Git checkout from
   accidentally using its parent's tracked-file inventory. Tests run under ignored data/.
@@ -34,7 +47,7 @@ Last updated: 2026-10-02. Update this file at every commit that changes status.
   expected method/path/handler list, and resolved inventory. Run source-only preflight
   first. Then discover, census actual Polaris exports, prepare/review links, re-prepare
   approved packets, freeze private labels and their receipt, smoke, batch, human-grade,
-  score. No live pilot/model/scanner call has been made; no actual evaluation result exists.
+  score. Fresh discovery was attempted but returned no answer; no actual evaluation result exists.
   Real DAST ingestion validation remains blocked on an actual export sample. Do not
   reinterpret fixture tests as real DAST verification. Rejected true discoveries and
   missed verified plants remain unmeasured until private human reconciliation.

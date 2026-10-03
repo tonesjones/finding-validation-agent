@@ -137,6 +137,7 @@ class _CliClient:
         argv = [a.replace("{out}", str(workdir / "last_message.txt")).replace("{schema}", str(self.schema_file))
                 for a in self._argv]
         self.last_reported_model = self.last_tokens = None
+        self._local.last_audit = None
         r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
                            cwd=workdir, timeout=self._timeout)
         if r.returncode != 0:

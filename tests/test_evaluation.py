@@ -84,3 +84,12 @@ def test_preflight_output_path_safety(app, tmp_path):
     (frozen / "prepared.json").write_text("{}")
     with pytest.raises(ValueError, match="frozen"):
         preflight_dir(frozen, src)
+
+
+def test_git_inventory_failure_never_reads_untracked_files(tmp_path, monkeypatch):
+    from fva.correlation import source_pin
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "untracked.js").write_text("not part of pinned source")
+    monkeypatch.setattr(source_pin, "_git", lambda *a: None)
+    with pytest.raises(ValueError, match="refusing archive fallback"):
+        list(source_pin.iter_files(tmp_path))

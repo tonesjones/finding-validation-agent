@@ -34,7 +34,8 @@ class SourceSnapshot(BaseModel):
 def _git(root: Path, *args: str) -> str | None:
     try:
         # --no-optional-locks: never write .git/index (we must not leave lock files in user repos)
-        r = subprocess.run(["git", "--no-optional-locks", "-C", str(root), *args],
+        r = subprocess.run(["git", "-c", f"safe.directory={root.resolve().as_posix()}",
+                            "--no-optional-locks", "-C", str(root), *args],
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
                            env={**os.environ, "GIT_CEILING_DIRECTORIES": str(root.resolve().parent)})
     except (OSError, subprocess.TimeoutExpired):
@@ -45,6 +46,8 @@ def _git(root: Path, *args: str) -> str | None:
 def iter_files(root: Path, excludes=DEFAULT_EXCLUDES):
     """Tracked files when `root` is a git repo (ignores untracked outputs dropped into it), else a walk."""
     tracked = _git(root, "ls-files", "-z")
+    if tracked is None and (root / ".git").exists():
+        raise ValueError("cannot read Git tracked-file inventory; refusing archive fallback")
     if tracked is not None:
         for rel in sorted(t for t in tracked.split("\0") if t):
             if not any(part in excludes for part in rel.split("/")) and (root / rel).is_file():
@@ -76,7 +79,8 @@ def pin(root: Path, *, declared_upstream_commit: str | None = None,
     head = _git(root, "rev-parse", "HEAD")
     dirty = None
     if head is not None:
-        dirty = bool(_git(root, "diff", "--ignore-cr-at-eol", "--stat", "HEAD"))
+        changes = _git(root, "diff", "--ignore-cr-at-eol", "--stat", "HEAD")
+        dirty = bool(changes) if changes is not None else None
     return SourceSnapshot(root_name=root.name, vcs_commit=head, vcs_dirty=dirty,
                           declared_upstream_commit=declared_upstream_commit, content_sha256=h.hexdigest(),
                           file_count=n, excluded_dirs=tuple(excludes), pinned_at=datetime.now(timezone.utc))
