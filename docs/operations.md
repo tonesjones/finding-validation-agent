@@ -14,6 +14,9 @@ Pinning disables repository fsmonitor, external diff, textconv and configured
 clean/process helpers without writing repository configuration or the index.
 Helper-managed content is compared as raw source with CRLF normalization; its
 dirty status can differ from the repository's filter-transformed comparison.
+Submodule contents are excluded from source hashes. Pinning never enters child
+repositories, and dirty status excludes all submodule changes, including gitlink
+commit changes. To include a submodule's source, scan its checkout separately.
 Do not mutate the scanned checkout or its Git configuration during pinning.
 
 These options change how `python -m fva assess` runs. Output goes to `data/runs/<timestamp>-<client>/`.

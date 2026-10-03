@@ -1,4 +1,5 @@
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -8,6 +9,62 @@ import pytest
 from fva.correlation.source_pin import pin
 from fva.redact import redact, redact_http, redact_value
 from fva.reasoning.model import CodexCliClient
+
+
+@pytest.mark.parametrize("helper", ["clean", "process"])
+def test_source_pin_never_enters_submodules(tmp_path, helper):
+    parent = tmp_path / "parent"
+    origin = tmp_path / "origin"
+    parent.mkdir()
+    origin.mkdir()
+
+    def git(root, *args):
+        return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+    def commit(root):
+        git(root, "add", ".")
+        git(root, "-c", "user.email=test@example.invalid", "-c", "user.name=Test",
+            "commit", "-qm", "fixture")
+
+    git(origin, "init", "-q")
+    (origin / ".gitattributes").write_text("*.txt filter=child.only\n")
+    (origin / "file.txt").write_text("original\n")
+    commit(origin)
+    git(parent, "init", "-q")
+    (parent / "app.js").write_text("export const value = 1;\n")
+    git(parent, "-c", "protocol.file.allow=always", "submodule", "add", "-q",
+        origin.as_posix(), "sub")
+    commit(parent)
+    child = parent / "sub"
+    git(parent, "config", "diff.ignoreSubmodules", "none")
+    git(parent, "config", "submodule.sub.ignore", "none")
+    git(parent, "config", "diff.submodule", "diff")
+    marker = tmp_path / "CALLBACK-RAN"
+    callback = tmp_path / "callback.py"
+    callback.write_text("import sys\nfrom pathlib import Path\n"
+                        f"Path({str(marker)!r}).write_text('ran')\n"
+                        + ("sys.stdout.write(sys.stdin.read())\n" if helper == "clean" else ""))
+    command = f'{shlex.quote(sys.executable.replace(chr(92), "/"))} {shlex.quote(callback.as_posix())}'
+    git(child, "config", f"filter.child.only.{helper}", command)
+    changed = child / "file.txt"
+    changed.write_text("modified\n")
+    os.utime(changed, ns=(changed.stat().st_atime_ns, changed.stat().st_mtime_ns + 2_000_000_000))
+    # Show that the unsafe parent diff really reaches the child-only helper.
+    subprocess.run(["git", "-c", "core.fsmonitor=", "--no-optional-locks", "-C", str(parent),
+                    "diff", "--no-ext-diff", "--no-textconv", "--stat", "HEAD"],
+                   capture_output=True, timeout=10)
+    assert marker.exists()
+    marker.unlink()
+    metadata = [parent / ".git/config", parent / ".git/index",
+                parent / ".git/modules/sub/config", parent / ".git/modules/sub/index"]
+    before = {path: path.read_bytes() for path in metadata}
+    assert pin(parent).vcs_dirty is False
+    assert not marker.exists()
+    (parent / "app.js").write_text("export const value = 2;\n")
+    assert pin(parent).vcs_dirty is True
+    assert not marker.exists()
+    assert all(path.read_bytes() == contents for path, contents in before.items())
+    assert all(not path.with_name("index.lock").exists() for path in metadata)
 
 
 @pytest.mark.parametrize("helper", ["fsmonitor", "external", "textconv", "clean", "process"])

@@ -23,7 +23,7 @@ class SourceSnapshot(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     root_name: str
     vcs_commit: str | None  # local HEAD, if a git repo
-    vcs_dirty: bool | None  # tracked content changes vs HEAD, ignoring line endings
+    vcs_dirty: bool | None  # tracked changes vs HEAD, ignoring CRLF and all submodule changes
     declared_upstream_commit: str | None  # what the scan/profile says it should be
     content_sha256: str  # normalized tree hash over included files
     file_count: int
@@ -52,7 +52,8 @@ def _git(root: Path, *args: str) -> str | None:
                     return None
                 command += ["-c", f"{driver}.clean=", "-c", f"{driver}.process=",
                             "-c", f"{driver}.required=false"]
-            args = ("diff", "--no-ext-diff", "--no-textconv", *args[1:])
+            # Child repositories have their own filter configuration; never enter them.
+            args = ("diff", "--no-ext-diff", "--no-textconv", *args[1:], "--ignore-submodules=all")
         r = subprocess.run([*command, *args],
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
                            env=env)

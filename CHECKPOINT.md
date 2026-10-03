@@ -12,7 +12,7 @@ Last updated: 2026-10-03. Update this file when status changes.
   and artifact locations are in ignored `data/LOCAL-NOTES.md`.
 - Fixed pilot model is `gpt-6-sol`, explicitly approved while Sol 6.1 CLI access is
   unavailable. Later model comparisons require new smoke/batch outputs.
-- PR review fixes passed 256 local tests, with 5 skips, plus an independent
+- PR review fixes passed 258 local tests, with 5 skips, plus an independent
   security-boundary review. The original fsmonitor callback was reproduced in a
   disposable checkout; hardened pinning left callback markers absent and retained
   clean/dirty detection without changing Git config/index. Source auth syntax stays
@@ -20,6 +20,9 @@ Last updated: 2026-10-03. Update this file when status changes.
   round-trip by issue ID and bind to evaluation scope hashes. No detected plant
   comment hints or redacted-source changes in the six-file frozen discovery packet.
   The empty demo repository is now private. CI and human re-review remain merge gates.
+- Re-review's submodule filter execution path is fixed. Child clean/process
+  callbacks reproduce with the unsafe diff and stay absent during pinning. Dirty
+  status now excludes submodule changes, consistent with source hash coverage.
 
 ## Blocked on / next
 
