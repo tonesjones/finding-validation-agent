@@ -3,7 +3,7 @@ import json
 import pytest
 
 from fva.__main__ import load_profile, main
-from fva.evaluation import preflight, preflight_dir, main as eval_main
+from fva.evaluation import preflight, preflight_dir, pilot_status, main as eval_main
 from fva.schemas import DeploymentProfile
 
 
@@ -34,6 +34,27 @@ def test_external_profile_and_exclusion(app, tmp_path):
     path.write_text('{"profile_id":"x","name":"x","typo":true}')
     with pytest.raises(ValueError):
         load_profile(profile_file=str(path))
+
+
+def test_pilot_status_is_aggregate_and_checks_receipt_binding(tmp_path):
+    prepared = tmp_path / "prepared"
+    prepared.mkdir()
+    (prepared / "cases.jsonl").write_text('{"case_id":"a"}\n{"case_id":"b"}\n')
+    from fva.evaluation import seal, write_json
+    seal(prepared, "prepared.json", [prepared / "cases.jsonl"])
+    manifest = json.loads((prepared / "prepared.json").read_text())
+    receipt = tmp_path / "receipt.json"
+    write_json(receipt, {"reviewer": "reviewer", "prepared_sha256": manifest["sha256"],
+                         "gold_sha256": "private-hash-not-returned"})
+    audit = tmp_path / "audit.json"
+    write_json(audit, {"cases": 2, "all_models_verified": "gpt-6-sol", "all_audits_clean": True,
+                       "answer_key_case_ids_exact_match": True, "verdict_counts": {"private": "omitted"}})
+    score = tmp_path / "score.json"
+    write_json(score, {"responses": 2, "processing_failures": 0, "case_rows": "omitted"})
+    result = pilot_status(prepared, receipt, audit, score)
+    assert result["matching_label_receipt"] is True
+    assert result["prepared_cases"] == result["responses"] == 2
+    assert "private-hash" not in str(result) and "private" not in str(result)
 
 
 def test_preflight_without_findings(app, tmp_path):

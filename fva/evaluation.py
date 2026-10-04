@@ -383,6 +383,30 @@ def score_cases(prepared: Path, run: Path, gold: Path, *, review: Path | None = 
     return summary
 
 
+def pilot_status(prepared: Path, receipt: Path, audit: Path, score: Path) -> dict:
+    """Sanitized status only; never opens the private gold file or response text."""
+    manifest = verify_seal(prepared, "prepared.json")
+    label_receipt = json.loads(receipt.read_text(encoding="utf-8"))
+    run_audit = json.loads(audit.read_text(encoding="utf-8"))
+    scored = json.loads(score.read_text(encoding="utf-8"))
+    matched = label_receipt.get("prepared_sha256") == manifest.get("sha256")
+    with (prepared / "cases.jsonl").open(encoding="utf-8") as f:
+        case_count = sum(bool(line.strip()) for line in f)
+    return {
+        "prepared_cases": case_count,
+        "matching_label_receipt": matched,
+        "label_reviewer": label_receipt.get("reviewer") if matched else None,
+        "assessment_cases": run_audit.get("cases"),
+        "model_verified": bool(run_audit.get("all_models_verified")),
+        "audit_clean": run_audit.get("all_audits_clean") is True,
+        "case_ids_match": run_audit.get("answer_key_case_ids_exact_match") is True,
+        "responses": scored.get("responses"),
+        "processing_failures": scored.get("processing_failures"),
+        "per_response_reasoning_grades": "not collected; not required for routine triage",
+        "security_truth_limit": "label agreement does not independently establish security accuracy",
+    }
+
+
 def digest(value) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -521,8 +545,17 @@ def main(argv=None):
     score.add_argument("run")
     score.add_argument("--gold", required=True)
     score.add_argument("--human-review")
+    status = subs.add_parser("status", help="sanitized paired-pilot status; does not read gold")
+    status.add_argument("prepared")
+    status.add_argument("--receipt", required=True)
+    status.add_argument("--audit", required=True)
+    status.add_argument("--score", required=True)
     args = parser.parse_args(argv)
     try:
+        if args.operation == "status":
+            print(json.dumps(pilot_status(artifact_dir(args.prepared), artifact_dir(args.receipt),
+                                          artifact_dir(args.audit), artifact_dir(args.score)), indent=2))
+            return
         if args.operation == "score":
             print(score_cases(artifact_dir(args.prepared), artifact_dir(args.run), Path(args.gold),
                               review=Path(args.human_review) if args.human_review else None))

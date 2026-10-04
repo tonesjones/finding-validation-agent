@@ -5,8 +5,12 @@ Last updated: 2026-10-03. Update this file when status changes.
 ## Current state
 
 - PR #9 is merged. Blind discovery and frozen evaluation tooling are implemented.
-- A static assessment experiment completed. Its scores measure agreement with a
-  supplied answer key, not independently verified security accuracy.
+- A 12-case paired assessment completed with all model identities verified, clean
+  call audits, exact case-ID coverage and no processing failures. The score measures
+  agreement with prewritten labels, not independently verified security accuracy.
+- A Tony label receipt matches the paired run's frozen case set. The checked-in local
+  readiness report predates that receipt; use the new aggregate-only eval status command
+  to refresh status without reading private labels or per-response content.
 - Targeted validation observations were collected separately. They remain local;
   source identity, deployment details, results, authorization and artifact paths
   are recorded only in ignored `data/LOCAL-NOTES.md`.
@@ -39,8 +43,9 @@ Last updated: 2026-10-03. Update this file when status changes.
   plan for review before running the real pilot through the collector.
 - Implement advisory-specific deterministic applicability checks before enabling
   automatic SCA dismissals. Expand probe oracles only as concrete findings need them.
-- Human review is for unresolved cases. Per-response grading remains optional
-  benchmark work, not the intended operator workflow.
+- Routine triage does not require grading every model response. Route exceptions for
+  review using confidence, evidence/citation validity, conflicts and impact. Per-response
+  reasoning grades remain optional benchmark work.
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
 
 ## Historical development log
