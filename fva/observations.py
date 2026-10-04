@@ -9,12 +9,14 @@ loaded, which refutes. Receipts stay in ignored `data/`; the format is in docs/o
 from __future__ import annotations
 
 import json
+import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-from fva.runtime import digest, file_digest, read_rows
+from fva.runtime import digest, file_digest, read_rows, write_json
 from fva.schemas import EvidenceRecord, EvidenceType, ObservationKind, Stance
 
 FORMAT = "fva.runtime_observation/1"
@@ -126,3 +128,36 @@ def evidence_from_receipt(data: dict, run: Path) -> list[EvidenceRecord]:
                        "raw_sha256": receipt.raw_file.sha256,
                        "source_content_sha256": receipt.source_content_sha256})
         for n, obs in enumerate(receipt.observations)]
+
+
+def import_receipt(run: Path, receipt_path: Path, out: Path, verify: Callable[[dict], None]) -> dict:
+    """Copy `run` to a new `out` with the receipt's evidence appended.
+
+    `verify` is the collector's check that the receipt matches its raw records; it raises ValueError.
+    """
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if file_digest(receipt_path) != digest(receipt):
+        raise ValueError("receipt bytes do not match their content hash")
+    verify(receipt)
+    records = evidence_from_receipt(receipt, run)
+    existing = {r["evidence_id"] for r in read_rows(run / "evidence.jsonl")}
+    if any(r.evidence_id in existing for r in records):
+        raise ValueError("receipt is already imported into this run")
+    out.mkdir(parents=True, exist_ok=False)
+    for name in ("findings.jsonl", "evidence.jsonl", "summary.json"):
+        shutil.copyfile(run / name, out / name)
+    if (run / "observations").is_dir():
+        shutil.copytree(run / "observations", out / "observations")
+    (out / "observations").mkdir(exist_ok=True)
+    shutil.copyfile(receipt_path, out / "observations" / f"{digest(receipt)}.json")
+    with (out / "evidence.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write("\n" + "\n".join(r.model_dump_json() for r in records) + "\n")
+    from fva.export.worksheet import write
+    result = write(out)
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    summary["verdicts"] = result["verdicts"]
+    summary.setdefault("runtime_observations", []).append(
+        {"collector": records[0].tool_versions["collector"], "receipt_sha256": digest(receipt),
+         "records": len(records)})
+    write_json(out / "summary.json", summary)
+    return {"records": len(records), "receipt_sha256": digest(receipt), "verdicts": result["verdicts"]}

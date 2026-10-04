@@ -21,6 +21,8 @@ from pathlib import Path
 PROFILES = {"juiceshop": "fva.adapters.poc_ledger:JUICESHOP_PROFILE"}
 # sub-commands whose module parses its own arguments
 DELEGATED = {"runtime": ("fva.runtime", "approved localhost probe collection and verified import"),
+             "loaded-packages": ("fva.loaded_packages", "passive Node loaded-package receipt and verified import"),
+             "coverage": ("fva.coverage", "passive line coverage receipt from the app's own tests and verified import"),
              "eval": ("fva.evaluation", "blind evaluation preparation, run and score"),
              "discover": ("fva.discovery", "bounded source-only candidate discovery"),
              "census": ("fva.analysis.census", "field census of saved Polaris responses (sanitized output)"),

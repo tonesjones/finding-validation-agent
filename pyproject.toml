@@ -16,6 +16,7 @@ dev = ["pytest>=8"]
 include = ["fva*"]
 
 [tool.setuptools.package-data]
+"fva" = ["node/*.cjs"]
 "fva.reasoning" = ["*.json"]
 
 [tool.pytest.ini_options]

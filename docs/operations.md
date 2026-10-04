@@ -210,6 +210,49 @@ observation is `neutral`, whether it was observed or not. A passive observation 
 `supports` that a `likely` verdict needs. Code that ran is not proof that it is vulnerable, and a line that did not
 run never closes a finding.
 
+## Passive collectors: loaded packages and coverage
+
+Both collectors watch the app run normally and FVA sends no traffic. The operator runs the app's own tests or a
+startup check. Keep raw output, receipts and derived runs in ignored `data/`.
+
+Each collector has two steps. `receipt` reads the raw output and writes a canonical receipt. It refuses to
+overwrite an existing receipt and checks the checkout against the run's source hash. `import` rebuilds the receipt
+from the same raw output and source, accepts it only on an exact match, and writes a new run with the evidence
+appended. The base run is left unchanged. Importing the same receipt into a run twice is rejected.
+
+**Loaded packages (SCA).** `python -m fva loaded-packages preload` prints the command line. Point
+`FVA_LOADED_MODULES_DIR` at a new directory and add `NODE_OPTIONS="--require <preload>"`, so child processes and
+test workers are recorded too. Each process appends the paths of the module files it loads, and only the paths.
+It records no request data, arguments, environment values or memory contents.
+
+```powershell
+python -m fva loaded-packages receipt data\runs\<run> --raw data\loaded\<dir> --source <checkout> --exercise "npm test" --out data\loaded\receipt.json
+python -m fva loaded-packages import data\runs\<run> data\loaded\receipt.json --raw data\loaded\<dir> --source <checkout> --out data\runs\<run>-loaded
+```
+
+Loaded files map to `name@version` through the `package.json` at their `node_modules/<name>` root. Only files
+under the checkout count. An SCA finding whose exact `name@version` was loaded gets `observed: true`. It gets
+`observed: false` only if three things hold: the package is installed under the checkout's `node_modules`, every
+process ran with load hooks (Node 22.15 or later, so ESM imports were seen), and every record file is intact.
+Otherwise the receipt leaves that package out. Packages bundled for the browser never load in Node. A `false` for
+them is expected and only matters together with static reachability (L3). The npm layout is supported; pnpm
+stores are not.
+
+**Line coverage (SAST).** Pass a `NODE_V8_COVERAGE` directory or a c8/Istanbul `coverage-final.json`. A
+TypeScript app needs c8's source-mapped report, because V8 output names the compiled `.js` files.
+
+```powershell
+python -m fva coverage receipt data\runs\<run> --coverage data\coverage\coverage-final.json --source <checkout> --exercise "npm test" --out data\coverage\receipt.json
+python -m fva coverage import data\runs\<run> data\coverage\receipt.json --coverage data\coverage\coverage-final.json --source <checkout> --out data\runs\<run>-coverage
+```
+
+The importer writes one `line_executed` observation per located SAST finding in an instrumented file. It is
+`observed: true` when the flagged line ran. Findings in files without coverage are left out, and so are files
+outside the checkout. For a single file, `raw_file.sha256` hashes its bytes. For a directory, it hashes the
+`coverage-*.json` files sorted by name. For each file it feeds SHA-256 the UTF-8 name length as an 8-byte
+big-endian integer, the name, the byte length in the same form, and then the bytes. V8 offsets count characters,
+so lines with characters outside the Basic Multilingual Plane can shift by one.
+
 ## Which AI model handles each finding
 
 The tool sends each group of findings (findings on the same code line or advisory) to one of
