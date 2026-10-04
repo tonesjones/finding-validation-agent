@@ -108,6 +108,12 @@ def call_site_status(finding: Finding, scan: CallScan, dependents: list[str] | N
     return "not_called", "no shipped call of " + ", ".join(sorted(rule.functions))
 
 
+def called_at(finding: Finding, scan: CallScan) -> list[tuple[str, int]]:
+    """(path, line) of shipped calls of the advisory's functions, for showing the code to a reviewer or model."""
+    rule = _FUNCTIONS.get(finding.package.advisory_id or "") if finding.package else None
+    return [(s.rsplit(":", 1)[0], int(s.rsplit(":", 1)[1])) for fn, s in scan.sites if rule and fn in rule.functions]
+
+
 _CALL_STANCE = {"called": Stance.supports, "not_called": Stance.refutes}
 
 

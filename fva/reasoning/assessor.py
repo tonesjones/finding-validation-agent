@@ -23,9 +23,16 @@ from fva.correlation.locate import SourceIndex
 from fva.redact import CREDENTIAL_CWES, redact
 from fva.schemas import EvidenceRecord, EvidenceType, Finding, FindingType, Stance, VerdictValue
 
-PROMPT_VERSION = "assess-v1"
+PROMPT_VERSION = "assess-v2"
 _NS = uuid.UUID("9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d")
 CONTEXT_LINES = 15
+# Codes a model may suggest. Triage-routing and reviewer codes describe people and policy, not code.
+MODEL_CODES = tuple(sorted(set(reason_codes.CODES) - {
+    "LOW_CONFIDENCE", "MODEL_ONLY_REFUTATION", "PROFILE_MISMATCH", "UNVERIFIED_RUNTIME", "HIGH_IMPACT_CLOSURE",
+    "REVIEWER_CONFIRMED", "REVIEWER_NOT_APPLICABLE"}))
+# Refutations that name a missing precondition; one with a verified citation outranks a restated sink.
+PRECONDITION_CODES = {"NO_ATTACKER_CONTROL", "TRUSTED_SOURCE", "MITIGATED_IN_CONTEXT", "ADVISORY_PRECONDITION_ABSENT",
+                      "VULNERABLE_FUNCTION_NOT_CALLED"}
 
 SYSTEM = """You are a security reviewer validating ONE static-analysis or dependency finding against source code.
 You do not decide the final verdict. You make specific, checkable claims.
@@ -33,8 +40,14 @@ You do not decide the final verdict. You make specific, checkable claims.
 Rules:
 - Every claim must cite exact code: repo-relative path, 1-based line number, and a short verbatim quote from that line.
 - Only cite code shown to you. Never invent files, lines, or quotes. Values shown as [REDACTED] stay redacted.
-- stance: "supports" (the issue is real here), "refutes" (not present / not applicable here),
-  "non_security" (real but not a security issue), "neutral" (context only).
+- stance:
+  "supports": you can cite how attacker-influenced input or an attacker-reachable path gets to the flagged code
+    (for a dependency: an affected function called with attacker-influenced arguments).
+  "refutes": you can cite the missing precondition: the input is constant or trusted, a control blocks it, the code
+    is unreachable, or (for a dependency) the affected functions are not called or only with constant arguments.
+  "non_security": the code has a real quality or reliability problem (dead code, null handling, error handling)
+    with no security impact.
+  "neutral": context only. Restating what the scanner flagged, or that the sink exists, is neutral, not supports.
 - If you cannot tell, say so with a neutral claim. Uncertainty is acceptable; guessing is not.
 - suggested_reason_code must be one of the codes listed, or null.
 
@@ -82,7 +95,7 @@ def build_prompt(f: Finding, idx: SourceIndex, evidence: list[EvidenceRecord], s
     shown += [s for s in sites if s[0] in idx.files][:5]
     for path, line in shown:
         parts.append(f"CODE {path} (around line {line})\n" + _window(idx, path, line, redact_all))
-    allowed = ", ".join(sorted(reason_codes.CODES))
+    allowed = ", ".join(MODEL_CODES)
     parts.append(f"ALLOWED REASON CODES\n{allowed}")
     return "\n\n".join(parts)
 
@@ -131,10 +144,18 @@ def _check_claims(raw: dict, idx: SourceIndex, redact_all: bool):
     return accepted, rejected
 
 
-def _aggregate(accepted: list[dict]) -> Stance:
+def _aggregate(accepted: list[dict], sink: tuple[str, int] | None = None) -> Stance:
     st = {Stance(c["stance"]) for c in accepted} - {Stance.neutral}
     if len(st) == 1:
         return st.pop()
+    if st == {Stance.supports, Stance.refutes} and sink:
+        # A cited missing precondition beats supports claims that only point at the flagged line itself.
+        def at_sink(c):
+            return all(x["path"] == sink[0] and abs(x["line"] - sink[1]) <= 2 for x in c["citations"])
+        if (all(at_sink(c) for c in accepted if c["stance"] == Stance.supports.value)
+                and any(c["stance"] == Stance.refutes.value and c["suggested_reason_code"] in PRECONDITION_CODES
+                        and c["citations"] and not at_sink(c) for c in accepted)):
+            return Stance.refutes
     return Stance.neutral  # none, or conflicting directions
 
 
@@ -184,7 +205,8 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
         conf = raw.get("confidence") if raw.get("confidence") in ("high", "medium", "low") else "low"
     except (ValueError, json.JSONDecodeError) as e:
         accepted, rejected, conf, unparseable = [], [{"_why": f"unparseable response: {e}"}], "low", True
-    stance = _aggregate(accepted)
+    loc = f.location
+    stance = _aggregate(accepted, (loc.path, loc.start_line) if loc and loc.start_line else None)
     lines = [f"model {client.model_id} ({PROMPT_VERSION}), self-reported confidence {conf}; "
              f"{len(accepted)} claim(s) accepted, {len(rejected)} rejected"]
     for c in accepted:

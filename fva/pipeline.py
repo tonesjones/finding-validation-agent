@@ -88,7 +88,7 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
         if not is_deployed(surf, profile):
             skip(f, f"surface:{surf.value}", [surface.to_evidence(f, profile)])
             continue
-        ev = []
+        ev, called = [], []
         if f.location:
             ev.append(locate.to_evidence(locate.locate(f, idx), source_content_sha256=snapshot_sha))
         if f.package and inventory is not None:
@@ -114,6 +114,7 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
                         if status[0] == "not_called":
                             skip(f, "dependency:vulnerable_function_not_called", ev)
                             continue
+                        called = advisory_applicability.called_at(f, calls["scan"])
         r = reachability.assess(f, graph, profile, declared_direct=direct)
         ev.append(reachability.to_evidence(r, source_content_sha256=snapshot_sha, profile_id=profile.profile_id))
         if r.status == "imported_only_outside_deployment":
@@ -123,7 +124,7 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
         pre[f.finding_id] = ev
         key = cluster_key(f)
         clusters.setdefault(key, []).append(f)
-        sites[key] = [(s.rsplit(":", 1)[0], int(s.rsplit(":", 1)[1])) for s in r.sites]
+        sites[key] = called + [(s.rsplit(":", 1)[0], int(s.rsplit(":", 1)[1])) for s in r.sites]
     return Batch(clusters, skipped, pre, sites, disp)
 
 
