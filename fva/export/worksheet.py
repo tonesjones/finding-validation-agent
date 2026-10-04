@@ -40,6 +40,8 @@ def build(run_dir: Path) -> list[dict]:
     findings = _read_jsonl(run_dir / "findings.jsonl")
     if not findings:
         raise SystemExit(f"{run_dir}/findings.jsonl missing: re-run `python -m fva assess` with this version")
+    summary_path = run_dir / "summary.json"
+    profile = json.loads(summary_path.read_text(encoding="utf-8")).get("profile") if summary_path.exists() else None
     by_finding: dict[str, list[EvidenceRecord]] = {}
     for d in _read_jsonl(run_dir / "evidence.jsonl"):
         e = EvidenceRecord.model_validate(d)
@@ -48,7 +50,7 @@ def build(run_dir: Path) -> list[dict]:
     rows = []
     for r in findings:
         evs = by_finding.get(r["finding_id"], [])
-        verdict, codes, conf, cited = suggest_verdict(r, evs)
+        verdict, codes, conf, cited = suggest_verdict({**r, "deployment_profile_id": profile}, evs)
         status, sev = suggest(verdict, r["severity"])
         loc = r.get("endpoint") or r.get("package") or (f"{r['path']}:{r['line']}" if r.get("path") else "")
         rows.append({

@@ -8,8 +8,8 @@
               "raw_evidence_ref": "raw:sha256:0000000000000000000000000000000000000000000000000000000000000000#/runs/0/results/0"},
   "evidence": [
     {"evidence_id": "e-neg", "finding_ids": ["f-1"], "evidence_type": "negative_control", "method": "http_probe",
-     "stance": "supports", "summary": "Invalid credentials returned 401.", "deployment_profile_id": "demo-local",
-     "collected_at": "2026-09-27T12:00:00Z"},
+     "stance": "neutral", "summary": "Invalid credentials returned 401.", "deployment_profile_id": "demo-local",
+     "collected_at": "2026-09-27T12:00:00Z", "tool_versions": {"control_for": "e-att"}},
     {"evidence_id": "e-att", "finding_ids": ["f-1"], "evidence_type": "runtime_probe", "method": "http_probe",
      "stance": "supports", "summary": "Tautology payload returned 200 and an admin session ([REDACTED] token).",
      "detail_ref": "receipts/login-sqli.json", "deployment_profile_id": "demo-local",

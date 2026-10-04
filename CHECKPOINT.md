@@ -4,114 +4,34 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Current state
 
-- PR #9 merged into `main` on 2026-10-03. It adds the blind evaluation pilot commands
-  `discover` and `eval prepare|run|score`, and repairs Polaris DAST ingestion. Review
-  fixes cover Git helper execution during pinning, separate redaction for source and
-  HTTP evidence, DAST type export and import, CLI isolation, and discovery metrics.
-- The static pilot scanned and imported six findings. Fresh Sol 6 discovery produced
-  six cited allegations; a 12-case preparation and blank human forms are frozen.
-  These are not validated vulnerabilities. Exact identities, hosted target, paths
-  and artifact locations are in ignored `data/LOCAL-NOTES.md`.
-- Fixed pilot model is `gpt-6-sol`, explicitly approved while Sol 6.1 CLI access is
-  unavailable. Later model comparisons require new smoke/batch outputs.
-- PR review fixes passed 260 local tests, with 5 skips, plus an independent
-  security-boundary review. The original fsmonitor callback was reproduced in a
-  disposable checkout; hardened pinning left callback markers absent and retained
-  clean/dirty detection without changing Git config/index. Source auth syntax stays
-  visible while HTTP headers and literal template secrets are masked. DAST sidecars
-  round-trip by issue ID and bind to evaluation scope hashes. No detected plant
-  comment hints or redacted-source changes in the six-file frozen discovery packet.
-  The empty demo repository is now private.
-- The re-review found that pinning ran submodule clean and process filters. That is
-  fixed: a test shows the unsafe diff runs them and pinning doesn't. The dirty flag
-  now ignores submodule changes, matching the source hash, which never covered them.
+- PR #9 is merged. Blind discovery and frozen evaluation tooling are implemented.
+- A static assessment experiment completed. Its scores measure agreement with a
+  supplied answer key, not independently verified security accuracy.
+- Targeted validation observations were collected separately. They remain local;
+  source identity, deployment details, results, authorization and artifact paths
+  are recorded only in ignored `data/LOCAL-NOTES.md`.
+- PR #10 review fixes are ready for re-review on `codex/runtime-evidence-validation`.
+  Automatic promotion of hand-built runtime and advisory-precondition records
+  has been removed because no FVA collector/importer establishes their provenance.
+  Those records stay `needs_review`; prototype SCA closures are withdrawn.
+- Suggestions bind runtime evidence to the run's authoritative deployment profile.
+  Missing or mismatched profiles cannot confirm a finding. Runtime confirmation
+  invariants require a neutral control linked to the supporting probe.
+- Frozen evaluation artifacts remain unchanged. Historical prototype decision
+  outputs are superseded, not current automatic triage results.
+- Validation: 275 tests passed, 5 skipped. Regression checks cover missing and
+  mismatched profiles, untrusted preconditions, missing controls and imported
+  assessment boundaries.
 
-## Static pilot assessment completed 2026-10-03
+## Next
 
-- User explicitly approved transmitting frozen redacted demo cases to OpenAI Codex
-  `gpt-6-sol`. Successful smoke: `data/eval/record-desk-smoke-sol6-20261003-02`.
-- Batch: `data/eval/record-desk-run-sol6-20261003-01`, 12/12 cases processed with
-  zero failures, reusing the smoke response. All 12 unique call audits verified
-  `gpt-6-sol`, completion, no tools and no unknown events. Frozen seals passed.
-- Scoring verified the private answer-file hash and exact 12-case ID coverage.
-  Rules-only agreement 0/12, model-only and hybrid 5/12 each. Rules-only left
-  12 needs_review; model-only and hybrid each returned 5 likely and 7 needs_review.
-  Zero incorrect clearances; zero citation failures across 16 raw claims.
-- These are initial verdict comparisons, not completed human reasoning grades or
-  independent vulnerability confirmation. No arm produced confirmed.
-- Human grading copy and response guide:
-  `data/eval/record-desk-response-review-sol6-20261003-01/`.
-- Call usage audit: `data/eval/record-desk-run-audit-sol6-20261003-01.json`.
-  Counts cover 12 unique assessment calls, exclude parent work, and establish no
-  subscription savings comparison. Fixed-model pilot calls were not Luna-routed.
-
-## Blocked on / next
-
-- Hosted validation also completed: five bounded GET requests confirmed the Express
-  header, while benign `/layout`, the code-injection probe, and `/summary` all
-  returned 422 `Unable to render`. Cloudflare documents that request-time dynamic
-  `Function` generation is disallowed; this is consistent with the failure, but the
-  handler hides the exact exception. Current live deployment/version was not
-  independently verified. Do not transfer local confirmation to the hosted app.
-- FVA's suggestion rules now accept supporting `runtime_probe` evidence for
-  `RUNTIME_CONFIRMED`, and refuting SCA `advisory_precondition` evidence for
-  `ADVISORY_PRECONDITION_ABSENT`. Model refutation alone still cannot close cases;
-  conflicting supporting/refuting evidence stays `needs_review`.
-- New evidence-backed runs preserve all six scanner IDs and are separate from the
-  frozen pilot: `data/runs/record-desk-runtime-local-20261003-01/` has 2 confirmed
-  and 4 not_applicable; `data/runs/record-desk-runtime-hosted-20261003-01/` has
-  1 confirmed, 1 needs_review and 4 provisional source-based not_applicable.
-  Hosted closures rely on pinned source plus the historical neutral handoff, not
-  an independently verified current deployment revision. Both directories include
-  typed evidence, invariant-checked verdicts, profiles, summaries and worksheets.
-- Validation: 261 passed, 5 skipped. Retained hosted probes/observations and the
-  decision-building helper are beside the local evidence in the collection below.
-  Probes were executed by this agent and replayed through FVA's decision rules;
-  a general autonomous runtime probe runner is not implemented.
-- Next: verify hosted deployment identity and, if available, the underlying template
-  exception, then promote or revise provisional hosted decisions. Add a bounded,
-  reusable evidence-import/probe workflow for future apps. No Daybreak signup is
-  required for the completed work or these next steps.
-- Local runtime validation completed on the actual clean demo revision on
-  2026-10-03. Original Express app and installed Lodash 4.17.20 were loaded in a
-  disposable harness on an ephemeral loopback port. 18 HTTP requests completed;
-  the server was stopped. Source files and frozen evaluation packets were unchanged.
-- Reproduced unauthenticated JavaScript execution through `/layout` variable
-  injection for CVE-2021-23337 using a harmless marker, and confirmed the Express
-  disclosure header. Four remaining SCA advisories have no independent attack path
-  in the reviewed first-party app; source review and bounded runtime tracing support
-  app-scoped non-applicability at medium confidence. Package-only controls confirmed
-  imports-key execution and prototype marker deletion, not independent app exploits.
-- Retained evidence and handoff checkpoint are at
-  `C:\Users\Owner\.codex\state\plugins\codex-security\scans\finding-validation-agent\artifacts-478a256a6bb1c305e3a4a456d2b546be60ba030405db887ca3165d5f50a9c3a3\artifacts\05_findings\runtime-validation-20261003\checkpoint.md`.
-  Individual reports and receipts exist under the same `05_findings` directory
-  keyed by the six original FVA finding IDs. No private gold or planting ledger
-  was used. These results are not yet integrated into FVA's automatic decisions.
-- Hosted behavior and separate evidence-based runs are now recorded above;
-  deployment identity remains the concrete verification gap.
-  There is no current model or entitlement blocker to local validation; Polaris
-  DAST entitlement still blocks only that scanner's own scan.
-- User redirected the approach after the static pilot: the intended workflow is
-  automated SAST/SCA triage with evidence and confidence, with human review reserved
-  for exceptions. Per-response human grading is not the intended operator workflow.
-  Tony reports that he is not a security expert; treat the existing score as
-  agreement with his supplied answers, not independently validated security accuracy.
-  Preserve the frozen pilot as a historical experiment. Next design work should
-  address evidence collection, runtime validation and evidence-backed decisions,
-  rather than requiring Tony to complete every response grade.
-- Combined 12-case scope selected on 2026-10-03. Tony supplied the private answer
-  file; its bytes were hashed without inspecting labels, and the matching receipt
-  is `data/eval/record-desk-labels-receipt-tony-20261003-01.json`.
-- Preserve the first smoke's Codex-home failure. The initial automatic approval
-  rejection was resolved by the user's specific transmission authorization.
-- Independent expert grading remains necessary for claims about benchmark security
-  accuracy. It is optional future evaluation work, not a prerequisite for designing
-  or implementing the intended automated triage workflow. Preserve initial scores.
-- The pilot app's DAST scan waits on entitlement, so its coverage is unknown. The
-  separate sample proves importer compatibility, not the pilot app's coverage,
-  evidence bodies or links.
-- Next: redesign the evidence and automated decision workflow. Add DAST later in
-  a new preparation with approved links and a new private label receipt.
+- Re-review PR #10.
+- Implement a bounded FVA collector/importer that establishes evidence provenance,
+  source/deployment binding and target authorization before enabling automatic
+  runtime or advisory-precondition decisions.
+- Human review is for unresolved cases. Per-response grading remains optional
+  benchmark work, not the intended operator workflow.
+- The pilot DAST scan still awaits entitlement. Its coverage is unknown.
 
 ## Historical development log
 

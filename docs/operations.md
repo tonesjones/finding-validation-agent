@@ -190,15 +190,24 @@ The census ran on the saved Polaris export. The full correlation check against l
 
 ## Decisions from validation evidence
 
-The worksheet can decide cases from recorded evidence without a filled human review form.
-Supporting `runtime_probe` evidence produces `confirmed` with `RUNTIME_CONFIRMED`.
-For SCA, refuting `advisory_precondition` evidence produces `not_applicable` with
-`ADVISORY_PRECONDITION_ABSENT`. Record the specific missing prerequisite and the
-source or runtime evidence that establishes its absence. A model refutation alone
-still produces `needs_review`, as does conflicting supporting and refuting evidence.
+Hand-built `runtime_probe` and `advisory_precondition` records do not automatically
+confirm or close findings. They stay `needs_review` until an FVA collector/importer
+establishes their provenance. Changing an agent's source interpretation to a rule
+evidence type does not make it independent rule evidence.
+
+Worksheet runtime evidence must match the profile in the run's `summary.json`.
+Missing or mismatched profiles keep the finding unresolved. Frozen evaluations
+take the expected profile from their sealed preflight. Evidence cannot select its
+own expected deployment. A directly constructed `RUNTIME_CONFIRMED` verdict must
+cite a supporting runtime probe and a neutral `negative_control` whose
+`tool_versions.control_for` names that probe's evidence ID. Both must cover the
+finding and match the verdict's deployment. A control alone cannot confirm.
+Historical imported assessments preserve their original decision; they do not
+prove that FVA ran a new probe with a control.
 
 Keep evidence for different deployments in separate runs with distinct profiles.
 A reproduction on local Node does not confirm a Cloudflare deployment. A failed
 probe does not establish non-applicability. The runtime probe runner and a general
-validation-evidence import command are not implemented; current pilot evidence is
-collected separately and supplied to the existing worksheet evidence records.
+validation-evidence import command are not implemented. Prototype observations
+are investigation evidence, not current automatic closures. Verify deployment
+identity before deciding applicability for a hosted target.
