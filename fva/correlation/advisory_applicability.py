@@ -24,10 +24,10 @@ _RANGES = {
     "CVE-2025-13465": Range((4, 0, 0), (4, 17, 23)),
     # Array-path bypass; package advisory describes 4.17.23 as affected.
     # https://github.com/advisories/GHSA-f23m-r3pf-42rh
-    "CVE-2026-2950": Range((0, 0, 0), (4, 18, 0)),
+    "CVE-2026-2950": Range((0, 0, 0), (4, 17, 24)),
     # Template imports key-name injection; package advisory describes <=4.17.23.
     # https://github.com/advisories/GHSA-r5fr-rjxr-66jc
-    "CVE-2026-4800": Range((4, 0, 0), (4, 18, 0)),
+    "CVE-2026-4800": Range((4, 0, 0), (4, 17, 24)),
 }
 
 

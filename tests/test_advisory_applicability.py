@@ -1,3 +1,5 @@
+import pytest
+
 from fva.correlation.advisory_applicability import applicable
 from fva.schemas import DeploymentProfile, Finding, FindingType, PackageRef, Severity
 
@@ -60,3 +62,25 @@ def test_pipeline_closes_only_a_supported_out_of_range_installed_version(tmp_pat
     verdict, codes, _, evidence = suggest_verdict(row, unaffected_batch.pre_evidence[unaffected.finding_id])
     assert verdict.value == "not_applicable" and codes == ("ADVISORY_VERSION_MISMATCH",)
     assert any(e.method == "advisory_range:not_affected" and e.stance.value == "refutes" for e in evidence)
+
+
+@pytest.mark.parametrize('advisory,below,first,last,above', [
+    ('CVE-2020-28500', '3.10.1', '4.0.0', '4.17.20', '4.17.21'),
+    ('CVE-2021-23337', None, '0.0.0', '4.17.20', '4.17.21'),
+    ('CVE-2025-13465', '3.10.1', '4.0.0', '4.17.22', '4.17.23'),
+    ('CVE-2026-2950', None, '0.0.0', '4.17.23', '4.17.24'),
+    ('CVE-2026-4800', '3.10.1', '4.0.0', '4.17.23', '4.17.24'),
+])
+def test_every_advisory_matches_published_boundaries(advisory, below, first, last, above):
+    f = finding(advisory)
+    if below is not None:
+        assert applicable(f, below) is False
+    assert applicable(f, first) is True
+    assert applicable(f, last) is True
+    assert applicable(f, above) is False
+
+
+@pytest.mark.parametrize('version', ['4.17', '4.17.20.1', '4.17.20+build', '4.17.20-rc.1',
+                                    '4.017.20', '4.17.020', '4.17.２０', '9' * 5000 + '.0.0'])
+def test_noncanonical_or_overlong_versions_stay_unresolved(version):
+    assert applicable(finding(), version) is None
