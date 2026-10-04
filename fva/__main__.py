@@ -19,7 +19,8 @@ from pathlib import Path
 
 PROFILES = {"juiceshop": "fva.adapters.poc_ledger:JUICESHOP_PROFILE"}
 # sub-commands whose module parses its own arguments
-DELEGATED = {"eval": ("fva.evaluation", "blind evaluation preparation, run and score"),
+DELEGATED = {"runtime": ("fva.runtime", "approved localhost probe collection and verified import"),
+             "eval": ("fva.evaluation", "blind evaluation preparation, run and score"),
              "discover": ("fva.discovery", "bounded source-only candidate discovery"),
              "census": ("fva.analysis.census", "field census of saved Polaris responses (sanitized output)"),
              "correlation-value": ("fva.analysis.correlation_value",

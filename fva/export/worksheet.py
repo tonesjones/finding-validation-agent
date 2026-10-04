@@ -43,14 +43,19 @@ def build(run_dir: Path) -> list[dict]:
     summary_path = run_dir / "summary.json"
     profile = json.loads(summary_path.read_text(encoding="utf-8")).get("profile") if summary_path.exists() else None
     by_finding: dict[str, list[EvidenceRecord]] = {}
+    all_evidence = []
     for d in _read_jsonl(run_dir / "evidence.jsonl"):
         e = EvidenceRecord.model_validate(d)
+        all_evidence.append(e)
         for fid in e.finding_ids:
             by_finding.setdefault(fid, []).append(e)
+    from fva.runtime import verified_ids
+    trusted_runtime = verified_ids(run_dir, all_evidence)
     rows = []
     for r in findings:
         evs = by_finding.get(r["finding_id"], [])
-        verdict, codes, conf, cited = suggest_verdict({**r, "deployment_profile_id": profile}, evs)
+        verdict, codes, conf, cited = suggest_verdict({**r, "deployment_profile_id": profile}, evs,
+                                                    verified_runtime_ids=trusted_runtime)
         status, sev = suggest(verdict, r["severity"])
         loc = r.get("endpoint") or r.get("package") or (f"{r['path']}:{r['line']}" if r.get("path") else "")
         rows.append({

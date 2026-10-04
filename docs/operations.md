@@ -207,7 +207,79 @@ prove that FVA ran a new probe with a control.
 
 Keep evidence for different deployments in separate runs with distinct profiles.
 A reproduction on local Node does not confirm a hosted deployment. A failed
-probe does not establish non-applicability. The runtime probe runner and a general
-validation-evidence import command are not implemented. Prototype observations
-are investigation evidence, not current automatic closures. Verify deployment
-identity before deciding applicability for a hosted target.
+probe does not establish non-applicability. Prototype observations are investigation
+evidence, not current automatic closures. Verify deployment identity before deciding
+applicability for a hosted target.
+
+## Approved localhost runtime collection
+
+`python -m fva runtime` collects and imports a small approved GET plan. This first
+version supports a code-execution marker oracle for assessable SAST CWE-94 findings.
+It does not generate exploits or establish SCA advisory applicability. Other cases
+remain unresolved. Frozen evaluation packets are not changed by this workflow.
+
+An operator approves the entire plan once, including the mapping from each finding
+to its probe, control and expected marker. The plan's rationale must explain why
+the marker establishes execution at the reported sink, rather than ordinary
+reflection or an intended response. A matching marker is meaningful only for that
+approved test. There is no per-response grading step.
+
+Keep the plan, approval, raw responses and derived run in ignored `data/`. A plan
+has these fields:
+
+```json
+{
+  "profile_id": "local-validation",
+  "source_content_sha256": "<64-character source tree hash from summary.json>",
+  "findings_sha256": "<SHA-256 of the exact findings.jsonl bytes>",
+  "allowed_urls": [
+    "http://127.0.0.1:3000/control",
+    "http://127.0.0.1:3000/probe"
+  ],
+  "pairs": [{
+    "finding_id": "<existing SAST CWE-94 finding ID>",
+    "probe": {"method": "GET", "url": "http://127.0.0.1:3000/probe"},
+    "control": {"method": "GET", "url": "http://127.0.0.1:3000/control"},
+    "marker": "UNIQUE_EXECUTION_MARKER_12345",
+    "rationale": "Explain the harmless computation and its connection to the reported sink."
+  }]
+}
+```
+
+These example routes describe the format, not a working exploit. The expected
+marker must be absent from both requests after URL decoding and from the control
+response. Choose a benign probe that computes the marker without changing data.
+Both responses must be complete HTTP 200 responses and carry
+`X-FVA-Source-SHA256` equal to the pinned source tree hash. Add this identity header
+when starting your controlled local app. It is a declaration by that app, not
+cryptographic proof of the running binary or remote attestation.
+
+1. Prepare the exact plan against an existing run. Compute the findings file hash
+   and use the profile and source hash from its `summary.json`.
+2. Run `python -m fva runtime approval-template data/plan.json --out data/approval.json`.
+   This writes a pending receipt and sends no requests. After reviewing the plan,
+   set `decision` to `approved`, record the approver's name in `approved_by`, and
+   record an ISO timestamp in `approved_at`. Keep the generated `plan_sha256`.
+   The model must not approve its own plan on behalf of the operator.
+3. Run `python -m fva runtime collect data/runs/base --source <checkout> --plan data/plan.json --approval data/approval.json --out data/collection`.
+4. Run `python -m fva runtime import data/runs/base data/collection --out data/runs/runtime-derived`.
+   Import sends no requests. It copies the base findings, evidence and summary
+   into a new directory and writes the receipt and worksheet there.
+
+Collection accepts only explicit loopback IP addresses with a port, on one origin,
+and exact allowlisted URLs. Hostnames and hosted targets are rejected. All requests
+are GET, without credentials, environment proxies, cookies or redirect following.
+A plan has at most eight pairs. Each connection has a three-second socket timeout;
+after connecting, all request/response I/O has a three-second deadline. Each body
+is capped at 64 KiB. Transport failures and truncated or unexpected responses
+remain neutral evidence, never automatic dismissals.
+
+The collector checks source content before and after probing. Import verifies the
+approved plan, profile, source and exact findings file, then recomputes evidence
+from the retained response bytes. Worksheets repeat that verification and require
+the stored evidence to match exactly before promoting a runtime finding. Merely
+writing the collector's method name into an evidence record grants no trust.
+Receipt hashes bind artifacts and detect inconsistent edits; they are not
+signatures. A person able to rewrite both the local approval and collection is
+inside the trust boundary. Output directories must be new, so base runs and old
+collections are preserved.
