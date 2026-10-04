@@ -47,8 +47,13 @@ Last updated: 2026-10-04. Update this file when status changes.
   (no attack traffic, never `confirmed`). Step 0 done: on `20261003-js-assess-v2`, score
   gives 0.798 agreement, 0 incorrect demotions, 0.756 queue reduction. Whatif review
   queue is 123 now, 106 conservative and 85 optimistic (ceilings from the answer key).
-  L1 (evidence contract) is on `claude/l1-evidence-contract`. S1 (Polaris triage
-  fields) is running on Codex in `codex/s1-triage-fields`. Next: L2 and S2 after L1 merges.
+  L1 (evidence contract) is merged as PR #15. S1 (Polaris triage fields) is PR #16. The saved
+  export's `list_issues` triage properties are `status`, `is-dismissed` and `dismissal-reason`.
+  Every one of the 573 issues is `not-dismissed` with reason `unset`, and set-by, set-at and
+  history are absent. There are no labels to harvest, so S3 is skipped for this tenant.
+  L2 (loaded-package collector) and S2 (coverage importer, Codex draft reworked in review) are on
+  `claude/l2-loaded-packages`. Next: L3 verdict rules, then L4 collects on Juice Shop. L4 needs
+  Node 22.15 or later for the "not loaded" result, and c8 source maps for the `.ts` findings.
 - PR #13 (paired status) is merged. Its aggregate command verified the existing
   sealed 12-case run with matching receipt, clean audits, exact case coverage and no
   processing failures.
@@ -74,7 +79,8 @@ they are not instructions to rerun or replace the frozen pilot.
 | Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence |
 | Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
 | Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
-| Passive observations | `fva/observations.py` | receipt format `fva.runtime_observation/1` -> `runtime_observation` evidence bound to run profile, source and findings; neutral, or `refutes` for a package not loaded; no collector yet |
+| Passive observations | `fva/observations.py` | receipt format `fva.runtime_observation/1` -> `runtime_observation` evidence bound to run profile, source and findings; neutral, or `refutes` for a package not loaded; `import_receipt` writes a new run after the collector rebuilds the receipt from raw output |
+| Passive collectors | `fva/loaded_packages.py` + `fva/node/loaded_modules.cjs`, `fva/coverage.py` | Node preload records loaded module paths (append as loaded, ESM via `registerHooks`); "not loaded" only with complete records; V8 or c8 coverage -> `line_executed`; no verdict rules yet (L3) |
 | Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; `import-review` -> `human_review` evidence, superseding verdicts, agreement score |
 | Suggested verdicts | `fva/verdicts.py` | rules over a run's evidence; every closure, rule closures included, must pass `check_verdict` |
 | Rule evidence | `fva/surface.py` (`to_evidence`), `fva/pipeline.py` | skipped findings keep `deployment_boundary` / `dependency_resolution` / reachability records; never sent to a model |
