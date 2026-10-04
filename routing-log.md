@@ -25,3 +25,7 @@
 2026-10-02 | T5a README + docs/operations.md | sonnet | delegated | fix | 86k total | Opus fixed flow-diagram alignment
 2026-10-02 | T5b CHECKPOINT/CLAUDE/ROADMAP, drop PROJECT_STATUS | opus | inline | pass | n/a |
 2026-10-02 | T6 review, commits, push | opus | inline | pass | n/a |
+2026-10-03 | PR 9 re-review (ce4f44e) | reasoning | opus | inline | inline | n/a | security-sensitive, no objective done-when; 1 new blocker (submodule clean filter in pin)
+2026-10-03 | PR 9 re-review (8448856) | reasoning | opus | inline | inline | n/a | submodule blocker fixed; no escalation needed
+2026-10-03 | reflect rows 1-5 skill edits | touch-up | opus | inline | inline | n/a | 5 one-line edits; plugin skills edited as copies for upload
+2026-10-03 | sync + re-plan | reasoning | opus | inline | inline | n/a | ff to 5b93670; 346 passed 4 skipped; demo-first re-plan

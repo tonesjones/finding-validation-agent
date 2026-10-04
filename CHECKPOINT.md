@@ -43,14 +43,15 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Next
 
-- Review and merge the paired-status PR. Its aggregate command has verified the
-  existing sealed 12-case run with matching receipt, clean audits, exact case coverage
-  and no processing failures.
-- The source-identity app PR and advisory-range PR are merged. Prepare an exact
-  collector plan for operator review before running the real pilot.
-- Routine triage does not require grading every model response. Route exceptions for
-  review using confidence, evidence/citation validity, conflicts and impact. Per-response
-  reasoning grades remain optional benchmark work.
+- PRs #9-#13 are merged (main `5b93670`; 346 passed, 4 skipped). Claude leads the
+  remaining work; tasks and acceptance criteria are in `PLAN.md`.
+- Routine triage does not require grading every model response. Exception-routed
+  triage (T2-T3) sends only low-confidence, conflicting, model-only or high-impact
+  closures to review. Per-response reasoning grades remain optional benchmark work.
+- SCA closure needs vulnerable-function call-site evidence (T4); the installed lodash
+  4.17.20 is in range for all five pilot advisories.
+- A real collector run needs a Polaris rescan of the demo at the source-identity
+  commit and an operator `runtime approve` (T6).
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
 
 ## Historical development log
