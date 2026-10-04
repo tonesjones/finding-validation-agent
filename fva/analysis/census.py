@@ -15,6 +15,7 @@ from collections import Counter
 from pathlib import Path
 
 from fva.adapters.polaris import USED_OCCURRENCE_KEYS, USED_TOP_LEVEL_KEYS, _unwrap
+from fva.analysis.triage_fields import report as triage_report
 
 ENUM_KEYS = {"cwe", "checker", "severity", "original-severity", "language", "reachability", "vulnerability-source",
              "toolType", "scanMode", "status", "dismissal-reason", "is-rapid"}
@@ -60,8 +61,9 @@ def census(paths: list[Path]) -> dict:
     for path in paths:
         for issue in _load(Path(path)):
             occ = _kv(issue, "occurrenceProperties")
-            tool = acc.setdefault(_tool_type(issue, occ), {"issues": 0, **{g: {} for g in GROUPS}})
+            tool = acc.setdefault(_tool_type(issue, occ), {"issues": 0, "raw": [], **{g: {} for g in GROUPS}})
             tool["issues"] += 1
+            tool["raw"].append(issue)
             ctx = issue.get("context") if isinstance(issue.get("context"), dict) else {}
             fields = {"top_level": {**issue, **{f"context.{k}": ctx[k] for k in ("toolType", "scanMode") if k in ctx}},
                       "occurrence": occ, "triage": _kv(issue, "triageProperties"),
@@ -79,7 +81,7 @@ def census(paths: list[Path]) -> dict:
     out: dict = {}
     for tool in sorted(acc):
         a, n = acc[tool], acc[tool]["issues"]
-        out[tool] = {"issues": n}
+        out[tool] = {"issues": n, "triage_fields": triage_report(a["raw"])}
         for g in GROUPS:
             out[tool][g] = {}
             for k in sorted(a[g]):
@@ -102,7 +104,10 @@ def _cell(s) -> str:
 def to_markdown(c: dict) -> str:
     lines = ["# Polaris field census", ""]
     for tool in (t for t in c if t != "dropped"):
-        lines += [f"## {tool.upper()} ({c[tool]['issues']} issues)", ""]
+        lines += [f"## {tool.upper()} ({c[tool]['issues']} issues)", "", "### Triage fields", "",
+                  "| field | presence | issues with value |", "|---|---|---|"]
+        lines += [f"| {f} | {r['presence']} | {r['issues']} |" for f, r in c[tool]["triage_fields"]["fields"].items()]
+        lines.append("")
         for g in GROUPS:
             if not c[tool][g]:
                 continue

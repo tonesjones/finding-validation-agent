@@ -256,9 +256,11 @@ read-only and write only summaries that are safe to share.
 
 - `python -m fva.polaris_mcp inventory` surveys the Polaris MCP server. It lists the tools and their inputs, the
   scanner types in each project, and a few sample issues with full detail. The raw output stays in `data/`. The
-  summary has no names, ids, or URLs.
+  summary has no names, ids, or URLs. Its triage table reports, from the listed issues, whether triage status,
+  set-by, set-at and status history are present and how many issues have a value. It never shows the values.
 - `python -m fva census <paths>` counts, for each scanner type, which fields Polaris fills in and which ones fva
-  ignores today. It shows values only for a few category fields, such as severity. Output goes to `data/analysis/`.
+  ignores today. It shows values only for a few category fields, such as severity. A triage table per scanner type
+  reports the same four fields, without values. Output goes to `data/analysis/`.
 - `python -m fva correlation-value [--source <checkout>]` scores candidate ways of linking findings against the
   hand-validated answer key. The candidates are the same CWE (weakness type), the same code line, the same
   code-fragment hash, a package imported in the flagged file, advisory symbols near the flagged line, and CVE and

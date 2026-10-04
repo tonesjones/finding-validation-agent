@@ -33,6 +33,22 @@ def test_no_leaks():
     assert "values" not in c["sca"]["occurrence"]["description"]
 
 
+def test_triage_fields_present_absent_and_counts():
+    c = cs.census([FIX / "polaris_triage_fields.json"])
+    both = {"triage status": {"presence": "present", "issues": 2},
+            "set-by": {"presence": "present", "issues": 1},
+            "set-at": {"presence": "present", "issues": 1},
+            "status history": {"presence": "present", "issues": 1}}
+    assert c["sast"]["triage_fields"]["fields"] == both and c["sca"]["triage_fields"]["fields"] == both
+    text = json.dumps(c) + cs.to_markdown(c)
+    assert "synthetic-user" not in text and "2099-01" not in text
+    assert "| status history | present | 1 |" in cs.to_markdown(c)
+
+
+def test_missing_triage_fields_are_absent():
+    assert _c()["sast"]["triage_fields"]["fields"]["status history"] == {"presence": "absent", "issues": 0}
+
+
 def test_dropped():
     d = _c()["dropped"]
     assert not {"technical-description", "linked-vulnerability-id"} & set(d["sca"]["occurrence"])
