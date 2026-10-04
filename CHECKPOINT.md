@@ -31,8 +31,8 @@ Last updated: 2026-10-03. Update this file when status changes.
   encoded marker reflections and post-dated approvals, and surface receipt
   verification warnings. One collection per derived run is explicitly enforced.
 - The collector has been exercised against a synthetic local server. Real pilot
-  validation with this collector has not run. Hosted probing and SCA advisory
-  applicability decisions remain unimplemented.
+  validation with this collector has not run. Hosted probing remains unimplemented;
+  this branch adds the bounded, exact npm lodash advisory ranges described below.
 - Validation: 328 tests passed, 5 skipped, including approval/allowlist gates,
   paired live collection, import, receipt-byte integrity and response deadlines.
 
