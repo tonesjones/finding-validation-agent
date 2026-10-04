@@ -22,8 +22,10 @@ def vd(verdict, codes, eids):
 
 
 def test_confirmed_ok():
-    check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1",)),
-                  {"e1": ev("e1", Stance.supports, et=EvidenceType.runtime_probe)})
+    control = ev("c", Stance.neutral, et=EvidenceType.negative_control).model_copy(
+        update={"tool_versions": {"control_for": "e1"}})
+    check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1", "c")),
+                  {"e1": ev("e1", Stance.supports, et=EvidenceType.runtime_probe), "c": control})
 
 
 @pytest.mark.parametrize("et", [EvidenceType.static_source, EvidenceType.reachability, EvidenceType.model_assessment])
@@ -74,7 +76,49 @@ def test_runtime_evidence_needs_profile():
 
 def test_one_probe_many_findings():
     e = ev("e1", Stance.supports, fids=("f1", "f2", "f3"), et=EvidenceType.runtime_probe)
-    check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1",)), {"e1": e})
+    control = ev("c", Stance.neutral, fids=("f1", "f2", "f3"), et=EvidenceType.negative_control).model_copy(
+        update={"tool_versions": {"control_for": "e1"}})
+    check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1", "c")), {"e1": e, "c": control})
+
+
+@pytest.mark.parametrize("control_for", [None, "other-probe"])
+def test_runtime_confirmation_requires_its_control(control_for):
+    evidence = {"e1": ev("e1", Stance.supports, et=EvidenceType.runtime_probe)}
+    if control_for:
+        evidence["c"] = ev("c", Stance.neutral, et=EvidenceType.negative_control).model_copy(
+            update={"tool_versions": {"control_for": control_for}})
+    with pytest.raises(InvariantError, match="negative control"):
+        check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), tuple(evidence)), evidence)
+
+
+def test_runtime_confirmation_rejects_cross_deployment_control():
+    evidence = {
+        "e1": ev("e1", Stance.supports, et=EvidenceType.runtime_probe),
+        "c": ev("c", Stance.neutral, et=EvidenceType.negative_control).model_copy(
+            update={"deployment_profile_id": "other", "tool_versions": {"control_for": "e1"}}),
+    }
+    with pytest.raises(InvariantError, match="deployment profile"):
+        check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("e1", "c")), evidence)
+
+
+def test_negative_control_alone_cannot_confirm():
+    with pytest.raises(InvariantError, match="requires supporting"):
+        check_verdict(vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("c",)),
+                      {"c": ev("c", Stance.supports, et=EvidenceType.negative_control)})
+
+
+def test_historical_import_does_not_claim_new_probe_controls():
+    v = vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("i",)).model_copy(
+        update={"decided_by": {"method": "import"}})
+    check_verdict(v, {"i": ev("i", Stance.supports, et=EvidenceType.imported_assessment)})
+
+
+def test_imported_record_cannot_bypass_new_probe_control():
+    v = vd(VerdictValue.confirmed, ("RUNTIME_CONFIRMED",), ("p", "i")).model_copy(
+        update={"decided_by": {"method": "import"}})
+    with pytest.raises(InvariantError, match="negative control"):
+        check_verdict(v, {"p": ev("p", Stance.supports, et=EvidenceType.runtime_probe),
+                          "i": ev("i", Stance.supports, et=EvidenceType.imported_assessment)})
 
 
 # ------------------------------------------------------------------ likely (static-only customers, no DAST)

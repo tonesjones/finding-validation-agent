@@ -187,3 +187,27 @@ read-only and write only summaries that are safe to share.
   real). The output is totals only.
 
 The census ran on the saved Polaris export. The full correlation check against live DAST data is still open.
+
+## Decisions from validation evidence
+
+Hand-built `runtime_probe` and `advisory_precondition` records do not automatically
+confirm or close findings. They stay `needs_review` until an FVA collector/importer
+establishes their provenance. Changing an agent's source interpretation to a rule
+evidence type does not make it independent rule evidence.
+
+Worksheet runtime evidence must match the profile in the run's `summary.json`.
+Missing or mismatched profiles keep the finding unresolved. Frozen evaluations
+take the expected profile from their sealed preflight. Evidence cannot select its
+own expected deployment. A directly constructed `RUNTIME_CONFIRMED` verdict must
+cite a supporting runtime probe and a neutral `negative_control` whose
+`tool_versions.control_for` names that probe's evidence ID. Both must cover the
+finding and match the verdict's deployment. A control alone cannot confirm.
+Historical imported assessments preserve their original decision; they do not
+prove that FVA ran a new probe with a control.
+
+Keep evidence for different deployments in separate runs with distinct profiles.
+A reproduction on local Node does not confirm a hosted deployment. A failed
+probe does not establish non-applicability. The runtime probe runner and a general
+validation-evidence import command are not implemented. Prototype observations
+are investigation evidence, not current automatic closures. Verify deployment
+identity before deciding applicability for a hosted target.

@@ -4,39 +4,34 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Current state
 
-- PR #9 merged into `main` on 2026-10-03. It adds the blind evaluation pilot commands
-  `discover` and `eval prepare|run|score`, and repairs Polaris DAST ingestion. Review
-  fixes cover Git helper execution during pinning, separate redaction for source and
-  HTTP evidence, DAST type export and import, CLI isolation, and discovery metrics.
-- The static pilot scanned and imported six findings. Fresh Sol 6 discovery produced
-  six cited allegations; a 12-case preparation and blank human forms are frozen.
-  These are not validated vulnerabilities. Exact identities, hosted target, paths
-  and artifact locations are in ignored `data/LOCAL-NOTES.md`.
-- Fixed pilot model is `gpt-6-sol`, explicitly approved while Sol 6.1 CLI access is
-  unavailable. Later model comparisons require new smoke/batch outputs.
-- PR review fixes passed 260 local tests, with 5 skips, plus an independent
-  security-boundary review. The original fsmonitor callback was reproduced in a
-  disposable checkout; hardened pinning left callback markers absent and retained
-  clean/dirty detection without changing Git config/index. Source auth syntax stays
-  visible while HTTP headers and literal template secrets are masked. DAST sidecars
-  round-trip by issue ID and bind to evaluation scope hashes. No detected plant
-  comment hints or redacted-source changes in the six-file frozen discovery packet.
-  The empty demo repository is now private.
-- The re-review found that pinning ran submodule clean and process filters. That is
-  fixed: a test shows the unsafe diff runs them and pinning doesn't. The dirty flag
-  now ignores submodule changes, matching the source hash, which never covered them.
+- PR #9 is merged. Blind discovery and frozen evaluation tooling are implemented.
+- A static assessment experiment completed. Its scores measure agreement with a
+  supplied answer key, not independently verified security accuracy.
+- Targeted validation observations were collected separately. They remain local;
+  source identity, deployment details, results, authorization and artifact paths
+  are recorded only in ignored `data/LOCAL-NOTES.md`.
+- PR #10 review fixes are ready for re-review on `codex/runtime-evidence-validation`.
+  Automatic promotion of hand-built runtime and advisory-precondition records
+  has been removed because no FVA collector/importer establishes their provenance.
+  Those records stay `needs_review`; prototype SCA closures are withdrawn.
+- Suggestions bind runtime evidence to the run's authoritative deployment profile.
+  Missing or mismatched profiles cannot confirm a finding. Runtime confirmation
+  invariants require a neutral control linked to the supporting probe.
+- Frozen evaluation artifacts remain unchanged. Historical prototype decision
+  outputs are superseded, not current automatic triage results.
+- Validation: 275 tests passed, 5 skipped. Regression checks cover missing and
+  mismatched profiles, untrusted preconditions, missing controls and imported
+  assessment boundaries.
 
-## Blocked on / next
+## Next
 
-- Human-frozen private labels and matching receipt before assessment smoke/batch.
-  Human issue adjudication is also required for discovery overlap and unique additions.
-- The pilot app's DAST scan waits on entitlement, so its coverage is unknown. The
-  separate sample proves importer compatibility, not the pilot app's coverage,
-  evidence bodies or links.
-- No case smoke, batch or score has run.
-- Next: select scanner-only or static-plus-discovery scope, obtain its label receipt,
-  smoke with audit, batch reusing smoke, human-grade, then score. Add DAST later in
-  a new preparation with approved links and a new private label receipt.
+- Re-review PR #10.
+- Implement a bounded FVA collector/importer that establishes evidence provenance,
+  source/deployment binding and target authorization before enabling automatic
+  runtime or advisory-precondition decisions.
+- Human review is for unresolved cases. Per-response grading remains optional
+  benchmark work, not the intended operator workflow.
+- The pilot DAST scan still awaits entitlement. Its coverage is unknown.
 
 ## Historical development log
 

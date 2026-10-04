@@ -193,6 +193,7 @@ def run_cases(prepared: Path, out: Path, *, smoke=False, smoke_run=None, client=
 
     manifest = verify_seal(prepared, "prepared.json")
     cases = read_rows(prepared / "cases.jsonl")
+    profile_id = json.loads((prepared / "preflight.json").read_text(encoding="utf-8"))["profile"]["profile_id"]
     if not smoke and cases:
         if not smoke_run:
             raise ValueError("batch requires --smoke-run from a successful smoke on these packets")
@@ -239,7 +240,8 @@ def run_cases(prepared: Path, out: Path, *, smoke=False, smoke_run=None, client=
         call_dir.mkdir()
         finding = Finding.model_validate(packet["finding"])
         evs = [EvidenceRecord.model_validate(e) for e in packet["evidence"]]
-        rules = suggest_verdict(packet["row"], evs)[0].value
+        decision_row = {**packet["row"], "deployment_profile_id": profile_id}
+        rules = suggest_verdict(decision_row, evs)[0].value
         row = {"case_id": packet["case_id"], "packet_sha256": packet["packet_sha256"], "rules_only": rules,
                "approved_link_ids": packet["approved_link_ids"], "processing_failure": None}
         try:
@@ -250,11 +252,11 @@ def run_cases(prepared: Path, out: Path, *, smoke=False, smoke_run=None, client=
             replay.last_reported_model = meta["observed_model"]
             replay.last_tokens = getattr(client, "last_tokens", None)
             res = assessor.assess(finding, idx, replay, source_content_sha256=packet["source_sha256"],
-                                  profile_id=next((e.deployment_profile_id for e in evs if e.deployment_profile_id),
-                                                  "evaluation"), evidence=evs, sites=packet["sites"], cache_dir=None)
+                                  profile_id=profile_id, evidence=evs, sites=packet["sites"], cache_dir=None)
             hybrid_evs = evs + [res.evidence]
-            hybrid, codes, confidence, cited = suggest_verdict(packet["row"], hybrid_evs)
-            if hybrid.value != "needs_review" and not check_suggestion(finding.finding_id, hybrid, codes, cited, confidence):
+            hybrid, codes, confidence, cited = suggest_verdict(decision_row, hybrid_evs)
+            if hybrid.value != "needs_review" and not check_suggestion(
+                    finding.finding_id, hybrid, codes, cited, confidence, profile_id):
                 raise ValueError("hybrid verdict failed invariants")
             row.update({"llm_only": llm, "hybrid": hybrid.value, "raw_claims": raw["claims"],
                         "accepted_claims": res.accepted, "dropped_claims": res.rejected, "model": meta,
