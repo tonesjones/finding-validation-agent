@@ -41,7 +41,8 @@ def check_suggestion(fid: str, verdict: V, codes: tuple[str, ...], evs: list[Evi
         return False
 
 
-def suggest_verdict(row: dict, evs: list[EvidenceRecord]) -> tuple[V, tuple[str, ...], str, list[EvidenceRecord]]:
+def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
+                    verified_runtime_ids: frozenset[str] = frozenset()) -> tuple[V, tuple[str, ...], str, list[EvidenceRecord]]:
     """(verdict, reason codes, confidence, cited evidence) for one finding."""
     disp = row["disposition"]
     profile = row.get("deployment_profile_id")
@@ -65,8 +66,12 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord]) -> tuple[V, tuple[str,
         return V.confirmed, ("DAST_OBSERVED",), "high", evs
     if Stance.supports in stances and Stance.refutes in stances:
         return V.needs_review, ("CONFLICTING_EVIDENCE",), "medium", evs
-    # No FVA collector/importer establishes provenance for these records yet.
-    # Agent-authored runtime/precondition records cannot automatically decide a case.
+    runtime = [e for e in evs if e.evidence_type in {EvidenceType.runtime_probe, EvidenceType.negative_control}]
+    if (runtime and all(e.evidence_id in verified_runtime_ids for e in runtime)
+            and not any(e.evidence_type is EvidenceType.advisory_precondition for e in evs)
+            and check_suggestion(row["finding_id"], V.confirmed, ("RUNTIME_CONFIRMED",), evs, "high", profile)):
+        return V.confirmed, ("RUNTIME_CONFIRMED",), "high", evs
+    # Typed claims alone cannot prove collector provenance. Failed probes stay open.
     if any(e.evidence_type in {EvidenceType.runtime_probe, EvidenceType.advisory_precondition} for e in evs):
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
     if Stance.non_security in stances and Stance.supports not in stances:

@@ -10,25 +10,35 @@ Last updated: 2026-10-03. Update this file when status changes.
 - Targeted validation observations were collected separately. They remain local;
   source identity, deployment details, results, authorization and artifact paths
   are recorded only in ignored `data/LOCAL-NOTES.md`.
-- PR #10 review fixes are ready for re-review on `codex/runtime-evidence-validation`.
+- PR #10 is squash-merged into main as `966858c`.
   Automatic promotion of hand-built runtime and advisory-precondition records
-  has been removed because no FVA collector/importer establishes their provenance.
+  has been removed because those records have no verified collector receipt.
   Those records stay `needs_review`; prototype SCA closures are withdrawn.
 - Suggestions bind runtime evidence to the run's authoritative deployment profile.
   Missing or mismatched profiles cannot confirm a finding. Runtime confirmation
   invariants require a neutral control linked to the supporting probe.
 - Frozen evaluation artifacts remain unchanged. Historical prototype decision
   outputs are superseded, not current automatic triage results.
-- Validation: 275 tests passed, 5 skipped. Regression checks cover missing and
-  mismatched profiles, untrusted preconditions, missing controls and imported
-  assessment boundaries.
+- A supported localhost GET collector/importer is implemented on
+  `codex/runtime-collector`. It requires one approval for the exact plan, checks
+  source/run binding, retains paired raw responses and recomputes evidence during
+  import and worksheet generation. Only its approved SAST code-execution marker
+  oracle can produce automatic runtime confirmation. Hand-built records remain open.
+- PR #11 review repairs require an interactive exact-plan approval, reject common
+  encoded marker reflections and post-dated approvals, and surface receipt
+  verification warnings. One collection per derived run is explicitly enforced.
+- The collector has been exercised against a synthetic local server. Real pilot
+  validation with this collector has not run. Hosted probing and SCA advisory
+  applicability decisions remain unimplemented.
+- Validation: 328 tests passed, 5 skipped, including approval/allowlist gates,
+  paired live collection, import, receipt-byte integrity and response deadlines.
 
 ## Next
 
-- Re-review PR #10.
-- Implement a bounded FVA collector/importer that establishes evidence provenance,
-  source/deployment binding and target authorization before enabling automatic
-  runtime or advisory-precondition decisions.
+- Add source identity reporting to the controlled local app and prepare a bounded
+  plan for review before running the real pilot through the collector.
+- Implement advisory-specific deterministic applicability checks before enabling
+  automatic SCA dismissals. Expand probe oracles only as concrete findings need them.
 - Human review is for unresolved cases. Per-response grading remains optional
   benchmark work, not the intended operator workflow.
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
