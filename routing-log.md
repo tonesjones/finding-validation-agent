@@ -30,3 +30,4 @@
 2026-10-04 | S1 Polaris triage fields (PR #16) | read-heavy | codex gpt-6-sol | worktree | fix | 213k (codex) | Opus restored census columns, the stub allowlist guard, and list-page counts instead of per-issue get_issue; codex sandbox cannot commit in a worktree
 2026-10-04 | S2 coverage importer | write-heavy | codex gpt-6-sol | worktree | fix | 76k (codex) | Opus fixed V8 char offsets, canonical receipt bytes, and verify/import; folded into the L2 PR
 2026-10-04 | L2 loaded-package collector | reasoning | opus | inline | pass | n/a |
+2026-10-04 | L3 verdict rules | reasoning | opus | inline | pass | n/a | owns invariants and verdicts; mutation-checked the new tests

@@ -210,6 +210,28 @@ observation is `neutral`, whether it was observed or not. A passive observation 
 `supports` that a `likely` verdict needs. Code that ran is not proof that it is vulnerable, and a line that did not
 run never closes a finding.
 
+Verdict rules (`fva/verdicts.py`, checked again in `fva/invariants.py`):
+
+| Observation | Other evidence | Suggestion |
+|---|---|---|
+| SCA package loaded | cited `supports` and rule evidence | `likely`, `VULNERABLE_VERSION_IMPORTED` |
+| SCA package loaded | no `supports` | unchanged: loading alone promotes nothing |
+| SCA package not loaded | reachability finds no shipped import, exercise is more than startup | `not_applicable`, `PACKAGE_NOT_LOADED` |
+| SCA package not loaded | shipped code imports it, or no reachability record | `needs_review` |
+| SAST line executed | cited static or model `supports` and rule evidence | `likely`, `EXECUTED_UNDER_TEST` |
+| SAST line not executed | anything | unchanged |
+
+An exercise of `startup`, `startup only` or `npm start` (case and spacing ignored) cannot close a finding, because
+startup runs no request handlers or lazy `require` calls. Name the exercise by the command you ran. A not-loaded
+record next to a `supports` record is still `CONFLICTING_EVIDENCE`. So is a not-loaded record next to another
+receipt that saw the package load, which blocks the closure.
+
+The worksheet re-verifies observations before it uses them (`observations.verify_observations`). Each receipt in
+the run's `observations/` folder must be named by its content hash, match its bytes and still bind to the run, and
+the stored evidence must equal what the receipt produces. Records that fail are ignored, not cited, and the
+worksheet shows a warning with their count. The raw collector output is checked only at import, so keep it with
+the receipt in `data/`.
+
 ## Passive collectors: loaded packages and coverage
 
 Both collectors watch the app run normally and FVA sends no traffic. The operator runs the app's own tests or a
@@ -235,7 +257,7 @@ under the checkout count. An SCA finding whose exact `name@version` was loaded g
 `observed: false` only if three things hold: the package is installed under the checkout's `node_modules`, every
 process ran with load hooks (Node 22.15 or later, so ESM imports were seen), and every record file is intact.
 Otherwise the receipt leaves that package out. Packages bundled for the browser never load in Node. A `false` for
-them is expected and only matters together with static reachability (L3). The npm layout is supported; pnpm
+them is expected. It closes nothing while shipped code imports the package. The npm layout is supported; pnpm
 stores are not.
 
 **Line coverage (SAST).** Pass a `NODE_V8_COVERAGE` directory or a c8/Istanbul `coverage-final.json`. A

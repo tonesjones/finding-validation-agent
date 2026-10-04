@@ -69,7 +69,9 @@ def test_passive_only_verdict_cannot_be_likely():
 
 
 def test_executed_under_test_needs_a_cited_argument():
-    e = {"o": obs_ev("o"), "s": ev("s", Stance.neutral, EvidenceType.static_source)}
+    executed = EvidenceRecord.model_validate(obs_ev("o").model_dump() | {
+        "tool_versions": {"kind": "line_executed", "observed": "true"}})
+    e = {"o": executed, "s": ev("s", Stance.neutral, EvidenceType.static_source)}
     with pytest.raises(InvariantError, match="supports"):
         check_verdict(vd(VerdictValue.likely, ("EXECUTED_UNDER_TEST",), ("o", "s")), e)
     e["m"] = ev("m", Stance.supports, EvidenceType.model_assessment)
@@ -81,7 +83,6 @@ def test_unloaded_package_against_static_import_is_conflict():
          "d": ev("d", Stance.supports, EvidenceType.dependency_resolution)}
     with pytest.raises(InvariantError, match="CONFLICTING_EVIDENCE"):
         check_verdict(vd(VerdictValue.not_applicable, ("PACKAGE_NOT_LOADED",), ("o", "d")), e)
-    check_verdict(vd(VerdictValue.not_applicable, ("PACKAGE_NOT_LOADED",), ("o",)), e)
 
 
 # ------------------------------------------------------------------- receipts
