@@ -5,7 +5,10 @@ inline, Sonnet runs well-specified write-heavy packages. Status lives in `CHECKP
 
 ## Goal
 
-Automated SAST/SCA triage with evidence and confidence. Humans see only the exceptions.
+Automated SAST/SCA triage with evidence and confidence. Nobody grades or reviews by hand:
+not the owner, not the tool's users. Every automated decision must be right without a person
+checking it, so accuracy of auto-routed rows outranks the share that is auto-routed. Findings
+the tool cannot decide stay open (`needs_review`); they are never closed to shrink the queue.
 The frozen blind pilot stays historical: no edits to its packets, prompt or demo checkout.
 
 - **Primary target:** the demo app (record-desk) at `9ac5160`: one CWE-201 server banner
@@ -19,12 +22,12 @@ The frozen blind pilot stays historical: no edits to its packets, prompt or demo
 | ID | Task | Model | Status |
 |---|---|---|---|
 | T1 | Housekeeping: CHECKPOINT "Next", this file, branch | Opus | done |
-| T2 | Exception-routed triage core | Opus | todo |
-| T3 | `fva triage` outputs and score columns | Sonnet | todo |
-| T4 | Vulnerable-function call sites for SCA | Opus | todo |
-| T5 | `assess-v2` stance semantics | Opus | todo |
+| T2 | Exception-routed triage core | Opus | done |
+| T3 | `fva triage` outputs and score columns | Sonnet | done |
+| T4 | Vulnerable-function call sites for SCA | Opus | done |
+| T5 | `assess-v2` stance semantics | Opus | done |
 | T6 | Collector oracles and demo runtime run | Opus | blocked on rescan |
-| T7 | Ranked report and tickets | Sonnet | todo |
+| T7 | Ranked report and tickets | Sonnet | done |
 
 ### T2 Exception-routed triage core
 `fva/triage.py` gives every finding `route = auto | review` plus exception reason codes
@@ -57,8 +60,11 @@ Restating the sink is `neutral`; a real quality issue is `non_security`; a cited
 precondition refutation outranks a restated sink. SCA prompts carry the advisory function
 and T4 call sites. New prompt version only.
 
-Done when: a routed Juice Shop re-run versus `data/runs/20260928-ab-routed/` shows higher
-agreement and no new refutations of PoC-confirmed rows (about $1).
+Done when (revised 2026-10-03): auto-routed agreement on Juice Shop goes up with no incorrect
+demotions and no new refutations of PoC-confirmed rows. Raw model-stance agreement is not the
+target: a neutral answer leaves a finding open and cannot cause a wrong decision.
+Result: auto-routed agreement 96.0% -> 99.3%, wrong auto `likely` 19 -> 3, auto share
+82.7% -> 78.0%, incorrect demotions 0.
 
 ### T6 Collector oracles and demo runtime run
 Two oracles in `fva/runtime.py`: an exact-header disclosure check for CWE-200/201 with a
@@ -83,8 +89,21 @@ Done when: output is deterministic and every closure cites evidence ids.
 - Polaris writer (v0.8): company GitHub plus sign-off.
 - Jev evaluation, multi-app benchmark, malformed-input audit, repo migration.
 
+## Status (2026-10-03)
+
+- Demo: 6/6 `needs_review` -> 5 auto (2 `likely` via `template` call sites, 2 closed as
+  `VULNERABLE_FUNCTION_NOT_CALLED`, 1 `likely` for the toNumber ReDoS), 1 open (banner, waits on T6).
+- Juice Shop (assess-v2): 78.0% auto, 99.3% auto agreement, 0 incorrect demotions.
+- Model calls never close a finding; their only automated effect is promoting `needs_review`
+  to `likely`. Rules close 430 of 573 Juice Shop findings with no model involvement.
+- Adding reason codes changes every prompt (the prompt lists allowed codes) and empties the
+  model cache; a full Juice Shop re-run is about 131 Codex calls.
+
 ## Open decisions
 
-- Should `VULNERABLE_FUNCTION_NOT_CALLED` close a finding automatically? Proposed: yes at
-  medium confidence for medium-severity advisories; high/critical go to review.
-- Polaris rescan of the demo at the source-identity commit (operator, separate chat).
+- `VULNERABLE_FUNCTION_NOT_CALLED` closes automatically at medium confidence only up to medium
+  severity; high/critical stay open (triage `HIGH_IMPACT_CLOSURE`).
+- The report should present review rows as "open, not auto-verified" rather than as a queue a
+  person must work through.
+- T6 needs a Polaris rescan of the demo at the source-identity commit and one operator
+  `runtime approve` per collection plan (a safety gate, not grading).

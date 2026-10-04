@@ -29,3 +29,9 @@
 2026-10-03 | PR 9 re-review (8448856) | reasoning | opus | inline | inline | n/a | submodule blocker fixed; no escalation needed
 2026-10-03 | reflect rows 1-5 skill edits | touch-up | opus | inline | inline | n/a | 5 one-line edits; plugin skills edited as copies for upload
 2026-10-03 | sync + re-plan | reasoning | opus | inline | inline | n/a | ff to 5b93670; 346 passed 4 skipped; demo-first re-plan
+2026-10-03 | T1 housekeeping | touch-up | opus | inline | inline | n/a | PLAN.md, checkpoint next steps
+2026-10-03 | T2 triage core | reasoning | opus | inline | inline | n/a | 472/573 JS auto, 0 auto demotions
+2026-10-03 | T3 triage outputs | write-heavy | sonnet | P1 | pass | 33k total | deterministic, 364 tests; reviewed CLI diff only
+2026-10-03 | T4 call sites | reasoning | opus | inline | inline | n/a | flagged (closes findings); demo 5/5 records; new codes invalidated model cache (~131 live calls)
+2026-10-03 | T7 report/tickets | write-heavy | sonnet | P2 | pass | 32k total | weights set by opus; leak boundary checked
+2026-10-03 | T5 assess-v2 | reasoning | opus | inline | inline | n/a | criterion revised to auto-routed accuracy per owner; 99.3% auto agreement
