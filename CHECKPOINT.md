@@ -10,7 +10,7 @@ Last updated: 2026-10-03. Update this file when status changes.
   agreement with prewritten labels, not independently verified security accuracy.
 - A Tony label receipt matches the paired run's frozen case set. The checked-in local
   readiness report predates that receipt; use the new aggregate-only eval status command
-  to refresh status without reading private labels or per-response content.
+  to refresh status without displaying private labels or per-response content.
 - Targeted validation observations were collected separately. They remain local;
   source identity, deployment details, results, authorization and artifact paths
   are recorded only in ignored `data/LOCAL-NOTES.md`.

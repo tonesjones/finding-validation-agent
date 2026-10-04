@@ -5,6 +5,7 @@ import argparse
 import glob
 import hashlib
 import json
+import re
 import shutil
 from collections import Counter
 from dataclasses import asdict
@@ -383,25 +384,54 @@ def score_cases(prepared: Path, run: Path, gold: Path, *, review: Path | None = 
     return summary
 
 
-def pilot_status(prepared: Path, receipt: Path, audit: Path, score: Path) -> dict:
-    """Sanitized status only; never opens the private gold file or response text."""
+def pilot_status(prepared: Path, run: Path, receipt: Path) -> dict:
+    """Aggregate status bound to the frozen preparation and sealed run."""
+    from fva.discovery import FIXED_MODEL
+
     manifest = verify_seal(prepared, "prepared.json")
+    verify_seal(run, "outputs.json")
     label_receipt = json.loads(receipt.read_text(encoding="utf-8"))
-    run_audit = json.loads(audit.read_text(encoding="utf-8"))
-    scored = json.loads(score.read_text(encoding="utf-8"))
-    matched = label_receipt.get("prepared_sha256") == manifest.get("sha256")
-    with (prepared / "cases.jsonl").open(encoding="utf-8") as f:
-        case_count = sum(bool(line.strip()) for line in f)
+    run_meta = json.loads((run / "run.json").read_text(encoding="utf-8"))
+    if run_meta.get("prepared_sha256") != manifest.get("sha256"):
+        raise ValueError("run belongs to a different frozen preparation")
+    if run_meta.get("labels_receipt") != label_receipt \
+            or label_receipt.get("prepared_sha256") != manifest.get("sha256"):
+        raise ValueError("label receipt differs from the receipt bound to the run")
+    if not label_receipt.get("reviewer") or not re.fullmatch(r"[0-9a-f]{64}",
+                                                              str(label_receipt.get("gold_sha256", ""))):
+        raise ValueError("bound label receipt is incomplete")
+    cases = read_rows(prepared / "cases.jsonl")
+    results = read_rows(run / "results.jsonl")
+    expected_ids = [row["case_id"] for row in cases]
+    result_ids = [row.get("case_id") for row in results]
+    model_checks, audit_checks = [], []
+    for i, result in enumerate(results):
+        call = json.loads((run / f"case-{i:04d}" / "call.json").read_text(encoding="utf-8"))
+        result_model = result.get("model") or {}
+        model_checks.append(
+            call.get("requested_model") == FIXED_MODEL
+            and call.get("observed_model") == FIXED_MODEL
+            and result_model.get("requested_model") == FIXED_MODEL
+            and result_model.get("observed_model") == FIXED_MODEL
+            and call.get("response_sha256") == result_model.get("response_sha256")
+        )
+        audit = call.get("audit") or {}
+        audit_checks.append(
+            audit.get("complete") is True
+            and audit.get("observed_model") == FIXED_MODEL
+            and audit.get("tool_items") == []
+            and audit.get("unknown_events") == []
+        )
+    ids_match = bool(expected_ids) and result_ids == expected_ids and len(set(result_ids)) == len(result_ids)
     return {
-        "prepared_cases": case_count,
-        "matching_label_receipt": matched,
-        "label_reviewer": label_receipt.get("reviewer") if matched else None,
-        "assessment_cases": run_audit.get("cases"),
-        "model_verified": bool(run_audit.get("all_models_verified")),
-        "audit_clean": run_audit.get("all_audits_clean") is True,
-        "case_ids_match": run_audit.get("answer_key_case_ids_exact_match") is True,
-        "responses": scored.get("responses"),
-        "processing_failures": scored.get("processing_failures"),
+        "prepared_cases": len(cases),
+        "matching_label_receipt": True,
+        "label_reviewer": label_receipt.get("reviewer"),
+        "assessment_cases": len(results),
+        "model_verified": run_meta.get("requested_model") == FIXED_MODEL and bool(results) and all(model_checks),
+        "audit_clean": bool(results) and all(audit_checks),
+        "case_ids_match": ids_match,
+        "processing_failures": sum(bool(row.get("processing_failure")) for row in results),
         "per_response_reasoning_grades": "not collected; not required for routine triage",
         "security_truth_limit": "label agreement does not independently establish security accuracy",
     }
@@ -545,16 +575,15 @@ def main(argv=None):
     score.add_argument("run")
     score.add_argument("--gold", required=True)
     score.add_argument("--human-review")
-    status = subs.add_parser("status", help="sanitized paired-pilot status; does not read gold")
+    status = subs.add_parser("status", help="aggregate paired-pilot status; does not show response text or read gold")
     status.add_argument("prepared")
+    status.add_argument("run")
     status.add_argument("--receipt", required=True)
-    status.add_argument("--audit", required=True)
-    status.add_argument("--score", required=True)
     args = parser.parse_args(argv)
     try:
         if args.operation == "status":
-            print(json.dumps(pilot_status(artifact_dir(args.prepared), artifact_dir(args.receipt),
-                                          artifact_dir(args.audit), artifact_dir(args.score)), indent=2))
+            print(json.dumps(pilot_status(artifact_dir(args.prepared), artifact_dir(args.run),
+                                          artifact_dir(args.receipt)), indent=2))
             return
         if args.operation == "score":
             print(score_cases(artifact_dir(args.prepared), artifact_dir(args.run), Path(args.gold),

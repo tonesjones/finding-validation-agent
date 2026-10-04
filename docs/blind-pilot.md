@@ -179,12 +179,13 @@ cited evidence and confidence to route clear cases, and reserve human review for
 confidence, missing/invalid citations, conflicting evidence and decisions with material
 impact. Keep those operator decisions separate from the frozen benchmark.
 
-For a completed paired run, python -m fva eval status reports only aggregate run
-state, whether the label receipt matches, model/audit gates, response count and
-processing failures. It does not read gold or response text. The score still measures
+For a completed paired run, python -m fva eval status reports aggregate run state,
+model/audit gates, response count and processing failures. It verifies that the sealed
+run belongs to the frozen preparation and uses the same label receipt. It does not
+display or interpret response contents, and never opens gold. The score still measures
 agreement with the prewritten labels; that alone does not establish security accuracy.
 
-    python -m fva eval status data/eval/prepared-01 --receipt data/eval/labels-receipt.json --audit data/eval/run-audit.json --score data/eval/run-01/score.json
+    python -m fva eval status data/eval/prepared-01 data/eval/run-01 --receipt data/eval/labels-receipt.json
 
 After the batch, copy its `human-review.json` to a new grading file. The frozen outputs
 must stay unchanged. Each row covers one shared response and every claim FVA dropped

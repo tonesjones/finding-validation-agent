@@ -36,7 +36,7 @@ def test_external_profile_and_exclusion(app, tmp_path):
         load_profile(profile_file=str(path))
 
 
-def test_pilot_status_is_aggregate_and_checks_receipt_binding(tmp_path):
+def test_pilot_status_is_bound_to_preparation_receipt_and_call_audits(tmp_path):
     prepared = tmp_path / "prepared"
     prepared.mkdir()
     (prepared / "cases.jsonl").write_text('{"case_id":"a"}\n{"case_id":"b"}\n')
@@ -44,17 +44,50 @@ def test_pilot_status_is_aggregate_and_checks_receipt_binding(tmp_path):
     seal(prepared, "prepared.json", [prepared / "cases.jsonl"])
     manifest = json.loads((prepared / "prepared.json").read_text())
     receipt = tmp_path / "receipt.json"
-    write_json(receipt, {"reviewer": "reviewer", "prepared_sha256": manifest["sha256"],
-                         "gold_sha256": "private-hash-not-returned"})
-    audit = tmp_path / "audit.json"
-    write_json(audit, {"cases": 2, "all_models_verified": "gpt-6-sol", "all_audits_clean": True,
-                       "answer_key_case_ids_exact_match": True, "verdict_counts": {"private": "omitted"}})
-    score = tmp_path / "score.json"
-    write_json(score, {"responses": 2, "processing_failures": 0, "case_rows": "omitted"})
-    result = pilot_status(prepared, receipt, audit, score)
+    labels = {"reviewer": "reviewer", "prepared_sha256": manifest["sha256"],
+              "gold_sha256": "0" * 64}
+    write_json(receipt, labels)
+    run = tmp_path / "run"
+    run.mkdir()
+    write_json(run / "run.json", {"prepared_sha256": manifest["sha256"], "labels_receipt": labels,
+                                  "requested_model": "gpt-6-sol"})
+    rows = []
+    sealed_files = [run / "run.json"]
+    for i, case_id in enumerate(("a", "b")):
+        call_dir = run / f"case-{i:04d}"
+        call_dir.mkdir()
+        call = {"requested_model": "gpt-6-sol", "observed_model": "gpt-6-sol",
+                "response_sha256": str(i), "audit": {"complete": True, "observed_model": "gpt-6-sol",
+                "tool_items": [], "unknown_events": []}}
+        write_json(call_dir / "call.json", call)
+        sealed_files.append(call_dir / "call.json")
+        rows.append({"case_id": case_id, "model": {"requested_model": "gpt-6-sol",
+                     "observed_model": "gpt-6-sol", "response_sha256": str(i)},
+                     "processing_failure": False})
+    (run / "results.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+    sealed_files.append(run / "results.jsonl")
+    seal(run, "outputs.json", sealed_files)
+    result = pilot_status(prepared, run, receipt)
     assert result["matching_label_receipt"] is True
-    assert result["prepared_cases"] == result["responses"] == 2
-    assert "private-hash" not in str(result) and "private" not in str(result)
+    assert result["prepared_cases"] == result["assessment_cases"] == 2
+    assert result["model_verified"] and result["audit_clean"] and result["case_ids_match"]
+    assert "private-hash" not in str(result) and "response_sha256" not in str(result)
+
+    wrong_model_call = run / "case-0001" / "call.json"
+    wrong_model = json.loads(wrong_model_call.read_text())
+    wrong_model["observed_model"] = "gpt-6-luna"
+    wrong_model["audit"]["observed_model"] = "gpt-6-luna"
+    write_json(wrong_model_call, wrong_model)
+    seal(run, "outputs.json", sealed_files)
+    result = pilot_status(prepared, run, receipt)
+    assert result["model_verified"] is False and result["audit_clean"] is False
+
+    wrong_run = run / "wrong"
+    wrong_run.mkdir()
+    write_json(wrong_run / "run.json", {"prepared_sha256": "wrong", "labels_receipt": labels})
+    seal(wrong_run, "outputs.json", [wrong_run / "run.json"])
+    with pytest.raises(ValueError, match="different frozen preparation"):
+        pilot_status(prepared, wrong_run, receipt)
 
 
 def test_preflight_without_findings(app, tmp_path):
