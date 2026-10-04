@@ -61,6 +61,9 @@ _CODES = [
     ReasonCode("PROFILE_MISMATCH", V.needs_review, "Evidence names no deployment profile or a different one than the run."),
     ReasonCode("UNVERIFIED_RUNTIME", V.needs_review, "Runtime evidence has no verified collector receipt."),
     ReasonCode("HIGH_IMPACT_CLOSURE", V.needs_review, "A high or critical finding would be closed or demoted without high-confidence rule evidence."),
+    # advisory call sites (v1 append, 2026-10-03)
+    ReasonCode("VULNERABLE_FUNCTION_CALLED", V.likely, "Shipped code calls a function the advisory names, on an affected version; not executed."),
+    ReasonCode("VULNERABLE_FUNCTION_NOT_CALLED", V.not_applicable, "No shipped code or installed package calls the functions the advisory names."),
 ]
 
 CODES: dict[str, ReasonCode] = {c.code: c for c in _CODES}

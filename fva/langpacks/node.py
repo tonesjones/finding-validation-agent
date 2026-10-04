@@ -12,6 +12,8 @@ from fva.schemas import Surface as S
 _IMPORT_RE = re.compile(
     r"""(?:\bimport\s+(?:[\w*{}\s,$]+?\s+from\s+)?|\bexport\s+[\w*{}\s,$]+?\s+from\s+|\brequire\s*\(\s*|\bimport\s*\(\s*)(['"`])([^'"`\n]+)\1""")
 _EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json")
+# namespace members that call other members by name or return a new namespace
+_INDIRECT = frozenset({"chain", "mixin", "runInContext"})
 
 
 class NodePack:
@@ -91,6 +93,82 @@ class NodePack:
             return None
         parts = spec.split("/")
         return "/".join(parts[:2]) if spec.startswith("@") else parts[0]
+
+    # ---- call sites -----------------------------------------------------------------------
+    def call_sites(self, text: str, package: str, functions: frozenset[str]) -> tuple[list[tuple[str, int]], list[int]]:
+        """([(function, line)] uses of `package`'s named functions, [lines whose use can't be resolved]).
+
+        Conservative: any use of the package this cannot name (computed access, the namespace passed as a value,
+        wrapper/chain calls, dynamic import, re-export) is reported as unresolved, never as "not called".
+        """
+        sites, unresolved, spans = [], [], []
+        line_of = lambda pos: text.count("\n", 0, pos) + 1  # noqa: E731
+        pkg = re.escape(package)
+        spec = rf"""(?P<q>['"`]){pkg}(?:/fp)?(?:\.js)?(?P=q)"""
+        namespaces = set()
+
+        def named(body: str, pos: int, sep: str):
+            for part in body.split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                if part.startswith("..."):
+                    unresolved.append(line_of(pos))
+                    continue
+                imported, _, local = (p.strip() for p in part.partition(sep))
+                if imported in functions:
+                    sites.append((imported, line_of(pos)))
+                elif imported == "default" and local:
+                    namespaces.add(local)
+
+        for m in re.finditer(rf"""\bimport\s+([\w$]+)?\s*,?\s*(?:\*\s*as\s+([\w$]+))?\s*(?:\{{([^}}]*)\}})?\s*from\s*{spec}""",
+                             text):
+            namespaces.update(n for n in m.group(1, 2) if n and n != "type")  # `import type {...}` binds nothing
+            if m.group(3):
+                named(m.group(3), m.start(), " as ")
+            spans.append(m.span())
+        for m in re.finditer(rf"""\b(?:const|let|var)\s+([\w$]+)\s*=\s*require\s*\(\s*{spec}\s*\)""", text):
+            namespaces.add(m.group(1))
+            spans.append(m.span())
+        for m in re.finditer(rf"""\b(?:const|let|var)\s*\{{([^}}]*)\}}\s*=\s*require\s*\(\s*{spec}\s*\)""", text):
+            named(m.group(1), m.start(), ":")
+            spans.append(m.span())
+        for m in re.finditer(rf"""\brequire\s*\(\s*{spec}\s*\)\s*\??\.\s*([\w$]+)""", text):
+            if m.group(m.lastindex) in functions:
+                sites.append((m.group(m.lastindex), line_of(m.start())))
+            spans.append(m.span())
+        for m in _IMPORT_RE.finditer(text):  # per-method modules; any other form not matched above is unresolved
+            s = m.group(2).removesuffix(".js")
+            fn = s.rsplit("/", 1)[-1]
+            if s.startswith(package + "/") and fn in functions:
+                sites.append((fn, line_of(m.start())))
+            elif s.startswith(package + "/") and fn.startswith("_"):  # internal helper module
+                unresolved.append(line_of(m.start()))
+            elif s in (package, package + "/fp") and not any(a <= m.start(2) < b for a, b in spans):
+                unresolved.append(line_of(m.start()))
+        for name in sorted(namespaces):
+            for m in re.finditer(rf"(?<![\w$.]){re.escape(name)}(?![\w$])", text):
+                if any(a <= m.start() < b for a, b in spans):
+                    continue
+                member = re.match(r"\s*\??\.\s*([\w$]+)", text[m.end():])
+                if member and member.group(1) in functions:
+                    sites.append((member.group(1), line_of(m.start())))
+                elif not member or member.group(1) in _INDIRECT:
+                    unresolved.append(line_of(m.start()))
+        return sorted(set(sites)), sorted(set(unresolved))
+
+    @staticmethod
+    def dependents(lockfile: Path, name: str) -> list[str] | None:
+        """Installed packages (lockfile keys) that declare a dependency on `name`; None if the lockfile can't say."""
+        try:
+            pkgs = json.loads(Path(lockfile).read_text(encoding="utf-8")).get("packages")
+        except (OSError, ValueError):
+            return None
+        if not isinstance(pkgs, dict):
+            return None
+        out = [key for key, meta in pkgs.items() if key and any(
+            name in (meta.get(k) or {}) for k in ("dependencies", "optionalDependencies", "peerDependencies"))]
+        return sorted(out)
 
     def resolve_local(self, spec: str, from_file: str, files: set[str]) -> str | None:
         if not spec.startswith("."):

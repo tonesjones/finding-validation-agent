@@ -18,7 +18,10 @@ SKIP_CODES = {
     "surface:documentation": "DOCUMENTATION_ONLY", "dependency:version_drift": "VERSION_DRIFT",
     "dependency:not_installed": "VERSION_DRIFT",
     "dependency:advisory_version_unaffected": "ADVISORY_VERSION_MISMATCH",
+    "dependency:vulnerable_function_not_called": "VULNERABLE_FUNCTION_NOT_CALLED",
 }
+# Rule closures that can miss a use the source scan cannot see stay below high confidence.
+SKIP_CONFIDENCE = {"dependency:vulnerable_function_not_called": "medium"}
 RULE_CONTEXT = {EvidenceType.static_source, EvidenceType.reachability, EvidenceType.dependency_resolution}
 
 
@@ -54,9 +57,9 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
     if profile and any(e.deployment_profile_id and e.deployment_profile_id != profile for e in evs):
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
     if disp in SKIP_CODES:  # deployment-boundary / dependency rules: decided before any model call
-        code = (SKIP_CODES[disp],)
-        if check_suggestion(row["finding_id"], V.not_applicable, code, evs, "high", profile):
-            return V.not_applicable, code, "high", evs
+        code, conf = (SKIP_CODES[disp],), SKIP_CONFIDENCE.get(disp, "high")
+        if check_suggestion(row["finding_id"], V.not_applicable, code, evs, conf, profile):
+            return V.not_applicable, code, conf, evs
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs  # e.g. a run made before rule evidence
     if disp.startswith(("surface:", "dependency:", "reachability:")):
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
@@ -80,6 +83,8 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
             return V.valid_non_security, ("QUALITY_NOT_SECURITY",), "medium", evs
     if Stance.supports in stances:
         code = "VULNERABLE_VERSION_IMPORTED" if row["finding_type"] == "sca" else "STATIC_REACHABLE_SINK"
+        if any(e.method == "advisory_call_site:called" for e in evs):
+            code = "VULNERABLE_FUNCTION_CALLED"
         if any(e.evidence_type in RULE_CONTEXT for e in evs) and check_suggestion(row["finding_id"], V.likely,
                                                                                   (code,), evs, "medium", profile):
             return V.likely, (code,), "medium", evs

@@ -75,6 +75,7 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
     clusters: OrderedDict = OrderedDict()
     skipped: dict[str, int] = {}
     pre, sites, disp = {}, {}, {}
+    calls: dict = {}
 
     def skip(f: Finding, why: str, ev: list):
         """Rule-decided finding: keep the evidence the rule used, so the closure can cite it."""
@@ -104,6 +105,15 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
                     if not applies:
                         skip(f, "dependency:advisory_version_unaffected", ev)
                         continue
+                    if "scan" not in calls:  # one source scan and lockfile read per run
+                        calls["scan"] = advisory_applicability.scan_calls(source_root, sorted(graph.files), profile)
+                        calls["dependents"] = REGISTRY["node"].dependents(lockfile, "lodash")
+                    status = advisory_applicability.call_site_status(f, calls["scan"], calls["dependents"])
+                    if status:
+                        ev.append(advisory_applicability.call_site_evidence(f, *status, profile.profile_id))
+                        if status[0] == "not_called":
+                            skip(f, "dependency:vulnerable_function_not_called", ev)
+                            continue
         r = reachability.assess(f, graph, profile, declared_direct=direct)
         ev.append(reachability.to_evidence(r, source_content_sha256=snapshot_sha, profile_id=profile.profile_id))
         if r.status == "imported_only_outside_deployment":
