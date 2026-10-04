@@ -4,6 +4,7 @@
   python -m fva assess --client claude-code ...
   python -m fva assess --dry-run ...        # write prompts only, no model calls
   python -m fva worksheet data/runs/<run>   # triage worksheet (CSV + HTML) for review
+  python -m fva triage data/runs/<run>      # auto vs review routing (triage.jsonl, triage.md)
   python -m fva import-review data/runs/<run> filled.csv   # reviewer decisions -> human_review evidence
   python -m fva score data/runs/<run>       # automatic scoring against the PoC answer key
   python -m fva census data/polaris-export  # field census of saved Polaris responses (sanitized)
@@ -105,6 +106,8 @@ def main(argv=None):
                    help="send the cluster containing this scanner finding id to GPT-6 Astra (repeatable; needs routing)")
     w = sub.add_parser("worksheet", help="write worksheet.csv/.html for a run (suggestions only, nothing sent to Polaris)")
     w.add_argument("run_dir")
+    t = sub.add_parser("triage", help="write triage.jsonl/triage.md: auto vs review routing for a run")
+    t.add_argument("run_dir")
     r = sub.add_parser("import-review", help="turn a filled worksheet into human_review evidence and verdicts")
     r.add_argument("run_dir")
     r.add_argument("csv")
@@ -116,6 +119,11 @@ def main(argv=None):
     if args.cmd == "score":
         from fva.export import score
         print(score.score(Path(args.run_dir), Path(args.key)))
+        return
+
+    if args.cmd == "triage":
+        from fva.export import triage_report
+        print(triage_report.write(Path(args.run_dir)))
         return
 
     if args.cmd in ("worksheet", "import-review"):
