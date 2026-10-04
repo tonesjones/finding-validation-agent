@@ -38,7 +38,7 @@ Last updated: 2026-10-03. Update this file when status changes.
 - The collector has been exercised against a synthetic local server. Real pilot
   validation with this collector has not run. Hosted probing remains unimplemented;
   the bounded npm lodash advisory rules are implemented.
-- Validation: 328 tests passed, 5 skipped, including approval/allowlist gates,
+- Review validation: 340 tests passed, 10 skipped, including approval/allowlist gates,
   paired live collection, import, receipt-byte integrity and response deadlines.
 
 ## Next
