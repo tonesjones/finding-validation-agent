@@ -90,6 +90,14 @@ class EvidenceType(str, Enum):
     imported_assessment = "imported_assessment"  # carried over from a prior tool/PoC, unverified here
     model_assessment = "model_assessment"  # LLM claim with verified citations; never sufficient to confirm
     human_review = "human_review"
+    runtime_observation = "runtime_observation"  # passive: no attack traffic; never confirms (fva.observations)
+
+
+class ObservationKind(str, Enum):
+    loaded_package = "loaded_package"
+    line_executed = "line_executed"
+    route_registered = "route_registered"
+    config_state = "config_state"
 
 
 # --------------------------------------------------------------------------- run
@@ -200,8 +208,17 @@ class EvidenceRecord(_Model):
     @model_validator(mode="after")
     def _runtime_needs_profile(self):
         if self.evidence_type in (EvidenceType.runtime_probe, EvidenceType.negative_control,
-                                  EvidenceType.dast_observation) and not self.deployment_profile_id:
+                                  EvidenceType.dast_observation, EvidenceType.runtime_observation) \
+                and not self.deployment_profile_id:
             raise ValueError("runtime evidence must name its deployment_profile_id")
+        if self.evidence_type is EvidenceType.runtime_observation:
+            kind = self.tool_versions.get("kind")
+            if kind not in {k.value for k in ObservationKind}:
+                raise ValueError(f"runtime_observation needs a known kind, got {kind!r}")
+            # Passive observations are context. The only decisive stance is a package that was not loaded.
+            if not (self.stance is Stance.neutral
+                    or (self.stance is Stance.refutes and kind == ObservationKind.loaded_package.value)):
+                raise ValueError(f"runtime_observation {kind} cannot be {self.stance.value}")
         return self
 
 

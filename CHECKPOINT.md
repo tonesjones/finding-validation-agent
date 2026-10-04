@@ -1,6 +1,6 @@
 # Checkpoint
 
-Last updated: 2026-10-03. Update this file when status changes.
+Last updated: 2026-10-04. Update this file when status changes.
 
 ## Current state
 
@@ -43,11 +43,12 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Next
 
-- 2026-10-04: Evaluating a passive runtime evidence design (loaded packages, line
-  coverage, advisory function calls, deployed routes/files, config state; no attack
-  traffic, never `confirmed`). Goal: keep human review low. Run
-  `python -m fva whatif <run>` against the PoC ledger to see the review-queue ceiling
-  before building any collector.
+- 2026-10-04: Building passive runtime evidence per `docs/plans/passive-evidence-demo.md`
+  (no attack traffic, never `confirmed`). Step 0 done: on `20261003-js-assess-v2`, score
+  gives 0.798 agreement, 0 incorrect demotions, 0.756 queue reduction. Whatif review
+  queue is 123 now, 106 conservative and 85 optimistic (ceilings from the answer key).
+  L1 (evidence contract) is on `claude/l1-evidence-contract`. S1 (Polaris triage
+  fields) is running on Codex in `codex/s1-triage-fields`. Next: L2 and S2 after L1 merges.
 - PR #13 (paired status) is merged. Its aggregate command verified the existing
   sealed 12-case run with matching receipt, clean audits, exact case coverage and no
   processing failures.
@@ -69,10 +70,11 @@ they are not instructions to rerun or replace the frozen pilot.
 | Area | Module | Status |
 |---|---|---|
 | Canonical schemas | `fva/schemas.py` | IngestionRun, Finding, EvidenceRecord (many findings per record), DeploymentProfile, Verdict (append-only, `supersedes`) |
-| Reason codes | `fva/reason_codes.py` | Vocabulary v1: 26 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer); 16 map 1:1 from the PoC |
+| Reason codes | `fva/reason_codes.py` | Vocabulary v1: 28 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer; 2 appended 2026-10-04: `PACKAGE_NOT_LOADED`, `EXECUTED_UNDER_TEST`); 16 map 1:1 from the PoC |
 | Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence |
 | Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
 | Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
+| Passive observations | `fva/observations.py` | receipt format `fva.runtime_observation/1` -> `runtime_observation` evidence bound to run profile, source and findings; neutral, or `refutes` for a package not loaded; no collector yet |
 | Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; `import-review` -> `human_review` evidence, superseding verdicts, agreement score |
 | Suggested verdicts | `fva/verdicts.py` | rules over a run's evidence; every closure, rule closures included, must pass `check_verdict` |
 | Rule evidence | `fva/surface.py` (`to_evidence`), `fva/pipeline.py` | skipped findings keep `deployment_boundary` / `dependency_resolution` / reachability records; never sent to a model |
@@ -103,6 +105,13 @@ they are not instructions to rerun or replace the frozen pilot.
 
 ## Decisions
 
+- 2026-10-04: Passive `runtime_observation` evidence does not count toward `likely` and never confirms. It is in
+  neither `CONFIRMING_TYPES` nor `RULE_TYPES`, and the schema allows only `neutral`, or `refutes` for a package that
+  was not loaded. A coverage hit shows that code ran, not that it is vulnerable, so a `likely` still needs a cited
+  static or model `supports` plus rule evidence. Observations only pick the reason code (`EXECUTED_UNDER_TEST`,
+  `VULNERABLE_VERSION_IMPORTED`). Invariants are unchanged. L3 must add two code checks to `fva/invariants.py`.
+  First, `PACKAGE_NOT_LOADED` needs a no-shipped-import reachability record. Second, it needs an exercise broader
+  than "startup only", because lazy `require` calls can be missed.
 - 2026-10-02: The PoC tenant has no DAST. Freeze the DAST stack (no extensions) until a real DAST export exists;
   measure what Polaris returns for SAST/SCA (inventory, census) and the decision value of candidate links
   (correlation-value) before building more linking.
