@@ -1,6 +1,6 @@
 # Checkpoint
 
-Last updated: 2026-10-03. Update this file when status changes.
+Last updated: 2026-10-03 (evening). Update this file when status changes.
 
 ## Current state
 
@@ -43,15 +43,38 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Next
 
-- PRs #9-#13 are merged (main `5b93670`; 346 passed, 4 skipped). Claude leads the
-  remaining work; tasks and acceptance criteria are in `PLAN.md`.
-- Routine triage does not require grading every model response. Exception-routed
-  triage (T2-T3) sends only low-confidence, conflicting, model-only or high-impact
-  closures to review. Per-response reasoning grades remain optional benchmark work.
-- SCA closure needs vulnerable-function call-site evidence (T4); the installed lodash
-  4.17.20 is in range for all five pilot advisories.
-- A real collector run needs a Polaris rescan of the demo at the source-identity
-  commit and an operator `runtime approve` (T6).
+Stopped 2026-10-03 at the first real collector run (T6). Branch `claude/triage-exceptions`
+holds T1-T8 plus the T6 oracle code: 434 passed, 5 skipped. It is not pushed and has no PR.
+Tasks and results are in `PLAN.md`; local paths, hashes and ports are in `data/LOCAL-NOTES.md`.
+
+Where it stopped:
+- The owner chose to reuse the existing `9ac5160` Polaris scan against a separate clone at the
+  source-identity commit `0f17d90`, instead of rescanning. The frozen demo checkout is unchanged.
+- An FVA run on that clone completed: 3 findings decided automatically, 3 open, the same split
+  as on `9ac5160`. The banner finding still points at `app.js:4`, which is a blank line at
+  `0f17d90`; the code moved to line 5. Any confirmation must note the scan revision.
+- While drafting the collection plan, two responses were stopped by a safety classifier.
+  This was during the CVE-2021-23337 probe, a template-injection request to `/layout`.
+  No plan file was written, the app was not started, no requests were sent and no approval exists.
+
+Plan for the next session:
+1. Banner first. Draft a plan with only the `header_disclosure` pair: `GET /` expecting
+   `X-Powered-By: Express`, with a different route as the control. It needs no injection
+   payload. The owner runs `runtime approve`; Claude collects and imports.
+2. Before collecting, start the app from the clone on the profile's port. Check that its
+   `X-FVA-Source-SHA256` header equals the run's source hash. If not, find the difference
+   between the app's hash and `fva.correlation.source_pin` (file set or line endings) before
+   any plan.
+3. CVE-2021-23337 has two options. The owner can write the probe URL in the plan; the collector
+   already gates it on the call-site link and the operator approval. Or it stays `likely` through
+   `VULNERABLE_FUNCTION_CALLED`. The earlier local validation outside FVA is not a collector
+   receipt, so it cannot confirm anything automatically.
+4. Open the PR: `/deslop` on the branch diff, the tests, `/unslop` on the commit and PR text,
+   then push (bundle on failure).
+
+Still true:
+- Routine triage does not require grading model responses; open findings stay open as
+  "open, not auto-verified".
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
 
 ## Historical development log
