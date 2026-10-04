@@ -25,8 +25,8 @@ Last updated: 2026-10-03. Update this file when status changes.
   import and worksheet generation. Only its approved SAST code-execution marker
   oracle can produce automatic runtime confirmation. Hand-built records remain open.
 - This branch adds exact npm lodash advisory version ranges for five pilot advisories.
-  Unknown IDs and versions remain unresolved, and only a known out-of-range installed
-  version can produce not-applicable; affected versions still require evidence.
+  Unknown IDs and malformed versions remain unresolved, and only a known out-of-range
+  installed version can produce not-applicable; affected versions still require evidence.
 - PR #11 review repairs require an interactive exact-plan approval, reject common
   encoded marker reflections and post-dated approvals, and surface receipt
   verification warnings. One collection per derived run is explicitly enforced.
