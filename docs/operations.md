@@ -206,7 +206,7 @@ Historical imported assessments preserve their original decision; they do not
 prove that FVA ran a new probe with a control.
 
 Keep evidence for different deployments in separate runs with distinct profiles.
-A reproduction on local Node does not confirm a Cloudflare deployment. A failed
+A reproduction on local Node does not confirm a hosted deployment. A failed
 probe does not establish non-applicability. The runtime probe runner and a general
 validation-evidence import command are not implemented. Prototype observations
 are investigation evidence, not current automatic closures. Verify deployment
