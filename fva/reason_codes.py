@@ -55,6 +55,12 @@ _CODES = [
     # human review via the triage worksheet (v1 append, 2026-10-01)
     ReasonCode("REVIEWER_CONFIRMED", V.confirmed, "A named reviewer confirmed the issue from the evidence packet."),
     ReasonCode("REVIEWER_NOT_APPLICABLE", V.not_applicable, "A named reviewer judged the issue not applicable to the shipped app."),
+    # triage exceptions (v1 append, 2026-10-03): why `fva.triage` routes a suggestion to a person
+    ReasonCode("LOW_CONFIDENCE", V.needs_review, "Suggested verdict is below the confidence triage policy accepts unreviewed."),
+    ReasonCode("MODEL_ONLY_REFUTATION", V.needs_review, "Only model output argues the issue is absent; no rule-derived evidence refutes it."),
+    ReasonCode("PROFILE_MISMATCH", V.needs_review, "Evidence names no deployment profile or a different one than the run."),
+    ReasonCode("UNVERIFIED_RUNTIME", V.needs_review, "Runtime evidence has no verified collector receipt."),
+    ReasonCode("HIGH_IMPACT_CLOSURE", V.needs_review, "A high or critical finding would be closed or demoted without high-confidence rule evidence."),
 ]
 
 CODES: dict[str, ReasonCode] = {c.code: c for c in _CODES}
