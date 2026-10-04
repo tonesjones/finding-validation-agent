@@ -1,10 +1,14 @@
 import json
+from pathlib import Path
 
 from fva.polaris_mcp import READ_ONLY_TOOLS, inventory
 
 ISSUES = [("ISSUE-AAA-1", "sast"), ("ISSUE-AAA-2", "sast"), ("ISSUE-BBB-3", "sca"), ("ISSUE-CCC-4", "sca"),
           ("ISSUE-DDD-5", "sast")]
+_FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "polaris_triage_fields.json").read_text(encoding="utf-8"))
+TRIAGE = {i["id"]: {k: v for k, v in i.items() if k not in ("id", "context")} for i in _FIXTURE["data"]["_items"]}
 SECRETS = ["Secret Project Name", "tenant.internal", "TENANT-123", "PROJ-SECRET-ID"] + [i for i, _ in ISSUES]
+SECRETS += ["synthetic-user", "2099-01"]
 
 
 def _tool(name, props=None, required=(), desc=""):
@@ -52,10 +56,10 @@ class StubClient:
         if tool == "get_project_dashboard":
             return _env({"url": "https://tenant.internal/api/x"})
         if tool == "list_issues":
-            assert args["includeContext"] is True and args["first"] == 10
+            assert args["includeContext"] is True and args["includeTriageProperties"] is True and args["first"] == 10
             start = int(args["cursor"]) if args.get("cursor") else 0
             page = ISSUES[start:start + 10]
-            return _env({"_items": [{"id": i, "weaknessId": "w", "_cursor": str(start + n + 1),
+            return _env({"_items": [{**TRIAGE[i], "id": i, "weaknessId": "w", "_cursor": str(start + n + 1),
                                      "context": {"toolType": t}} for n, (i, t) in enumerate(page)]})
         if tool == "get_issue":
             tt = dict(ISSUES)[args["issueId"]]
@@ -98,6 +102,19 @@ def test_discovery_counts_and_flags(tmp_path):
     raw = {p.name for p in (tmp_path / "raw").iterdir()}
     assert {"tools-list.json", "get_issue-sast-1.json", "get_issue-sca-2.json"} <= raw
     assert not any("ISSUE" in n or "PROJ-SECRET" in n for n in raw)
+    _no_secrets(tmp_path)
+
+
+def test_triage_fields_from_list_pages(tmp_path):
+    c, s = _run(tmp_path, samples=1)
+    assert {t for t, _ in c.calls} <= READ_ONLY_TOOLS
+    assert s["triage_fields"] == {"issues_examined": 5, "fields": {
+        "triage status": {"presence": "present", "issues": 4},
+        "set-by": {"presence": "present", "issues": 2},
+        "set-at": {"presence": "present", "issues": 2},
+        "status history": {"presence": "present", "issues": 2}}}
+    assert sum(t == "get_issue" for t, _ in c.calls) == 2  # still samples only
+    assert "| set-by | present | 2 |" in (tmp_path / "inventory.md").read_text(encoding="utf-8")
     _no_secrets(tmp_path)
 
 

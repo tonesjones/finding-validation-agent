@@ -25,6 +25,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from fva.analysis.triage_fields import report as triage_report
+
 READ_ONLY_TOOLS = {"list_issues", "list_component_versions", "get_issue", "get_portfolio_id", "get_portfolio_applications",
                    "get_portfolio_projects", "get_branches", "get_application_dashboard",
                    "get_project_dashboard", "get_application_entitlements_info"}
@@ -277,16 +279,18 @@ def inventory(client, out: Path, *, project: str | None = None, branch: str | No
     # tool-type counts per project, remembering the first issue ids of each type
     counts: dict[str, dict[str, int]] = {}
     remembered: dict[str, list[tuple[str, str]]] = {}
+    listed: list[dict] = []  # triage fields are counted from list pages: no extra get_issue calls
     for p in projects:
         counts[_hash(p)] = c = {}
 
         def page_issues(p=p, c=c):
             cursor, total = None, 0
             while total < max_issues:
-                args = dict(scope_ids, projectId=p, first=10, includeContext=True)
+                args = dict(scope_ids, projectId=p, first=10, includeContext=True, includeTriageProperties=True)
                 if cursor:
                     args["cursor"] = cursor
                 items = ((_decode(client.call("list_issues", **args)) or {}).get("data") or {}).get("_items", [])
+                listed.extend(it for it in items if isinstance(it, dict))
                 for it in items:
                     tt = str(((it.get("context") or {}).get("toolType")) or "unknown")
                     c[tt] = c.get(tt, 0) + 1
@@ -322,6 +326,7 @@ def inventory(client, out: Path, *, project: str | None = None, branch: str | No
                              "errors": errors},
                "tool_type_counts": counts,
                "tool_types": sorted({tt for c in counts.values() for tt in c}),
+               "triage_fields": triage_report(listed),
                "sample_keys": {tt: {k: sorted(v) for k, v in d.items()} for tt, d in sorted(keys.items())}}
     (out / "inventory.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     (out / "inventory.md").write_text(_inventory_md(summary), encoding="utf-8")
@@ -340,6 +345,10 @@ def _inventory_md(s: dict) -> str:
     L += [f"- {k}: {v}" for k, v in d["errors"].items()] or ["No errors."]
     L += ["", "## Issues per tool type (project = sha256(id)[:8])", "", "| project | tool type | issues |", "|---|---|---|"]
     L += [f"| {p} | {tt} | {n} |" for p, c in s["tool_type_counts"].items() for tt, n in sorted(c.items())]
+    tr = s["triage_fields"]
+    L += ["", f"## Triage fields ({tr['issues_examined']} listed issues)", "",
+          "| field | presence | issues with value |", "|---|---|---|"]
+    L += [f"| {f} | {r['presence']} | {r['issues']} |" for f, r in tr["fields"].items()]
     L += ["", "## Keys in maximal-detail get_issue samples", "", "| tool type | data keys | occurrence property keys |", "|---|---|---|"]
     L += [f"| {tt} | {', '.join(k['data_keys']) or '-'} | {', '.join(k['occurrence_property_keys']) or '-'} |"
           for tt, k in s["sample_keys"].items()]
