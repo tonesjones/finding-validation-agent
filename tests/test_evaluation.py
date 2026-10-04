@@ -73,6 +73,25 @@ def test_pilot_status_is_bound_to_preparation_receipt_and_call_audits(tmp_path):
     assert result["model_verified"] and result["audit_clean"] and result["case_ids_match"]
     assert "private-hash" not in str(result) and "response_sha256" not in str(result)
 
+    seal(prepared, "prepared.json", [])
+    incomplete = json.loads((prepared / "prepared.json").read_text())
+    incomplete_labels = {**labels, "prepared_sha256": incomplete["sha256"]}
+    write_json(receipt, incomplete_labels)
+    write_json(run / "run.json", {"prepared_sha256": incomplete["sha256"],
+                                  "labels_receipt": incomplete_labels, "requested_model": "gpt-6-sol"})
+    seal(run, "outputs.json", sealed_files)
+    with pytest.raises(ValueError, match="status inputs are not sealed"):
+        pilot_status(prepared, run, receipt)
+    seal(prepared, "prepared.json", [prepared / "cases.jsonl"])
+    write_json(receipt, labels)
+    write_json(run / "run.json", {"prepared_sha256": manifest["sha256"],
+                                  "labels_receipt": labels, "requested_model": "gpt-6-sol"})
+    for omitted in (run / "run.json", run / "results.jsonl", run / "case-0001" / "call.json"):
+        seal(run, "outputs.json", [p for p in sealed_files if p != omitted])
+        with pytest.raises(ValueError, match="not sealed"):
+            pilot_status(prepared, run, receipt)
+    seal(run, "outputs.json", sealed_files)
+
     wrong_model_call = run / "case-0001" / "call.json"
     wrong_model = json.loads(wrong_model_call.read_text())
     wrong_model["observed_model"] = "gpt-6-luna"
@@ -80,6 +99,16 @@ def test_pilot_status_is_bound_to_preparation_receipt_and_call_audits(tmp_path):
     write_json(wrong_model_call, wrong_model)
     seal(run, "outputs.json", sealed_files)
     result = pilot_status(prepared, run, receipt)
+    assert result["model_verified"] is False and result["audit_clean"] is False
+
+    wrong_model_call.unlink()
+    sealed_files.remove(wrong_model_call)
+    rows[1] = {"case_id": "b", "processing_failure": "call failed before metadata was written"}
+    (run / "results.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+    seal(run, "outputs.json", sealed_files)
+    result = pilot_status(prepared, run, receipt)
+    assert result["assessment_cases"] == 2 and result["processing_failures"] == 1
+    assert result["case_ids_match"] is True
     assert result["model_verified"] is False and result["audit_clean"] is False
 
     wrong_run = run / "wrong"

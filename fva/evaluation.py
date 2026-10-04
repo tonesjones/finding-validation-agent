@@ -389,7 +389,9 @@ def pilot_status(prepared: Path, run: Path, receipt: Path) -> dict:
     from fva.discovery import FIXED_MODEL
 
     manifest = verify_seal(prepared, "prepared.json")
-    verify_seal(run, "outputs.json")
+    outputs = verify_seal(run, "outputs.json")
+    if "run.json" not in outputs["files"]:
+        raise ValueError("run.json is not sealed")
     label_receipt = json.loads(receipt.read_text(encoding="utf-8"))
     run_meta = json.loads((run / "run.json").read_text(encoding="utf-8"))
     if run_meta.get("prepared_sha256") != manifest.get("sha256"):
@@ -400,13 +402,22 @@ def pilot_status(prepared: Path, run: Path, receipt: Path) -> dict:
     if not label_receipt.get("reviewer") or not re.fullmatch(r"[0-9a-f]{64}",
                                                               str(label_receipt.get("gold_sha256", ""))):
         raise ValueError("bound label receipt is incomplete")
+    if "cases.jsonl" not in manifest["files"] or "results.jsonl" not in outputs["files"]:
+        raise ValueError("status inputs are not sealed")
     cases = read_rows(prepared / "cases.jsonl")
     results = read_rows(run / "results.jsonl")
     expected_ids = [row["case_id"] for row in cases]
     result_ids = [row.get("case_id") for row in results]
     model_checks, audit_checks = [], []
     for i, result in enumerate(results):
-        call = json.loads((run / f"case-{i:04d}" / "call.json").read_text(encoding="utf-8"))
+        call_path = f"case-{i:04d}/call.json"
+        if call_path not in outputs["files"]:
+            if result.get("processing_failure"):
+                model_checks.append(False)
+                audit_checks.append(False)
+                continue
+            raise ValueError(f"call metadata is not sealed: {call_path}")
+        call = json.loads((run / call_path).read_text(encoding="utf-8"))
         result_model = result.get("model") or {}
         model_checks.append(
             call.get("requested_model") == FIXED_MODEL
