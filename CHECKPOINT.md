@@ -24,21 +24,23 @@ Last updated: 2026-10-03. Update this file when status changes.
   source/run binding, retains paired raw responses and recomputes evidence during
   import and worksheet generation. Only its approved SAST code-execution marker
   oracle can produce automatic runtime confirmation. Hand-built records remain open.
+- This branch adds exact npm lodash advisory version ranges for five pilot advisories.
+  Unknown IDs and malformed versions remain unresolved, and only a known out-of-range
+  installed version can produce not-applicable; affected versions still require evidence.
 - PR #11 review repairs require an interactive exact-plan approval, reject common
   encoded marker reflections and post-dated approvals, and surface receipt
   verification warnings. One collection per derived run is explicitly enforced.
 - The collector has been exercised against a synthetic local server. Real pilot
-  validation with this collector has not run. Hosted probing and SCA advisory
-  applicability decisions remain unimplemented.
+  validation with this collector has not run. Hosted probing remains unimplemented;
+  this branch adds the bounded, exact npm lodash advisory ranges described below.
 - Validation: 328 tests passed, 5 skipped, including approval/allowlist gates,
   paired live collection, import, receipt-byte integrity and response deadlines.
 
 ## Next
 
-- Add source identity reporting to the controlled local app and prepare a bounded
-  plan for review before running the real pilot through the collector.
-- Implement advisory-specific deterministic applicability checks before enabling
-  automatic SCA dismissals. Expand probe oracles only as concrete findings need them.
+- Review the source-identity app PR and approve an exact collector plan before any
+  real pilot probe. The collector itself remains approval-gated.
+- Review and merge the advisory-range branch before considering more advisory rules.
 - Human review is for unresolved cases. Per-response grading remains optional
   benchmark work, not the intended operator workflow.
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.

@@ -23,7 +23,7 @@ from pathlib import Path
 
 from fva.adapters import polaris
 from fva import runtime_mode, surface
-from fva.correlation import dast_evidence, dependency, grouping, locate, package_link, reachability, runtime_link
+from fva.correlation import advisory_applicability, dast_evidence, dependency, grouping, locate, package_link, reachability, runtime_link
 from fva.correlation.source_pin import iter_files, pin
 from fva.langpacks import REGISTRY
 from fva.reasoning import assessor
@@ -96,6 +96,14 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
             if d.status in ("version_drift", "not_installed"):
                 skip(f, f"dependency:{d.status}", ev)
                 continue
+            if d.status == "scanned_version_present" and len(d.installed_versions) == 1:
+                applies = advisory_applicability.applicable(f, d.installed_versions[0])
+                if applies is not None:
+                    ev.append(advisory_applicability.to_evidence(
+                        f, d.installed_versions[0], applies, profile.profile_id))
+                    if not applies:
+                        skip(f, "dependency:advisory_version_unaffected", ev)
+                        continue
         r = reachability.assess(f, graph, profile, declared_direct=direct)
         ev.append(reachability.to_evidence(r, source_content_sha256=snapshot_sha, profile_id=profile.profile_id))
         if r.status == "imported_only_outside_deployment":
