@@ -28,21 +28,26 @@ Last updated: 2026-10-03. Update this file when status changes.
   source/run binding, retains paired raw responses and recomputes evidence during
   import and worksheet generation. Only its approved SAST code-execution marker
   oracle can produce automatic runtime confirmation. Hand-built records remain open.
+- PR #12 is squash-merged as `7efe961`. It adds exact npm lodash advisory ranges
+  for five pilot advisories.
+  Unknown IDs and malformed versions remain unresolved, and only a known out-of-range
+  installed version can produce not-applicable; affected versions still require evidence.
 - PR #11 review repairs require an interactive exact-plan approval, reject common
   encoded marker reflections and post-dated approvals, and surface receipt
   verification warnings. One collection per derived run is explicitly enforced.
 - The collector has been exercised against a synthetic local server. Real pilot
-  validation with this collector has not run. Hosted probing and SCA advisory
-  applicability decisions remain unimplemented.
+  validation with this collector has not run. Hosted probing remains unimplemented;
+  the bounded npm lodash advisory rules are implemented.
 - Validation: 328 tests passed, 5 skipped, including approval/allowlist gates,
   paired live collection, import, receipt-byte integrity and response deadlines.
 
 ## Next
 
-- Review the paired-status PR, then use its aggregate status command on the completed
-  run. Review the separate source-identity and SCA applicability PRs in their branches.
-- After the source-identity PR is merged, prepare an exact collector plan for operator
-  review before running the real pilot.
+- Review and merge the paired-status PR. Its aggregate command has verified the
+  existing sealed 12-case run with matching receipt, clean audits, exact case coverage
+  and no processing failures.
+- The source-identity app PR and advisory-range PR are merged. Prepare an exact
+  collector plan for operator review before running the real pilot.
 - Routine triage does not require grading every model response. Route exceptions for
   review using confidence, evidence/citation validity, conflicts and impact. Per-response
   reasoning grades remain optional benchmark work.

@@ -17,6 +17,7 @@ SKIP_CODES = {
     "surface:infrastructure": "UNUSED_DEPLOYMENT_CONFIG", "surface:api_spec": "DOCUMENTATION_ONLY",
     "surface:documentation": "DOCUMENTATION_ONLY", "dependency:version_drift": "VERSION_DRIFT",
     "dependency:not_installed": "VERSION_DRIFT",
+    "dependency:advisory_version_unaffected": "ADVISORY_VERSION_MISMATCH",
 }
 RULE_CONTEXT = {EvidenceType.static_source, EvidenceType.reachability, EvidenceType.dependency_resolution}
 
