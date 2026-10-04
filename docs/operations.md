@@ -130,6 +130,34 @@ outcome, sorted by outcome).
 exploited advisory) can only reach `agree_static` or `unresolved` until runtime probes exist. A different app needs
 its own key in the same format (`candidate_id`, `classification`).
 
+## What-if: review queue under passive runtime evidence
+
+`python -m fva whatif <run_dir> [--key <answer key>]` estimates how much human review a passive runtime design
+would leave, before any of it is built. Code: `fva/export/whatif.py`.
+
+Passive evidence observes the app under ordinary traffic and sends no attack requests: loaded package versions,
+executed lines (coverage), calls to an advisory's named function, deployed routes and files, and enabled options.
+It can close findings and send likely issues straight to fix tickets. It never produces `confirmed`.
+
+Each finding lands in `auto_close`, `fix_ticket` or `review`. Rows the run already decided keep their bucket. For
+rows left in `needs_review`, the key's reason code picks the passive signal that could decide them:
+
+| Key reason | Signal | Optimistic | Conservative |
+|---|---|---|---|
+| Deployment boundary codes | deployed files and routes | auto_close | auto_close |
+| `VERSION_DRIFT`, `ADVISORY_VERSION_MISMATCH` | loaded package version | auto_close | auto_close |
+| `ADVISORY_PRECONDITION_ABSENT` | config state or function calls | auto_close | review |
+| Real SAST issue | line coverage | fix_ticket | fix_ticket only with a cited `supports` argument |
+| Real SCA issue | loaded package and function calls | fix_ticket | fix_ticket |
+| Mitigation, trusted source, attacker control, credentials, quality | none | review | review |
+
+**Output** in the run folder: `whatif.md` (now / conservative / optimistic table and the reasons findings still need
+a person), `whatif.json`, `whatif_rows.csv`.
+
+**Limits.** The key acts as an oracle for what each signal would show, so this is a ceiling for the policy, not a
+measurement. Incorrect demotions already in the run carry into every scenario. Real numbers need real passive
+observations from the app.
+
 ## Which AI model handles each finding
 
 The tool sends each group of findings (findings on the same code line or advisory) to one of

@@ -20,6 +20,7 @@ python -m fva assess --client codex --workers 4 --source "C:\TestCode\Juiceshop 
 python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
 python -m fva import-review data\runs\<run> filled.csv      # reviewer decisions -> human_review evidence
 python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
+python -m fva whatif data\runs\<run>                        # review-queue ceiling under passive runtime evidence
 
 # Polaris (read-only MCP). Token: $env:POLARIS_ACCESS_TOKEN or data\.polaris-token
 python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # ids: data/LOCAL-NOTES.md

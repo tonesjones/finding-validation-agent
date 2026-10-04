@@ -43,9 +43,14 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Next
 
-- Review and merge the paired-status PR. Its aggregate command has verified the
-  existing sealed 12-case run with matching receipt, clean audits, exact case coverage
-  and no processing failures.
+- 2026-10-04: Evaluating a passive runtime evidence design (loaded packages, line
+  coverage, advisory function calls, deployed routes/files, config state; no attack
+  traffic, never `confirmed`). Goal: keep human review low. Run
+  `python -m fva whatif <run>` against the PoC ledger to see the review-queue ceiling
+  before building any collector.
+- PR #13 (paired status) is merged. Its aggregate command verified the existing
+  sealed 12-case run with matching receipt, clean audits, exact case coverage and no
+  processing failures.
 - The source-identity app PR and advisory-range PR are merged. Prepare an exact
   collector plan for operator review before running the real pilot.
 - Routine triage does not require grading every model response. Route exceptions for
