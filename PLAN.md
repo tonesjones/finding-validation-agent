@@ -26,7 +26,7 @@ The frozen blind pilot stays historical: no edits to its packets, prompt or demo
 | T3 | `fva triage` outputs and score columns | Sonnet | done |
 | T4 | Vulnerable-function call sites for SCA | Opus | done |
 | T5 | `assess-v2` stance semantics | Opus | done |
-| T6 | Collector oracles and demo runtime run | Opus | blocked on rescan |
+| T6 | Collector oracles and demo runtime run | Codex + Opus review | code done; live run blocked on rescan |
 | T7 | Ranked report and tickets | Sonnet | done |
 | T8 | More closing rules; "open, not auto-verified" wording | Opus | done |
 
@@ -111,8 +111,10 @@ Result: auto share 78.0% -> 84.8%, auto agreement 99.3% -> 99.4%, 0 incorrect de
   internally, so no call-site rule), CVE-2026-4800 (high; the model correctly notes no `imports` option, but a
   medium-confidence rule could not close a high finding). The earlier "5 auto" was the v1 prompt.
 - Juice Shop (assess-v2 + T8): 84.8% auto, 99.4% auto agreement, 0 incorrect demotions.
-- T6 runtime oracle code is being built by Codex on branch `claude/t6-runtime-oracles` (worktree
-  `C:\TestCode\fva-t6-runtime`); Claude reviews the diff before merge.
+- T6 oracle code is merged. Codex wrote the oracles and rejection tests; Claude's review added the Express
+  `X-Powered-By` framework default (the demo banner has no literal in source) and stopped later receipt
+  verification from re-reading the checkout. The live run still needs the `0f17d90` rescan and one operator
+  `runtime approve`.
 - Model calls never close a finding; their only automated effect is promoting `needs_review`
   to `likely`. Rules close 430 of 573 Juice Shop findings with no model involvement.
 - Adding reason codes changes every prompt (the prompt lists allowed codes) and empties the

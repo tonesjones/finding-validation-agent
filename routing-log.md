@@ -36,3 +36,4 @@
 2026-10-03 | T7 report/tickets | write-heavy | sonnet | P2 | pass | 32k total | weights set by opus; leak boundary checked
 2026-10-03 | T5 assess-v2 | reasoning | opus | inline | inline | n/a | criterion revised to auto-routed accuracy per owner; 99.3% auto agreement
 2026-10-03 | T8 | reasoning | Opus | inline | inline | n/a | quality checker + sanitize-html option rules, report wording; T6 delegated to Codex (gpt-6-sol) in a worktree at user request
+2026-10-03 | T6 | reasoning | Codex gpt-6-sol | worktree | fix | n/a | oracles + rejection tests by Codex; Opus review fixed framework-default banner (no source literal), verify-time source re-read, pydantic floor; Codex sandbox could not commit (git metadata outside workspace)
