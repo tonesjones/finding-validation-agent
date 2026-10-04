@@ -24,15 +24,17 @@ Last updated: 2026-10-03. Update this file when status changes.
   source/run binding, retains paired raw responses and recomputes evidence during
   import and worksheet generation. Only its approved SAST code-execution marker
   oracle can produce automatic runtime confirmation. Hand-built records remain open.
+- PR #11 review repairs require an interactive exact-plan approval, reject common
+  encoded marker reflections and post-dated approvals, and surface receipt
+  verification warnings. One collection per derived run is explicitly enforced.
 - The collector has been exercised against a synthetic local server. Real pilot
   validation with this collector has not run. Hosted probing and SCA advisory
   applicability decisions remain unimplemented.
-- Validation: 304 tests passed, 5 skipped, including approval/allowlist gates,
+- Validation: 328 tests passed, 5 skipped, including approval/allowlist gates,
   paired live collection, import, receipt-byte integrity and response deadlines.
 
 ## Next
 
-- Review the localhost collector/importer change.
 - Add source identity reporting to the controlled local app and prepare a bounded
   plan for review before running the real pilot through the collector.
 - Implement advisory-specific deterministic applicability checks before enabling

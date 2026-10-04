@@ -247,7 +247,9 @@ has these fields:
 ```
 
 These example routes describe the format, not a working exploit. The expected
-marker must be absent from both requests after URL decoding and from the control
+marker must be absent from both requests after case-insensitive inspection,
+repeated URL decoding and base64/hex decoding of path segments and query values,
+and from the control
 response. Choose a benign probe that computes the marker without changing data.
 Both responses must be complete HTTP 200 responses and carry
 `X-FVA-Source-SHA256` equal to the pinned source tree hash. Add this identity header
@@ -256,11 +258,14 @@ cryptographic proof of the running binary or remote attestation.
 
 1. Prepare the exact plan against an existing run. Compute the findings file hash
    and use the profile and source hash from its `summary.json`.
-2. Run `python -m fva runtime approval-template data/plan.json --out data/approval.json`.
-   This writes a pending receipt and sends no requests. After reviewing the plan,
-   set `decision` to `approved`, record the approver's name in `approved_by`, and
-   record an ISO timestamp in `approved_at`. Keep the generated `plan_sha256`.
-   The model must not approve its own plan on behalf of the operator.
+2. In your interactive terminal, run
+   `python -m fva runtime approve data/plan.json --out data/approval.json`.
+   It displays the complete plan and requires your name and the first 12 characters
+   of its hash before writing approval. Redirected input is rejected. This sends
+   no requests. The agent must not run this command or fabricate its receipt on
+   behalf of the operator. `approval-template` remains available for a pending
+   receipt, which cannot authorize collection. Legacy manually marked receipts
+   are rejected. Approval timestamps must include a timezone and precede collection.
 3. Run `python -m fva runtime collect data/runs/base --source <checkout> --plan data/plan.json --approval data/approval.json --out data/collection`.
 4. Run `python -m fva runtime import data/runs/base data/collection --out data/runs/runtime-derived`.
    Import sends no requests. It copies the base findings, evidence and summary
@@ -283,3 +288,16 @@ Receipt hashes bind artifacts and detect inconsistent edits; they are not
 signatures. A person able to rewrite both the local approval and collection is
 inside the trust boundary. Output directories must be new, so base runs and old
 collections are preserved.
+
+The interactive-terminal requirement prevents ordinary noninteractive approval;
+it does not authenticate a human against a process that can create a terminal or
+rewrite local artifacts. The local operator and artifact store remain trusted.
+The encoding checks reject common reflection cases, not every possible application
+transformation. Review the finding-specific oracle before approving the plan.
+
+Each derived run supports one collection. Importing onto an already derived run
+is rejected; start each collection from the original base run. Invalid or missing
+receipts produce a warning in the worksheet command summary and HTML worksheet.
+Receipts contain raw, unredacted response bodies. Keep them in ignored `data/`;
+never send them to a model, attach them to tickets, or publish them. Only sanitized
+evidence summaries are suitable for those uses.

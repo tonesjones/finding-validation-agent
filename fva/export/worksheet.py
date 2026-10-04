@@ -35,7 +35,7 @@ def _read_jsonl(p: Path) -> list[dict]:
     return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()] if p.exists() else []
 DECISIONS = {"agree", V.confirmed.value, V.not_applicable.value, V.valid_non_security.value, V.needs_review.value}
 
-def build(run_dir: Path) -> list[dict]:
+def build(run_dir: Path, *, warnings: list[str] | None = None) -> list[dict]:
     run_dir = Path(run_dir)
     findings = _read_jsonl(run_dir / "findings.jsonl")
     if not findings:
@@ -49,8 +49,10 @@ def build(run_dir: Path) -> list[dict]:
         all_evidence.append(e)
         for fid in e.finding_ids:
             by_finding.setdefault(fid, []).append(e)
-    from fva.runtime import verified_ids
-    trusted_runtime = verified_ids(run_dir, all_evidence)
+    from fva.runtime import verify_runtime
+    trusted_runtime, runtime_warning = verify_runtime(run_dir, all_evidence)
+    if runtime_warning and warnings is not None:
+        warnings.append(runtime_warning)
     rows = []
     for r in findings:
         evs = by_finding.get(r["finding_id"], [])
@@ -75,23 +77,27 @@ def build(run_dir: Path) -> list[dict]:
 
 def write(run_dir: Path) -> dict:
     run_dir = Path(run_dir)
-    rows = build(run_dir)
+    warnings = []
+    rows = build(run_dir, warnings=warnings)
     with open(run_dir / "worksheet.csv", "w", encoding="utf-8-sig", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=COLUMNS, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
     counts = Counter(r["fva_verdict"] for r in rows)
-    (run_dir / "worksheet.html").write_text(_html(rows, counts), encoding="utf-8")
+    (run_dir / "worksheet.html").write_text(_html(rows, counts, warnings), encoding="utf-8")
     res = {"rows": len(rows), "issues": len({r["issue_id"] for r in rows}), "verdicts": dict(counts)}
     stale = sum(1 for r in rows if r["evidence_summary"].startswith("rule:") and r["disposition"] in SKIP_CODES)
     if stale:
         res["warning"] = (f"{stale} rule-skipped findings have no evidence records (run made before boundary "
                           "evidence), so they stay needs_review: re-run `python -m fva assess` (model answers come "
                           "from cache), then this command")
+    if warnings:
+        res["warning"] = " ".join(([res["warning"]] if "warning" in res else []) + warnings)
+        res["warnings"] = warnings
     return res
 
 
-def _html(rows: list[dict], counts: Counter) -> str:
+def _html(rows: list[dict], counts: Counter, warnings=()) -> str:
     e = html.escape
     order = [V.confirmed, V.likely, V.needs_review, V.valid_non_security, V.not_applicable]
     head = "".join(f"<th>{c}</th>" for c in COLUMNS[:15])
@@ -106,6 +112,7 @@ def _html(rows: list[dict], counts: Counter) -> str:
 <style>body{{font:13px system-ui;margin:16px}}table{{border-collapse:collapse}}td,th{{border:1px solid #ccc;
 padding:3px 6px;vertical-align:top}}tr.g td{{background:#eef;font-weight:600}}</style>
 <h1>Triage worksheet</h1><p>{len(rows)} findings · {tally}</p>
+{''.join(f'<p role="alert">{e(warning)}</p>' for warning in warnings)}
 <p>Suggestions are provisional and not written to Polaris. Triage status mapping: {MAP_STATUS}.</p>
 <table><tr>{head}</tr>{''.join(body)}</table>"""
 

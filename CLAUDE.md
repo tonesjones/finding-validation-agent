@@ -54,7 +54,9 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
   pinned source before it is kept (`fva/reasoning/assessor.py`).
 - **Runtime probing:** `runtime` accepts only an approved exact localhost GET plan.
   Keep approval and allowlist gates tested before expanding probes. Never fabricate
-  operator approval. No destructive or DoS tests. Hosted probing is not supported.
+  operator approval or run `runtime approve` on the operator's behalf, including
+  through an agent-created TTY. Raw receipts must never go to models or tickets.
+  No destructive or DoS tests. Hosted probing is not supported.
 - Preserve scanner ids byte-for-byte. Reason codes are a closed, append-only vocabulary (`fva/reason_codes.py`).
 - Polaris is the only SAST engine for this project (no Semgrep/CodeQL).
 

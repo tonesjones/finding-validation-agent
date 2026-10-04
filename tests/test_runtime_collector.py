@@ -47,16 +47,20 @@ def inputs(tmp_path, plan):
     runtime.write_json(plan_path, plan.model_dump(mode="json"))
     runtime.write_json(approval_path, {"plan_sha256": runtime.digest(plan.model_dump(mode="json")),
                                       "decision": "approved", "approved_by": "fixture operator",
+                                      "method": "interactive-tty",
+                                      "acknowledged_plan_prefix": runtime.digest(plan.model_dump(mode="json"))[:12],
                                       "approved_at": "2026-10-03T00:00:00Z"})
     return plan_path, approval_path
 
 
-@pytest.mark.parametrize("mutation", ["remote", "post", "outside", "marker", "same"])
+@pytest.mark.parametrize("mutation", ["remote", "post", "outside", "marker", "same", "localhost", "0.0.0.0", "10.0.0.1"])
 def test_gate_rejects_entire_plan_before_network(prepared, tmp_path, monkeypatch, mutation):
     source, run = prepared
     plan = make_plan(run).model_dump(mode="json")
     if mutation == "remote":
         plan["allowed_urls"][0] = "http://example.com:80/control"
+    elif mutation in {"localhost", "0.0.0.0", "10.0.0.1"}:
+        plan["allowed_urls"][0] = f"http://{mutation}:12345/control"
     elif mutation == "post":
         plan["pairs"][0]["probe"]["method"] = "POST"
     elif mutation == "outside":
@@ -212,6 +216,7 @@ def test_modified_import_cannot_confirm(prepared, tmp_path, server, change):
     else:
         (out / "runtime-receipt.json").unlink()
     assert worksheet.build(out)[0]["fva_verdict"] == "needs_review"
+    assert "Runtime" in worksheet.write(out)["warning"]
 
 
 @pytest.mark.parametrize("change", ["identity", "control", "negative", "error", "truncated", "source", "request"])
@@ -272,3 +277,108 @@ def test_source_change_during_collection_cannot_import(prepared, tmp_path, monke
     runtime.collect(run, source, plan_path, approval, collection)
     with pytest.raises(ValueError, match="source changed"):
         runtime.import_collection(run, collection, tmp_path / "imported")
+
+
+@pytest.mark.parametrize("location", ["path", "query"])
+@pytest.mark.parametrize("encoded", [MARKER.lower(), "%2546" + MARKER[1:],
+                                    base64.b64encode(MARKER.encode()).decode(),
+                                    MARKER.encode().hex(),
+                                    base64.b64encode(MARKER.encode().hex().encode()).decode()])
+def test_encoded_marker_rejected_before_network(prepared, tmp_path, monkeypatch, location, encoded):
+    source, run = prepared
+    plan = make_plan(run).model_dump(mode="json")
+    url = "http://127.0.0.1:12345/" + (encoded if location == "path" else "probe?x=" + encoded)
+    plan["allowed_urls"][1] = plan["pairs"][0]["probe"]["url"] = url
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(plan))
+    monkeypatch.setattr(runtime, "fetch", lambda spec: pytest.fail("encoded reflection sent a request"))
+    with pytest.raises(ValueError, match="marker"):
+        runtime.collect(run, source, plan_path, approval, tmp_path / "collection")
+
+
+@pytest.mark.parametrize("tty,stdout_tty,ack", [(False, True, "correct"), (True, False, "correct"),
+                                                (True, True, "wrong"), (True, True, "correct")])
+def test_interactive_approval_requires_tty_and_exact_ack(prepared, tmp_path, monkeypatch,
+                                                         tty, stdout_tty, ack):
+    from types import SimpleNamespace
+    from fva.__main__ import main
+    _, run = prepared
+    plan = make_plan(run)
+    plan_path, _ = inputs(tmp_path, plan)
+    out = tmp_path / "interactive.json"
+    monkeypatch.setattr(runtime.sys, "stdin", SimpleNamespace(isatty=lambda: tty))
+    displayed = []
+    class Output:
+        def isatty(self):
+            return stdout_tty
+
+        def write(self, value):
+            displayed.append(value)
+
+        def flush(self):
+            pass
+    monkeypatch.setattr(runtime.sys, "stdout", Output())
+    prefix = runtime.digest(plan.model_dump(mode="json"))[:12]
+    answers = iter(["Fixture reviewer", prefix if ack == "correct" else "wrong"])
+    monkeypatch.setattr("builtins.input", lambda prompt: next(answers))
+    if not tty or not stdout_tty or ack != "correct":
+        with pytest.raises(ValueError):
+            main(["runtime", "approve", str(plan_path), "--out", str(out)])
+        assert not out.exists()
+    else:
+        main(["runtime", "approve", str(plan_path), "--out", str(out)])
+        receipt = json.loads(out.read_text())
+        runtime.validate_approval(plan, receipt)
+        shown = "".join(displayed)
+        assert all(text in shown for text in (plan.pairs[0].probe.url, plan.pairs[0].control.url,
+                                              MARKER, plan.pairs[0].rationale))
+
+
+@pytest.mark.parametrize("change", ["legacy", "future", "naive", "invalid_name"])
+def test_invalid_approval_rejected_before_network(prepared, tmp_path, monkeypatch, change):
+    source, run = prepared
+    plan_path, approval_path = inputs(tmp_path, make_plan(run))
+    approval = json.loads(approval_path.read_text())
+    if change == "legacy":
+        del approval["method"]
+    elif change == "invalid_name":
+        approval["approved_by"] = 123
+    else:
+        approval["approved_at"] = "2099-01-01T00:00:00Z" if change == "future" else "2026-10-03T00:00:00"
+    runtime.write_json(approval_path, approval)
+    monkeypatch.setattr(runtime, "fetch", lambda spec: pytest.fail("invalid approval sent a request"))
+    with pytest.raises(ValueError):
+        runtime.collect(run, source, plan_path, approval_path, tmp_path / "collection")
+
+
+def test_approval_after_collection_cannot_back_import(prepared, tmp_path, server):
+    _, run = prepared
+    origin, _ = server
+    collection = collect_fixture(prepared, tmp_path, origin)
+    receipt = json.loads((collection / "receipt.json").read_text())
+    receipt["collected_at"] = "2026-10-02T23:59:59Z"
+    with pytest.raises(ValueError, match="precede collection"):
+        runtime.evidence_from_receipt(receipt, run)
+
+
+def test_missing_receipt_warning_is_visible_in_summary_and_html(prepared, tmp_path, server):
+    from fva.export import worksheet
+    _, run = prepared
+    origin, _ = server
+    collection = collect_fixture(prepared, tmp_path, origin)
+    out = tmp_path / "imported"
+    runtime.import_collection(run, collection, out)
+    (out / "runtime-receipt.json").unlink()
+    summary = worksheet.write(out)
+    assert "receipt missing" in summary["warning"]
+    assert "receipt missing" in (out / "worksheet.html").read_text()
+    assert summary["verdicts"] == {"needs_review": 1}
+
+
+def test_second_import_into_derived_run_is_explicitly_rejected(prepared, tmp_path, server):
+    _, run = prepared
+    origin, _ = server
+    collection = collect_fixture(prepared, tmp_path, origin)
+    out = tmp_path / "imported"
+    runtime.import_collection(run, collection, out)
+    with pytest.raises(ValueError, match="one collection"):
+        runtime.import_collection(out, collection, tmp_path / "second")

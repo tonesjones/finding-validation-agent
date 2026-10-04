@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import argparse
 import base64
+import binascii
 import hashlib
 import http.client
 import ipaddress
 import json
+import re
 import shutil
 import socket
+import sys
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from fva.correlation.source_pin import pin
 from fva.schemas import EvidenceRecord, EvidenceType, Stance
 
-VERSION = "fva-runtime@1"
+VERSION = "fva-runtime@2"
 MAX_BYTES = 65536
 IDENTITY_HEADER = "x-fva-source-sha256"
 
@@ -61,6 +64,40 @@ def file_digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def contains_marker(url: str, marker: str) -> bool:
+    """Inspect common reflection encodings, recursively and with bounded work."""
+    pending, seen = [url], set()
+    while pending:
+        value = pending.pop()
+        if value in seen:
+            continue
+        seen.add(value)
+        if len(seen) > 128 or len(value) > 8192:
+            raise ValueError("request encoding exceeds inspection limits")
+        if marker.casefold() in value.casefold():
+            return True
+        decoded = unquote(value)
+        if decoded != value:
+            pending.append(decoded)
+        tokens = re.split(r"[&?=;\s]+", value)
+        tokens += [segment for token in tokens for segment in token.split("/")]
+        for token in tokens:
+            if len(token) < 4:
+                continue
+            if re.fullmatch(r"(?:[0-9a-fA-F]{2})+", token):
+                try:
+                    pending.append(bytes.fromhex(token).decode("utf-8"))
+                except UnicodeDecodeError:
+                    pass
+            if re.fullmatch(r"[A-Za-z0-9+_-]+", token):
+                try:
+                    pending.append(base64.b64decode(token + "=" * (-len(token) % 4),
+                                                   altchars=b"-_", validate=True).decode("utf-8"))
+                except (binascii.Error, UnicodeDecodeError):
+                    pass
+    return False
+
+
 def validate_plan(plan: Plan) -> None:
     """Validate every request before any network activity, including controls."""
     origins = set()
@@ -82,18 +119,53 @@ def validate_plan(plan: Plan) -> None:
         for request in (pair.control, pair.probe):
             if request.method != "GET" or request.url not in plan.allowed_urls:
                 raise ValueError("non-GET or out-of-allowlist request rejected")
-            if pair.marker in unquote(request.url):
-                raise ValueError("execution marker must not be present in either request")
+            if contains_marker(request.url, pair.marker):
+                raise ValueError("execution marker must not be present or encoded in either request")
         if pair.control.url == pair.probe.url:
             raise ValueError("probe and control must differ")
 
 
-def validate_approval(plan: Plan, approval: dict) -> None:
-    if (approval.get("plan_sha256") != digest(plan.model_dump(mode="json"))
-            or approval.get("decision") != "approved" or not approval.get("approved_by", "").strip()
+def timestamp(value: str) -> datetime:
+    if not isinstance(value, str):
+        raise ValueError("timestamp must be an ISO string")
+    result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if result.tzinfo is None:
+        raise ValueError("approval and collection timestamps must include a timezone")
+    return result
+
+
+def validate_approval(plan: Plan, approval: dict, *, collected_at: datetime | None = None) -> None:
+    plan_hash = digest(plan.model_dump(mode="json"))
+    name = approval.get("approved_by")
+    if (approval.get("plan_sha256") != plan_hash
+            or approval.get("decision") != "approved" or not isinstance(name, str) or not name.strip()
+            or approval.get("method") != "interactive-tty"
+            or approval.get("acknowledged_plan_prefix") != plan_hash[:12]
             or not approval.get("approved_at")):
-        raise ValueError("an explicit approval receipt for this exact plan is required")
-    datetime.fromisoformat(approval["approved_at"].replace("Z", "+00:00"))
+        raise ValueError("interactive approval for this exact plan is required")
+    if timestamp(approval["approved_at"]) > (collected_at or datetime.now(timezone.utc)):
+        raise ValueError("approval must precede collection")
+
+
+def approve(plan_path: Path, out: Path) -> dict:
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        raise ValueError("runtime approve requires an interactive TTY; redirected input is rejected")
+    plan = Plan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+    validate_plan(plan)
+    plan_hash = digest(plan.model_dump(mode="json"))
+    # JSON escaping prevents a plan's text from controlling the terminal display.
+    print(json.dumps(plan.model_dump(mode="json"), indent=2, ensure_ascii=True))
+    print("Review every URL, marker and rationale above. This authorizes the exact GET plan.")
+    name = input("Your name: ").strip()
+    acknowledgement = input(f"Type plan hash prefix {plan_hash[:12]} to approve: ").strip()
+    if not name or acknowledgement != plan_hash[:12]:
+        raise ValueError("approval cancelled; name and exact hash prefix are required")
+    receipt = {"plan_sha256": plan_hash, "decision": "approved", "approved_by": name,
+               "approved_at": datetime.now(timezone.utc).isoformat(), "method": "interactive-tty",
+               "acknowledged_plan_prefix": acknowledgement}
+    with out.open("x", encoding="utf-8") as stream:
+        json.dump(receipt, stream, indent=2)
+    return {"status": "approved", "plan_sha256": plan_hash}
 
 
 def bind_run(plan: Plan, run: Path) -> None:
@@ -189,7 +261,7 @@ def evidence_from_receipt(receipt: dict, run: Path) -> list[EvidenceRecord]:
         raise ValueError("unknown runtime producer")
     plan = Plan.model_validate(receipt["plan"])
     validate_plan(plan)
-    validate_approval(plan, receipt["approval"])
+    validate_approval(plan, receipt["approval"], collected_at=timestamp(receipt["collected_at"]))
     bind_run(plan, run)
     if not (receipt["source_before"] == receipt["source_after"] == plan.source_content_sha256):
         raise ValueError("source changed during collection")
@@ -231,6 +303,8 @@ def evidence_from_receipt(receipt: dict, run: Path) -> list[EvidenceRecord]:
 
 
 def import_collection(run: Path, collection: Path, out: Path) -> dict:
+    if (run / "runtime-receipt.json").exists():
+        raise ValueError("one collection per derived run; import each collection from the original base run")
     receipt = json.loads((collection / "receipt.json").read_text(encoding="utf-8"))
     records = evidence_from_receipt(receipt, run)
     out.mkdir(parents=True, exist_ok=False)
@@ -250,21 +324,35 @@ def import_collection(run: Path, collection: Path, out: Path) -> dict:
     return result
 
 
-def verified_ids(run: Path, evidence: list[EvidenceRecord]) -> frozenset[str]:
+def verify_runtime(run: Path, evidence: list[EvidenceRecord]) -> tuple[frozenset[str], str | None]:
     receipt_path = run / "runtime-receipt.json"
     if not receipt_path.exists():
-        return frozenset()
+        warning = "Runtime receipt missing; runtime evidence remains unresolved." if any(
+            e.evidence_type in {EvidenceType.runtime_probe, EvidenceType.negative_control} for e in evidence) else None
+        return frozenset(), warning
     try:
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         if file_digest(receipt_path) != digest(receipt):
-            return frozenset()
+            raise ValueError("receipt bytes do not match their content hash")
         expected = evidence_from_receipt(receipt, run)
         actual = {e.evidence_id: e for e in evidence}
         if len(actual) != len(evidence) or any(actual.get(e.evidence_id) != e for e in expected):
-            return frozenset()
-        return frozenset(e.evidence_id for e in expected)
-    except (ValueError, KeyError, TypeError, OSError):
-        return frozenset()
+            raise ValueError("stored evidence does not match the recomputed receipt evidence")
+        return frozenset(e.evidence_id for e in expected), None
+    except (ValueError, KeyError, TypeError, AttributeError, OSError) as exc:
+        # Do not include exception values: malformed artifacts may contain private text.
+        reason = {
+            "receipt bytes do not match their content hash": "receipt byte integrity check failed",
+            "stored evidence does not match the recomputed receipt evidence": "stored evidence mismatch",
+            "approval must precede collection": "approval is dated after collection",
+            "interactive approval for this exact plan is required": "interactive plan approval is missing or mismatched",
+            "plan does not match the run's profile, source and findings": "run profile, source or findings mismatch",
+            "source changed during collection": "source changed during collection",
+            "unknown runtime producer": "unsupported collector version",
+            "incomplete receipt": "receipt is incomplete",
+            "receipt request mismatch": "observed request does not match the approved plan",
+        }.get(str(exc), "receipt verification failed because its structure or plan is invalid")
+        return frozenset(), f"Runtime {reason}; evidence remains unresolved."
 
 
 def main(argv=None):
@@ -273,6 +361,9 @@ def main(argv=None):
     prepare = commands.add_parser("approval-template", help="create an unapproved receipt; sends no requests")
     prepare.add_argument("plan", type=Path)
     prepare.add_argument("--out", type=Path, required=True)
+    approval_command = commands.add_parser("approve", help="review and approve a plan in an interactive terminal")
+    approval_command.add_argument("plan", type=Path)
+    approval_command.add_argument("--out", type=Path, required=True)
     collector = commands.add_parser("collect", help="run an approved localhost GET plan")
     collector.add_argument("run", type=Path)
     collector.add_argument("--source", type=Path, required=True)
@@ -292,6 +383,8 @@ def main(argv=None):
             json.dump({"plan_sha256": digest(plan.model_dump(mode="json")), "decision": "pending",
                        "approved_by": "", "approved_at": ""}, stream, indent=2)
         result = {"status": "approval required; no requests sent"}
+    elif args.command == "approve":
+        result = approve(args.plan, args.out)
     elif args.command == "collect":
         result = collect(args.run, args.source, args.plan, args.approval, args.out)
     else:
