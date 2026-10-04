@@ -39,10 +39,10 @@ Last updated: 2026-10-03. Update this file when status changes.
 
 ## Next
 
-- Add source identity reporting to the controlled local app and prepare a bounded
-  plan for review before running the real pilot through the collector.
-- Implement advisory-specific deterministic applicability checks before enabling
-  automatic SCA dismissals. Expand probe oracles only as concrete findings need them.
+- Review the paired-status PR, then use its aggregate status command on the completed
+  run. Review the separate source-identity and SCA applicability PRs in their branches.
+- After the source-identity PR is merged, prepare an exact collector plan for operator
+  review before running the real pilot.
 - Routine triage does not require grading every model response. Route exceptions for
   review using confidence, evidence/citation validity, conflicts and impact. Per-response
   reasoning grades remain optional benchmark work.
