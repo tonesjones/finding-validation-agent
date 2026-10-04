@@ -1,7 +1,7 @@
 """Write the exception-routed triage for a run.
 
   python -m fva triage data/runs/<run>
-  -> triage.jsonl (one row per finding), triage.md (counts and the review exception list)
+  -> triage.jsonl (one row per finding), triage.md (counts and the open, not auto-verified list)
 
 Output is deterministic: same run directory, same bytes.
 """
@@ -52,17 +52,18 @@ def _report(rows: list[dict], s: dict, warnings: list[str]) -> str:
     share = f"{s['auto'] / s['rows']:.1%}" if s["rows"] else "-"
     L = ["# Triage", "",
          f"- Findings: {s['rows']}",
-         f"- Auto (no review needed): {s['auto']} ({share})",
-         f"- Review queue: {s['review']}", ""]
+         f"- Decided automatically: {s['auto']} ({share})",
+         f"- Open, not auto-verified: {s['review']} (they stay open as unverified issues; nobody needs to grade them)",
+         ""]
     if warnings:
         L += ["## Warnings", ""] + [f"- {_cell(w)}" for w in sorted(set(warnings))] + [""]
     L += ["## Auto by verdict", "", "| Verdict | Count |", "|---|---|"]
     L += [f"| {v} | {c} |" for v, c in sorted(Counter(r["verdict"] for r in auto).items())]
     L += ["", "## Auto by reason code", "", "| Reason code | Count |", "|---|---|"]
     L += [f"| {c} | {n} |" for c, n in sorted(Counter(c for r in auto for c in r["reason_codes"]).items())]
-    L += ["", "## Review by exception", "", "| Exception | Count |", "|---|---|"]
+    L += ["", "## Why findings stay open", "", "| Exception | Count |", "|---|---|"]
     L += [f"| {e} | {s['by_exception'].get(e, 0)} |" for e in triage.EXCEPTIONS]
-    L += ["", "## Exception list", "",
+    L += ["", "## Open, not auto-verified", "",
           "| source_finding_id | scanner | severity | verdict | exceptions | title |", "|---|---|---|---|---|---|"]
     for r in sorted(review, key=lambda r: (_sev_rank(r["severity"]), r["source_finding_id"])):
         L.append("| " + " | ".join(_cell(x) for x in (r["source_finding_id"], r["scanner"], r["severity"],

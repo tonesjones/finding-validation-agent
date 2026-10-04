@@ -28,6 +28,7 @@ The frozen blind pilot stays historical: no edits to its packets, prompt or demo
 | T5 | `assess-v2` stance semantics | Opus | done |
 | T6 | Collector oracles and demo runtime run | Opus | blocked on rescan |
 | T7 | Ranked report and tickets | Sonnet | done |
+| T8 | More closing rules; "open, not auto-verified" wording | Opus | done |
 
 ### T2 Exception-routed triage core
 `fva/triage.py` gives every finding `route = auto | review` plus exception reason codes
@@ -82,6 +83,20 @@ raw receipts.
 
 Done when: output is deterministic and every closure cites evidence ids.
 
+### T8 More closing rules and report wording
+Rules that close findings with no model call: Polaris quality checker `no_effect` -> `QUALITY_NOT_SECURITY`
+(keyed on the checker, not CWE-398, which also covers `copy_paste_error`); sanitize-html advisories whose GHSA
+names a non-default option (`allowedAttributes` with style, `allowedIframeHostnames`, `transformTags`,
+textarea/xmp in `allowedTags`) -> `ADVISORY_PRECONDITION_ABSENT` when no shipped call passes it, any non-literal
+options or other use stays neutral; GHSA ranges for six sanitize-html advisories. Both closures are medium
+confidence, so high/critical stay open. Reports say "open, not auto-verified" instead of "review", and a closure
+that triage did not auto-route is reported open, not closed.
+
+Done when: Juice Shop auto share rises with auto agreement not lower, 0 incorrect demotions, 20 version-drift
+rows unchanged, every new closure agrees with the PoC key.
+Result: auto share 78.0% -> 84.8%, auto agreement 99.3% -> 99.4%, 0 incorrect demotions, 0 model calls
+(all cached); 32/32 `no_effect` and 6/6 scored sanitize-html closures agree.
+
 ## Later or blocked
 
 - DAST: waits on entitlement.
@@ -91,9 +106,13 @@ Done when: output is deterministic and every closure cites evidence ids.
 
 ## Status (2026-10-03)
 
-- Demo: 6/6 `needs_review` -> 5 auto (2 `likely` via `template` call sites, 2 closed as
-  `VULNERABLE_FUNCTION_NOT_CALLED`, 1 `likely` for the toNumber ReDoS), 1 open (banner, waits on T6).
-- Juice Shop (assess-v2): 78.0% auto, 99.3% auto agreement, 0 incorrect demotions.
+- Demo (assess-v2 + T8): 3 auto (CVE-2021-23337 `likely` via the `template` call site, 2 closed as
+  `VULNERABLE_FUNCTION_NOT_CALLED`), 3 open: the banner (waits on T6), CVE-2020-28500 (lodash calls toNumber
+  internally, so no call-site rule), CVE-2026-4800 (high; the model correctly notes no `imports` option, but a
+  medium-confidence rule could not close a high finding). The earlier "5 auto" was the v1 prompt.
+- Juice Shop (assess-v2 + T8): 84.8% auto, 99.4% auto agreement, 0 incorrect demotions.
+- T6 runtime oracle code is being built by Codex on branch `claude/t6-runtime-oracles` (worktree
+  `C:\TestCode\fva-t6-runtime`); Claude reviews the diff before merge.
 - Model calls never close a finding; their only automated effect is promoting `needs_review`
   to `likely`. Rules close 430 of 573 Juice Shop findings with no model involvement.
 - Adding reason codes changes every prompt (the prompt lists allowed codes) and empties the
@@ -103,7 +122,5 @@ Done when: output is deterministic and every closure cites evidence ids.
 
 - `VULNERABLE_FUNCTION_NOT_CALLED` closes automatically at medium confidence only up to medium
   severity; high/critical stay open (triage `HIGH_IMPACT_CLOSURE`).
-- The report should present review rows as "open, not auto-verified" rather than as a queue a
-  person must work through.
 - T6 needs a Polaris rescan of the demo at the source-identity commit and one operator
   `runtime approve` per collection plan (a safety gate, not grading).

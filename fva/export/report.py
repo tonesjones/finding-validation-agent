@@ -25,6 +25,7 @@ REACH_DEFAULT = 0.6      # unknown status or no reachability record
 CALL_SITE = "advisory_call_site:called"   # vulnerable function is called: full reach
 RUNTIME_OBSERVED_W, RUNTIME_NONE_W = 1.0, 0.8
 OPEN_VERDICTS = ("confirmed", "likely", "needs_review")
+STATUS = {triage.AUTO: "auto-decided", triage.REVIEW: "open, not auto-verified"}
 _RUNTIME_TYPES = {EvidenceType.runtime_probe, EvidenceType.negative_control, EvidenceType.dast_observation}
 
 
@@ -49,6 +50,11 @@ def _runtime(evs, trusted) -> float:
 def finding_score(verdict: str, severity: str, evs, trusted) -> float:
     return round(VERDICT_W.get(verdict, 0.0) * SEVERITY_W.get(severity, SEVERITY_W["info"])
                  * _reach(evs) * _runtime(evs, trusted), 3)
+
+
+def _effective(m: dict) -> str:
+    """A closure that triage did not auto-route stays open as needs_review (open, not auto-verified)."""
+    return m["verdict"] if m["route"] == triage.AUTO or m["verdict"] in OPEN_VERDICTS else "needs_review"
 
 
 def _read_jsonl(p: Path) -> list[dict]:
@@ -81,18 +87,18 @@ def build(run_dir: Path) -> tuple[list[dict], list[dict]]:
         evidence = [{"id": i, "type": ev_by_id[i].evidence_type.value, "stance": ev_by_id[i].stance.value,
                      "method": ev_by_id[i].method} for i in cited if i in ev_by_id]
         srcs = sorted(m["source_finding_id"] for m in members)
-        if not any(m["verdict"] in OPEN_VERDICTS for m in members):
+        if not any(_effective(m) in OPEN_VERDICTS for m in members):
             if not cited:
                 raise ValueError(f"closed issue {iid} cites no evidence id")
             closed.append({"issue_id": iid, "members": srcs, "reason_codes": codes, "evidence_ids": cited,
                            "verdict": prim["verdict"]})
             continue
-        score = max(finding_score(m["verdict"], m["severity"], by_finding.get(m["finding_id"], []), trusted)
+        score = max(finding_score(_effective(m), m["severity"], by_finding.get(m["finding_id"], []), trusted)
                     for m in members)
         f = frow.get(prim["finding_id"], {})
         loc = f.get("endpoint") or f.get("package") or (f"{f['path']}:{f['line']}" if f.get("path") else "")
         tickets.append({
-            "issue_id": iid, "score": score, "verdict": prim["verdict"],
+            "issue_id": iid, "score": score, "verdict": _effective(prim),
             "severity": _sev_max([m["severity"] for m in members]), "title": prim["title"], "location": loc,
             "route": triage.REVIEW if any(m["route"] == triage.REVIEW for m in members) else triage.AUTO,
             "exceptions": sorted({e for m in members for e in m["exceptions"]}),
@@ -126,11 +132,12 @@ def _report(tickets, closed, by_verdict) -> str:
          "## By verdict (primary finding)", "", "| Verdict | Issues |", "|---|---|"]
     L += [f"| {v} | {n} |" for v, n in sorted(by_verdict.items())]
     L += ["", "## Open issues (ranked)", "",
-          "| Rank | Score | Issue | Severity | Verdict | Route | Title | Location | Exceptions |",
+          "Open issues stay open until evidence decides them; nobody needs to grade them.", "",
+          "| Rank | Score | Issue | Severity | Verdict | Status | Title | Location | Exceptions |",
           "|---|---|---|---|---|---|---|---|---|"]
     for t in tickets:
         L.append("| " + " | ".join(_cell(x) for x in (
-            t["rank"], f"{t['score']:.3f}", t["issue_id"], t["severity"], t["verdict"], t["route"], t["title"],
+            t["rank"], f"{t['score']:.3f}", t["issue_id"], t["severity"], t["verdict"], STATUS[t["route"]], t["title"],
             t["location"], " ".join(t["exceptions"]))) + " |")
     L += ["", "## Closed", "", "| Issue | Verdict | Members | Reason codes | Evidence |", "|---|---|---|---|---|"]
     for c in closed:

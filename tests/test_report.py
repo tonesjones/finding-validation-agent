@@ -14,8 +14,8 @@ def _tickets(run):
 def test_ranking_and_score_math(run):
     s = report.write(run)
     t = _tickets(run)
-    assert [x["issue_id"] for x in t] == ["i-d", "i-l", "i-m"]
-    assert [x["rank"] for x in t] == [1, 2, 3]
+    assert [x["issue_id"] for x in t] == ["i-d", "i-l", "i-m", "i-q"]
+    assert [x["rank"] for x in t] == [1, 2, 3, 4]
     # confirmed 1.0 * high 0.8 * default reach 0.6 * dast-supported runtime 1.0
     assert t[0]["score"] == 0.48 and t[0]["verdict"] == "confirmed"
     # likely 0.7 * 0.8 * 0.6 * 0.8 ; needs_review 0.4 * 0.8 * 0.6 * 0.8
@@ -23,7 +23,9 @@ def test_ranking_and_score_math(run):
     assert t[0]["members"] == ["POL-d"] and t[0]["location"] == "a.ts:1"
     assert {e["id"] for e in t[1]["evidence"]} >= {"e1", "e2"}
     assert all(set(e) == {"id", "type", "stance", "method"} for x in t for e in x["evidence"])
-    assert s["open"] == 3 and s["closed"] == 2
+    # i-q: a model-only non_security suggestion is routed to review, so it stays open as needs_review
+    assert t[3]["verdict"] == "needs_review" and t[3]["route"] == "review" and t[3]["score"] > 0
+    assert s["open"] == 4 and s["closed"] == 1
 
 
 def test_weights():
@@ -36,7 +38,8 @@ def test_closed_cite_evidence(run):
     report.write(run)
     md = (run / "report.md").read_text(encoding="utf-8")
     closed = md.split("## Closed")[1]
-    assert "i-t" in closed and "e0" in closed and "i-q" in closed and "e5" in closed
+    assert "i-t" in closed and "e0" in closed and "i-q" not in closed
+    assert "open, not auto-verified" in md.split("## Closed")[0]
     assert md.index("## Open issues") < md.index("## Closed")
 
 
@@ -73,5 +76,5 @@ def test_byte_identical(run):
 
 def test_cli_report(run, capsys):
     cli.main(["report", str(run)])
-    assert "'open': 3" in capsys.readouterr().out
+    assert "'open': 4" in capsys.readouterr().out
     assert (run / "tickets.jsonl").exists() and (run / "report.md").exists()

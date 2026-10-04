@@ -35,3 +35,4 @@
 2026-10-03 | T4 call sites | reasoning | opus | inline | inline | n/a | flagged (closes findings); demo 5/5 records; new codes invalidated model cache (~131 live calls)
 2026-10-03 | T7 report/tickets | write-heavy | sonnet | P2 | pass | 32k total | weights set by opus; leak boundary checked
 2026-10-03 | T5 assess-v2 | reasoning | opus | inline | inline | n/a | criterion revised to auto-routed accuracy per owner; 99.3% auto agreement
+2026-10-03 | T8 | reasoning | Opus | inline | inline | n/a | quality checker + sanitize-html option rules, report wording; T6 delegated to Codex (gpt-6-sol) in a worktree at user request

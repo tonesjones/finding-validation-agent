@@ -14,6 +14,74 @@ _IMPORT_RE = re.compile(
 _EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json")
 # namespace members that call other members by name or return a new namespace
 _INDIRECT = frozenset({"chain", "mixin", "runInContext"})
+_PAIRS = {"(": ")", "[": "]", "{": "}"}
+_MAX_SCAN = 20000
+
+
+def _split(text: str, start: int, close: str) -> tuple[list[str], int] | None:
+    """(top-level comma-separated parts, index of the matching `close`) from text[start:]; None when unbalanced
+    or opaque (template expressions, unterminated strings or comments)."""
+    parts, stack, mark, i = [], [close], start, start
+    end = min(len(text), start + _MAX_SCAN)
+    while i < end:
+        c = text[i]
+        if c in "'\"`":
+            j = i + 1
+            while j < end and text[j] != c:
+                if c == "`" and text.startswith("${", j):
+                    return None
+                j += 2 if text[j] == "\\" else 1
+            i = j + 1
+            continue
+        if text.startswith(("//", "/*"), i):
+            j = text.find("\n" if text[i + 1] == "/" else "*/", i + 2)
+            if j < 0:
+                return None
+            i = j + (1 if text[i + 1] == "/" else 2)
+            continue
+        if c in _PAIRS:
+            stack.append(_PAIRS[c])
+        elif c in ")]}":
+            if c != stack.pop():
+                return None
+            if not stack:
+                parts = [p.strip() for p in parts + [text[mark:i]]]
+                if parts[-1] == "":
+                    parts.pop()  # trailing comma or no arguments
+                return (parts, i) if "" not in parts else None
+        elif c == "," and len(stack) == 1:
+            parts.append(text[mark:i])
+            mark = i + 1
+        i += 1
+    return None
+
+
+def _call_args(text: str, pos: int) -> list[str] | None:
+    """Argument sources when text[pos:] is a direct call `( ... )`; None for anything else."""
+    m = re.match(r"\s*\(", text[pos:pos + 200])
+    split = _split(text, pos + m.end(), ")") if m else None
+    return split[0] if split else None
+
+
+def _object_keys(src: str) -> dict[str, str] | None:
+    """{key: value source} of a plain object literal; None for spreads, computed or accessor keys, or a non-literal."""
+    split = _split(src, 1, "}") if src.startswith("{") else None
+    if not split or split[1] != len(src) - 1:
+        return None
+    out = {}
+    for part in split[0]:
+        part = re.sub(r"^(?:\s*(?://[^\n]*|/\*.*?\*/))*\s*", "", part, flags=re.S)  # leading comments
+        if not part:
+            continue
+        if m := re.match(r"""(?:([\w$]+)|(['"])([\w$-]+)\2)\s*:""", part):
+            out[m.group(1) or m.group(3)] = part[m.end():].strip()
+        elif re.fullmatch(r"[\w$]+", part):
+            out[part] = part  # shorthand: the value is a variable of the same name
+        elif m := re.match(r"([\w$]+)\s*\(", part):
+            out[m.group(1)] = part  # method shorthand
+        else:
+            return None
+    return out
 
 
 class NodePack:
@@ -156,6 +224,45 @@ class NodePack:
                 elif not member or member.group(1) in _INDIRECT:
                     unresolved.append(line_of(m.start()))
         return sorted(set(sites)), sorted(set(unresolved))
+
+    def option_calls(self, text: str, package: str) -> tuple[list[tuple[int, dict[str, str]]], list[int]]:
+        """([(line, {option: value source})] direct calls of a package whose default export is a function
+        `fn(input, {options})`, [lines whose use can't be resolved]).
+
+        Conservative: options that are not an object literal of plain keys (a variable, spread, computed key), any
+        other use of the binding (`fn.defaults`, passing `fn` as a value) and any other import form are unresolved.
+        """
+        calls, unresolved, spans, names = [], [], [], set()
+        line_of = lambda pos: text.count("\n", 0, pos) + 1  # noqa: E731
+        spec = rf"""(?P<q>['"`]){re.escape(package)}(?P=q)"""
+        for pattern in (rf"""\bimport\s+([\w$]+)\s*(?:,\s*\{{[^}}]*\}}\s*)?from\s*{spec}""",
+                        rf"""\bimport\s+\*\s*as\s+([\w$]+)\s+from\s*{spec}""",
+                        rf"""\bimport\s+([\w$]+)\s*=\s*require\s*\(\s*{spec}\s*\)""",
+                        rf"""\b(?:const|let|var)\s+([\w$]+)\s*=\s*require\s*\(\s*{spec}\s*\)(?!\s*[(.?\[])"""):
+            for m in re.finditer(pattern, text):
+                if m.group(1) != "type":
+                    names.add(m.group(1))
+                    spans.append(m.span())
+        for m in _IMPORT_RE.finditer(text):
+            if m.group(2) == package and not any(a <= m.start(2) < b for a, b in spans):
+                unresolved.append(line_of(m.start()))
+            elif m.group(2) == package and re.search(r"\{[^}]*\}", text[m.start():m.start(2)]):
+                unresolved.append(line_of(m.start()))  # named imports such as `{ defaults }`
+        for name in sorted(names):
+            for m in re.finditer(rf"(?<![\w$.]){re.escape(name)}(?![\w$])", text):
+                if any(a <= m.start() < b for a, b in spans):
+                    continue
+                args = _call_args(text, m.end())
+                options = None
+                if args is not None and len(args) == 1:
+                    options = {}
+                elif args is not None and len(args) == 2:
+                    options = _object_keys(args[1])
+                if options is None:
+                    unresolved.append(line_of(m.start()))
+                else:
+                    calls.append((line_of(m.start()), options))
+        return calls, sorted(set(unresolved))
 
     @staticmethod
     def dependents(lockfile: Path, name: str) -> list[str] | None:

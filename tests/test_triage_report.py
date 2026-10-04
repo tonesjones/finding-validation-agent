@@ -15,7 +15,7 @@ def test_write_outputs(run):
     assert s["by_exception"] == {e: sum(e in r["exceptions"] for r in rows) for e in triage.EXCEPTIONS
                                  if any(e in r["exceptions"] for r in rows)}
     md = (run / "triage.md").read_text(encoding="utf-8")
-    assert md.startswith("# Triage") and "## Exception list" in md and "Findings: 5" in md
+    assert md.startswith("# Triage") and "## Open, not auto-verified" in md and "Findings: 5" in md
 
 
 def test_write_is_byte_identical(run):

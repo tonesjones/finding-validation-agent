@@ -177,3 +177,71 @@ def test_pipeline_closes_uncalled_function_at_medium_confidence(tmp_path):
     row_g = {"finding_id": "g", "disposition": "assess", "finding_type": "sca", "deployment_profile_id": "p"}
     likely, codes_g, conf_g, _ = suggest_verdict(row_g, batch.pre_evidence["g"])
     assert (likely.value, codes_g, conf_g) == ("likely", ("VULNERABLE_FUNCTION_CALLED",), "medium")
+
+
+def test_option_calls_resolve_only_plain_literal_options():
+    from fva.langpacks.node import NodePack
+    text = ("import clean from 'sanitize-html'\n"
+            "export const a = (h) => clean(h)\n"
+            "clean(h, { allowedTags: [], allowedAttributes: {}, // note, here\n  'transformTags': { a: (t) => t }, })\n"
+            "clean(h, opts)\n"
+            "clean(h, { ...base })\n"
+            "clean.defaults.allowedTags.push('textarea')\n"
+            "const raw = require('sanitize-html')('x')\n")
+    calls, unresolved = NodePack().option_calls(text, "sanitize-html")
+    assert calls == [(2, {}), (3, {"allowedTags": "[]", "allowedAttributes": "{}", "transformTags": "{ a: (t) => t }"})]
+    assert unresolved == [5, 6, 7, 8]
+    assert NodePack().option_calls("import { defaults } from 'sanitize-html'\n", "sanitize-html") == ([], [1])
+
+
+@pytest.mark.parametrize("advisory,options,status", [
+    ("CVE-2024-21501", "", "precondition_absent"),
+    ("CVE-2024-21501", ", { allowedAttributes: {} }", "precondition_absent"),
+    ("CVE-2024-21501", ", { allowedAttributes: { '*': ['style'] } }", "precondition_possible"),
+    ("CVE-2024-21501", ", { allowedAttributes: false }", "precondition_possible"),
+    ("CVE-2021-26539", ", { allowedTags: ['iframe'] }", "precondition_absent"),
+    ("CVE-2021-26540", ", { allowedIframeHostnames: [] }", "precondition_possible"),
+    ("CVE-2019-25225", ", { transformTags }", "precondition_possible"),
+    ("CVE-2026-63670", ", { allowedTags: ['b', 'option'] }", "precondition_absent"),
+    ("CVE-2026-63670", ", { allowedTags: ['b', 'textarea'] }", "precondition_possible"),
+    ("CVE-2026-63670", ", { allowedTags: tags }", "precondition_possible"),
+    ("CVE-2026-63670", ", options", "unresolved_use"),
+])
+def test_option_preconditions(tmp_path, advisory, options, status):
+    from fva.correlation import advisory_applicability as aa
+    (tmp_path / "server.js").write_text(f"const clean = require('sanitize-html')\nclean(input{options})\n")
+    profile = DeploymentProfile(profile_id="p", name="test", language_packs=("node",), entrypoints=("server.js",))
+    scan = aa.scan(tmp_path, ["server.js"], profile, "sanitize-html")
+    assert aa.precondition_status(finding(advisory, "sanitize-html"), scan, [])[0] == status
+    assert aa.precondition_status(finding(advisory, "sanitize-html"), scan, ["node_modules/x"])[0] in (
+        status, "installed_dependents")
+    assert aa.precondition_status(finding("CVE-2016-1000237", "sanitize-html"), scan, []) is None
+
+
+def test_pipeline_closes_absent_option_precondition_at_medium_confidence(tmp_path):
+    import json
+    from fva import pipeline
+    from fva.correlation import locate, reachability
+    from fva.verdicts import suggest_verdict
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "server.js").write_text("import clean from 'sanitize-html'\nclean(input, { allowedTags: [] })\n")
+    lock = tmp_path / "package-lock.json"
+    lock.write_text(json.dumps({"lockfileVersion": 3, "packages": {
+        "": {"dependencies": {"sanitize-html": "1.4.2"}}, "node_modules/sanitize-html": {"version": "1.4.2"}}}))
+    profile = DeploymentProfile(profile_id="p", name="test", language_packs=("node",), entrypoints=("server.js",))
+    index = locate.SourceIndex.build(source)
+    graph = reachability.build_graph(source, sorted(index.files), profile)
+
+    def sanitize(fid, advisory):
+        return finding(advisory, "sanitize-html").model_copy(update={"finding_id": fid, "package": PackageRef(
+            name="sanitize-html", version="1.4.2", ecosystem="npm", advisory_id=advisory)})
+
+    batch = pipeline.prepare([sanitize("a", "CVE-2021-26539"), sanitize("b", "CVE-2026-40186"),
+                              sanitize("c", "CVE-2016-1000237")], source, profile, lock, "a" * 64, index, graph)
+    assert batch.disposition == {"a": "dependency:advisory_precondition_absent",
+                                 "b": "dependency:advisory_version_unaffected", "c": "assess"}
+    row = {"finding_id": "a", "disposition": batch.disposition["a"], "deployment_profile_id": "p"}
+    verdict, codes, conf, _ = suggest_verdict(row, batch.pre_evidence["a"])
+    assert (verdict.value, codes, conf) == ("not_applicable", ("ADVISORY_PRECONDITION_ABSENT",), "medium")
