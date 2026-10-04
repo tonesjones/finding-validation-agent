@@ -158,6 +158,58 @@ a person), `whatif.json`, `whatif_rows.csv`.
 measurement. Incorrect demotions already in the run carry into every scenario. Real numbers need real passive
 observations from the app.
 
+## Passive runtime observation receipts
+
+A collector or importer writes one receipt per collection. `fva/observations.py` validates it, binds it to a run
+and turns each observation into a `runtime_observation` evidence record. Receipts stay in ignored `data/`, and so
+does the raw file they summarize (for example a coverage report). Never send either to a model or attach them to a
+ticket.
+
+```json
+{
+  "format": "fva.runtime_observation/1",
+  "profile_id": "<summary.json profile>",
+  "source_content_sha256": "<summary.json source_content_sha256>",
+  "findings_sha256": "<SHA-256 of the exact findings.jsonl bytes>",
+  "collector": {"name": "c8-coverage-import", "version": "1"},
+  "exercise": "npm test",
+  "raw_file": {"name": "coverage-final.json", "sha256": "<SHA-256 of the raw file bytes>"},
+  "collected_at": "2026-10-04T12:00:00+00:00",
+  "observations": [
+    {"kind": "line_executed", "finding_ids": ["<SAST finding_id>"], "observed": true,
+     "subject": {"path": "routes/search.ts", "line": 23}},
+    {"kind": "loaded_package", "finding_ids": ["<SCA finding_id>"], "observed": false,
+     "subject": {"name": "left-pad", "version": "1.0.0"}}
+  ]
+}
+```
+
+- `exercise` says how the app ran, such as `npm test` or `startup only`. It goes into every evidence record.
+- `collected_at` must include a timezone.
+- Each `kind` takes exactly these `subject` keys and describes only these finding types:
+
+| `kind` | `subject` keys | Finding types |
+|---|---|---|
+| `loaded_package` | `name`, `version` | sca |
+| `line_executed` | `path` (repo-relative), `line` | sast |
+| `route_registered` | `method`, `path` | sast, dast |
+| `config_state` | `key`, `value` | any |
+
+- `observed: false` records a negative result, such as a line that did not run or a package that was not loaded.
+  Leave out observations the collector could not make at all.
+- Binding fails unless profile, source hash and findings hash match the run, and every `finding_id` exists in it
+  with an allowed type.
+
+Evidence records get the id `observation:<receipt hash>:<n>` and the detail ref
+`raw:sha256:<receipt hash>#/observations/<n>`. Their `tool_versions` hold the kind, observed flag, collector, exercise,
+receipt hash, raw file hash and source hash. Summaries name the package, line, route or config key. They never
+include a config value.
+
+Stance is fixed by the contract, not by the collector. A package that was not loaded `refutes`. Every other
+observation is `neutral`, whether it was observed or not. A passive observation never confirms and never provides the
+`supports` that a `likely` verdict needs. Code that ran is not proof that it is vulnerable, and a line that did not
+run never closes a finding.
+
 ## Which AI model handles each finding
 
 The tool sends each group of findings (findings on the same code line or advisory) to one of

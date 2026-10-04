@@ -55,6 +55,11 @@ _CODES = [
     # human review via the triage worksheet (v1 append, 2026-10-01)
     ReasonCode("REVIEWER_CONFIRMED", V.confirmed, "A named reviewer confirmed the issue from the evidence packet."),
     ReasonCode("REVIEWER_NOT_APPLICABLE", V.not_applicable, "A named reviewer judged the issue not applicable to the shipped app."),
+    # passive runtime observation (v1 append, 2026-10-04): no attack traffic, never confirms
+    ReasonCode("PACKAGE_NOT_LOADED", V.not_applicable,
+               "Package was not loaded by the running app under the recorded exercise, and no shipped code imports it."),
+    ReasonCode("EXECUTED_UNDER_TEST", V.likely,
+               "Flagged line executed under the recorded exercise, with a cited static or model argument for the issue."),
 ]
 
 CODES: dict[str, ReasonCode] = {c.code: c for c in _CODES}
