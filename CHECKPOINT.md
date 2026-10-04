@@ -5,8 +5,12 @@ Last updated: 2026-10-03. Update this file when status changes.
 ## Current state
 
 - PR #9 is merged. Blind discovery and frozen evaluation tooling are implemented.
-- A static assessment experiment completed. Its scores measure agreement with a
-  supplied answer key, not independently verified security accuracy.
+- A 12-case paired assessment completed with all model identities verified, clean
+  call audits, exact case-ID coverage and no processing failures. The score measures
+  agreement with prewritten labels, not independently verified security accuracy.
+- A Tony label receipt matches the paired run's frozen case set. The checked-in local
+  readiness report predates that receipt; use the new aggregate-only eval status command
+  to refresh status without displaying private labels or per-response content.
 - Targeted validation observations were collected separately. They remain local;
   source identity, deployment details, results, authorization and artifact paths
   are recorded only in ignored `data/LOCAL-NOTES.md`.
@@ -24,7 +28,8 @@ Last updated: 2026-10-03. Update this file when status changes.
   source/run binding, retains paired raw responses and recomputes evidence during
   import and worksheet generation. Only its approved SAST code-execution marker
   oracle can produce automatic runtime confirmation. Hand-built records remain open.
-- This branch adds exact npm lodash advisory version ranges for five pilot advisories.
+- PR #12 is squash-merged as `7efe961`. It adds exact npm lodash advisory ranges
+  for five pilot advisories.
   Unknown IDs and malformed versions remain unresolved, and only a known out-of-range
   installed version can produce not-applicable; affected versions still require evidence.
 - PR #11 review repairs require an interactive exact-plan approval, reject common
@@ -32,17 +37,20 @@ Last updated: 2026-10-03. Update this file when status changes.
   verification warnings. One collection per derived run is explicitly enforced.
 - The collector has been exercised against a synthetic local server. Real pilot
   validation with this collector has not run. Hosted probing remains unimplemented;
-  this branch adds the bounded, exact npm lodash advisory ranges described below.
-- Validation: 328 tests passed, 5 skipped, including approval/allowlist gates,
+  the bounded npm lodash advisory rules are implemented.
+- Review validation: 340 tests passed, 10 skipped, including approval/allowlist gates,
   paired live collection, import, receipt-byte integrity and response deadlines.
 
 ## Next
 
-- Review the source-identity app PR and approve an exact collector plan before any
-  real pilot probe. The collector itself remains approval-gated.
-- Review and merge the advisory-range branch before considering more advisory rules.
-- Human review is for unresolved cases. Per-response grading remains optional
-  benchmark work, not the intended operator workflow.
+- Review and merge the paired-status PR. Its aggregate command has verified the
+  existing sealed 12-case run with matching receipt, clean audits, exact case coverage
+  and no processing failures.
+- The source-identity app PR and advisory-range PR are merged. Prepare an exact
+  collector plan for operator review before running the real pilot.
+- Routine triage does not require grading every model response. Route exceptions for
+  review using confidence, evidence/citation validity, conflicts and impact. Per-response
+  reasoning grades remain optional benchmark work.
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
 
 ## Historical development log
