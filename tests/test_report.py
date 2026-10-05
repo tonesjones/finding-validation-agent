@@ -61,7 +61,7 @@ def test_no_runtime_summary_leak(run):
             d["detail_ref"] = "receipts/RAWRECEIPT-DETAIL"
     p.write_text("\n".join(json.dumps(d) for d in lines) + "\n")
     report.write(run)
-    for n in ("tickets.jsonl", "report.md"):
+    for n in ("tickets.jsonl", "report.md", "report.html"):
         text = (run / n).read_text(encoding="utf-8")
         assert "RAWRECEIPT" not in text
     assert any(e["id"] == "e4" for e in _tickets(run)[0]["evidence"])
@@ -69,12 +69,40 @@ def test_no_runtime_summary_leak(run):
 
 def test_byte_identical(run):
     report.write(run)
-    first = [(run / n).read_bytes() for n in ("tickets.jsonl", "report.md")]
+    first = [(run / n).read_bytes() for n in ("tickets.jsonl", "report.md", "report.html")]
     report.write(run)
-    assert first == [(run / n).read_bytes() for n in ("tickets.jsonl", "report.md")]
+    assert first == [(run / n).read_bytes() for n in ("tickets.jsonl", "report.md", "report.html")]
 
 
 def test_cli_report(run, capsys):
     cli.main(["report", str(run)])
     assert "'open': 4" in capsys.readouterr().out
-    assert (run / "tickets.jsonl").exists() and (run / "report.md").exists()
+    assert all((run / n).exists() for n in ("tickets.jsonl", "report.md", "report.html"))
+
+
+def test_html_report_is_static_complete_and_excludes_private_fields(run):
+    token = "FAKE-TOKEN-DO-NOT-PRINT"
+    tenant = "FAKE-TENANT-DO-NOT-PRINT"
+    evidence_path = run / "evidence.jsonl"
+    evidence_rows = [json.loads(line) for line in evidence_path.read_text(encoding="utf-8").splitlines()]
+    evidence_rows[0]["summary"] = f"{token} {tenant}"
+    evidence_rows[0]["detail_ref"] = f"receipts/{token}"
+    evidence_path.write_text("\n".join(json.dumps(row) for row in evidence_rows) + "\n", encoding="utf-8")
+    (run / "summary.json").write_text(json.dumps({"profile": "p", "secret": token, "tenant_id": tenant}),
+                                       encoding="utf-8")
+    findings_path = run / "findings.jsonl"
+    findings = [json.loads(line) for line in findings_path.read_text(encoding="utf-8").splitlines()]
+    findings[0]["source_finding_id"] = "POL-<t&>"
+    findings_path.write_text("\n".join(json.dumps(row) for row in findings) + "\n", encoding="utf-8")
+
+    report.write(run)
+    page = (run / "report.html").read_text(encoding="utf-8")
+    assert page.startswith("<!doctype html>")
+    assert "Raw findings: 5" in page
+    assert "Closed issues</dt><dd>1" in page
+    assert "Fix tickets (likely or confirmed)</dt><dd>2" in page
+    assert "Needs review</dt><dd>2" in page
+    assert "TEST_ONLY" in page and "e0 · deployment_boundary · refutes · m" in page
+    assert all(finding["source_finding_id"] in page for finding in findings[1:])
+    assert "POL-&lt;t&amp;&gt;" in page and "POL-<t&>" not in page
+    assert not any(value in page for value in (token, tenant, "http://", "https://", "<script", "<link"))
