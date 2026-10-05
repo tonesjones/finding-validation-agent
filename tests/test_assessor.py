@@ -84,6 +84,25 @@ def test_prompt_is_redacted(env):
     assert "routes/login.ts" in user and "SELECT * FROM Users" in user
 
 
+class _SchemaClient(ScriptedClient):
+    cache_tag = "schema-v1"
+
+
+_K1 = "3dae0abca2c41010dd1513645d6854e0444718de420e29c0f8bb2f8863d58dd7"
+_K2 = "2deaca372d25df1ef89ccb0d4bb8ae8d5d446bca755fab7222e7b79dbae192d5"
+PINNED_CACHE_FILES = {"ScriptedClient": [f"{_K1}.json", f"{_K1}.meta.json"],
+                      "_SchemaClient": [f"{_K2}.json", f"{_K2}.meta.json"]}
+
+
+@pytest.mark.parametrize("client_cls", [ScriptedClient, _SchemaClient])
+def test_cache_file_name_is_pinned(env, tmp_path, client_cls):
+    f, idx, _ = env
+    cache = tmp_path / "cache"
+    assess(f, idx, client_cls(['{"claims": [], "confidence": "low"}']), source_content_sha256="0" * 64,
+           profile_id="p", cache_dir=cache)
+    assert sorted(p.name for p in cache.iterdir()) == PINNED_CACHE_FILES[client_cls.__name__]
+
+
 def test_cache(env, tmp_path):
     reply = {"claims": [claim("supports", 3, "SELECT * FROM Users")]}
     first, _ = run(env, reply, cache_dir=tmp_path / "cache")

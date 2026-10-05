@@ -69,6 +69,7 @@ class AssessmentResult:
     unparseable: bool = False
     agent_model: str = ""  # model the client reported running (e.g. Codex's `model:` header), else its id
     tokens: int | None = None  # tokens the client reported for the call (from cache meta on a cache hit)
+    usage: dict | None = None  # exact token usage of the call that made the answer (from cache meta on a hit)
 
 
 def _window(idx: SourceIndex, path: str, line: int, redact_all: bool) -> str:
@@ -184,7 +185,7 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
     cached = False
     cache_file = cache_dir / f"{key}.json" if cache_dir else None
     meta_file = cache_dir / f"{key}.meta.json" if cache_dir else None
-    meta = {"agent_model": client.model_id, "tokens": None}
+    meta = {"agent_model": client.model_id, "tokens": None, "usage": None}
     if cache_file and cache_file.exists():
         text, cached = cache_file.read_text(encoding="utf-8"), True
         if meta_file.exists():
@@ -192,7 +193,7 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
     else:
         text = client.complete(SYSTEM, prompt)
         meta = {"agent_model": getattr(client, "last_reported_model", None) or client.model_id,
-                "tokens": getattr(client, "last_tokens", None)}
+                "tokens": getattr(client, "last_tokens", None), "usage": getattr(client, "last_usage", None)}
         if cache_file:
             cache_file.parent.mkdir(parents=True, exist_ok=True)
             cache_file.write_text(text, encoding="utf-8")
@@ -223,4 +224,4 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
                        "prompt_version": PROMPT_VERSION, "source_content_sha256": source_content_sha256,
                        **(routing or {})})
     return AssessmentResult(f.finding_id, ev, accepted, rejected, cached, conf, unparseable, agent_model,
-                            meta["tokens"])
+                            meta["tokens"], meta.get("usage"))

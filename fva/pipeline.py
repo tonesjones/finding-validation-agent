@@ -27,7 +27,7 @@ from fva.correlation import (advisory_applicability, dast_evidence, dependency, 
                              reachability, runtime_link)
 from fva.correlation.source_pin import iter_files, pin
 from fva.langpacks import REGISTRY
-from fva.reasoning import assessor
+from fva.reasoning import assessor, pricing
 from fva.reasoning.routing import Router
 from fva.redact import CREDENTIAL_CWES
 from fva.schemas import DeploymentProfile, Finding, FindingType, RuntimeMode, Surface
@@ -170,7 +170,8 @@ def write_findings_index(out_dir: Path, findings: list[Finding], batch: Batch, i
 
 def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, client, out_dir: Path,
         lockfile: Path | None = None, cache_dir: Path | None = None, limit: int | None = None,
-        dry_run: bool = False, workers: int = 1, credential_model: str = "ask", log=print) -> dict:
+        dry_run: bool = False, workers: int = 1, credential_model: str = "ask", prices: dict | None = None,
+        log=print) -> dict:
     """`credential_model="skip"`: clusters made only of hard-coded-credential findings get no model call; only a
     runtime test can tell whether a credential is active, and their rule evidence is still recorded."""
     t0 = time.time()
@@ -222,6 +223,7 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
     ev_out = open(out_dir / "evidence.jsonl", "w", encoding="utf-8")
     as_out = open(out_dir / "assessments.jsonl", "w", encoding="utf-8")
     stats = {"clusters": 0, "errors": 0, "cached": 0, "stance": {}, "tiers": {}, "escalations": {}}
+    cost = pricing.new_cost()
     try:
         for fid, evs in batch.pre_evidence.items():
             for e in evs:
@@ -263,6 +265,8 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
                     t = stats["tiers"].setdefault(a["tier"], {"calls": 0, "cached": 0, "seconds": 0.0, "rejected": 0,
                                                                "tokens": 0, "tokens_unknown": 0, "stance": {},
                                                                "agent_models": {}})
+                    pricing.add_call(t.setdefault("cost", pricing.new_cost()), a, prices)
+                    pricing.add_call(cost, a, prices)
                     t["calls"] += 1
                     if a["tokens"] is None:
                         t["tokens_unknown"] += 1
@@ -300,6 +304,9 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
                "prompt_version": assessor.PROMPT_VERSION, "profile": profile.profile_id,
                "source_content_sha256": snap.content_sha256, "findings_total": len(findings),
                "scanner_mix": mix, "runtime_mode": mode.value, "grouped_issues": len(issues), "links": len(links),
-               "skipped": batch.skipped, **stats, "seconds": round(time.time() - t0, 1)}
+               "skipped": batch.skipped, **stats, "cost": pricing.finish(cost), "seconds": round(time.time() - t0, 1)}
+    for t in stats["tiers"].values():
+        pricing.finish(t["cost"])
+    log(pricing.summary_line(summary["cost"]))
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8")
     return summary
