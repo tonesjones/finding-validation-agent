@@ -68,6 +68,8 @@ in one file. A wrong `likely` would be an over-flag (a ticket), not a wrong clos
 already routes a model-only refutation to review. Keep `skip` as the opt-in for apps where credential
 literals must not reach a model even redacted. Nothing changes in code.
 
+Decision (owner, 2026-10-04): keep `ask`.
+
 ## 2. Exact cost accounting (CHECKPOINT backlog item 8)
 
 Today the `tokens` field is Codex's `tokens used` footer, which counts uncached input plus output.
@@ -165,6 +167,6 @@ item 1 recommendation, the item 2 smoke call, and each green PR.
 
 ## Status
 
-- 2026-10-04: PRs #29-#31 merged. Item 2's smoke calls passed (see CHECKPOINT); item 1's default decision is open.
+- 2026-10-04: PRs #29-#31 merged. Item 2's smoke calls passed (see CHECKPOINT); item 1 decided: `ask` stays the default (owner, 2026-10-04). All four items are done.
 - 2026-10-04: plan approved. Item 1 measured: recommend keeping `ask`, waiting for your decision.
   Item 4 written up (recommendation: don't build). Items 2 and 3 in progress on their branches.
