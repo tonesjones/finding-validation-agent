@@ -2,6 +2,35 @@
 
 Last updated: 2026-10-05. Update this file when status changes.
 
+## Integration review and current findings (2026-10-05)
+
+- PR #38 (DAST plan) is merged. PR #39 combines the real-envelope implementation
+  and measured results with that plan; this checkpoint accompanies its reviewed
+  merge. The original Codex prompt is retained as historical context, not repeat
+  scan authorization. Shared plan text preserves the owner's local API scan scope.
+- Review covered both changed source files, tests, sanitized fixtures and docs,
+  including the redaction and confirmation boundaries. Scanner counts use the
+  same finding-type values as scanner-mix keys. No code defect was found in this
+  bounded review; broken document encoding and stale assumed-envelope text were
+  corrected. Combined local validation: 658 passed, 5 skipped. Linux/Windows CI
+  was green at both reviewed heads and is checked again on the combined head
+  before merge. No new scan or probe ran during review.
+- Current grouped report: 504 issues, 78 open and 426 closed. Open issues comprise
+  13 `likely` and 65 `needs_review`; closed issues comprise 411 `not_applicable`
+  and 15 `valid_non_security`. These are grouped issues, not the 585 scanner rows.
+- DAST supplied two medium, seven low and two informational findings: server
+  error; sensitive form over HTTP; stack trace; deprecated or missing security
+  and cache headers; internal IP disclosure; scanner settings and crawl reports.
+  The last two are informational metadata, not demonstrated vulnerabilities.
+  Transport findings describe the local HTTP deployment, not a hosted production
+  environment. All 11 remain open; no static finding gained confirmation or closure.
+- Entitlement and real-envelope integration are unblocked. The remaining evidence
+  gap is active-attack/authenticated coverage and precise route/parameter linkage,
+  not adapter readiness. This scan disabled active attacks and supplied no dedicated
+  parameter fields. Plan a bounded local follow-up with positive/negative controls
+  and explicit authorization before scanning or retrieving further runtime evidence.
+  Do not lower link thresholds to manufacture confirmations or treat no-hit as safe.
+
 ## DAST FVA complete (2026-10-05)
 
 - Work branch `codex/dast-fva` starts from `origin/main` at `18fc93b`.
@@ -171,7 +200,8 @@ Last updated: 2026-10-05. Update this file when status changes.
   0 incorrect demotions. The fresh-run over-flags it targets are not measured yet (7 Sol calls).
 - Routine triage does not require grading model responses; open findings stay open as
   "open, not auto-verified".
-- The pilot DAST scan still awaits entitlement. Its coverage is unknown.
+- 2026-10-05: DAST entitlement resolved. A new Polaris app "FVA" has SAST, SCA and DAST. The DAST freeze is
+  lifted for `docs/plans/dast-fva-app.md`; Codex runs it from `docs/plans/dast-fva-codex-prompt.md`.
 
 ## Historical development log
 
@@ -186,7 +216,7 @@ they are not instructions to rerun or replace the frozen pilot.
 | Canonical schemas | `fva/schemas.py` | IngestionRun, Finding, EvidenceRecord (many findings per record), DeploymentProfile, Verdict (append-only, `supersedes`) |
 | Reason codes | `fva/reason_codes.py` | Vocabulary v1: 35 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer; 2 appended 2026-10-04: `PACKAGE_NOT_LOADED`, `EXECUTED_UNDER_TEST`; 7 written 2026-10-03 and merged 2026-10-04: 5 triage exceptions, 2 call sites); 16 map 1:1 from the PoC |
 | Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence; `PACKAGE_NOT_LOADED` needs a not-loaded observation beyond startup and no shipped import; `EXECUTED_UNDER_TEST` needs an executed line and a static or model `supports` |
-| Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCAâ†”SAST and SASTâ†”DAST links + groups wired in; `findings.jsonl` indexes every original finding |
+| Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
 | Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
 | Passive observations | `fva/observations.py` | receipt format `fva.runtime_observation/1` -> `runtime_observation` evidence bound to run profile, source and findings; neutral, or `refutes` for a package not loaded; `import_receipt` writes a new run after the collector rebuilds the receipt from raw output |
 | Passive collectors | `fva/loaded_packages.py` + `fva/node/loaded_modules.cjs`, `fva/coverage.py` | Node preload records loaded module paths (append as loaded, ESM via `registerHooks`); "not loaded" only with complete records; V8 or c8 coverage -> `line_executed`; verdict rules in `docs/operations.md` |
@@ -211,10 +241,10 @@ they are not instructions to rerun or replace the frozen pilot.
 | Model routing | `fva/reasoning/routing.py` | Luna/Sol per cluster, one escalation, `--astra`, `--no-route`; tier and reported model in `tool_versions` |
 | Subscription CLI clients | `fva/reasoning/model.py` | `CodexCliClient` (`codex exec`), `ClaudeCodeClient` (`claude -p`); run in an empty temp dir; commands overridable via `FVA_CODEX_CMD` / `FVA_CLAUDE_CMD` |
 | Polaris raw-issue adapter | `fva/adapters/polaris.py` (`load_mcp`) | reads get_issue / list_issues responses; package identity from `component-origin-external-id`; drops internal links/tenant id |
-| DAST adapter | `fva/adapters/polaris.py` (`load_dast`) | DAST issues -> Finding with `EndpointRef` (app-relative path only, host dropped); redacted 500-char snippets; envelope ASSUMED until a real sample exists |
+| DAST adapter | `fva/adapters/polaris.py` (`load_dast`) | DAST issues -> Finding with `EndpointRef` (app-relative path only, host dropped); redacted 500-char snippets and type text; structured FVA envelope verified on 2026-10-05; missing methods/parameters stay explicit |
 | Runtime mode | `fva/runtime_mode.py` | `none` / `dast-evidence` (default) / `live-localhost` (http(s) localhost targets only) |
-| SASTâ†”DAST links | `fva/correlation/runtime_link.py` | Express route table + CWE + parameter near sink; high/medium/low |
-| SCAâ†”SAST links | `fva/correlation/package_link.py` | shipped import in the SAST file + CWE; test-only imports never link |
+| SAST↔DAST links | `fva/correlation/runtime_link.py` | Express route table + CWE + parameter near sink; high/medium/low |
+| SCA↔SAST links | `fva/correlation/package_link.py` | shipped import in the SAST file + CWE; test-only imports never link |
 | Grouping | `fva/correlation/grouping.py` | connected components; every finding kept; SAST primary |
 | DAST evidence | `fva/correlation/dast_evidence.py` | only high-confidence links `support`; no DAST hit = no evidence; reason code `DAST_OBSERVED` |
 
@@ -345,7 +375,7 @@ Luna 89 calls / 660 s (7.4 s avg), Sol 82 calls / 725 s (8.8 s avg). Codex heade
 - **Escalation cost vs value:** 40/89 Luna calls escalated (30 low confidence, 9 unparseable, 1 bad citation).
   Sol changed the answer in 11 (10 neutral->refutes, 1 ->non_security) and stayed neutral in 29, 19 of them
   credentials that no model can decide. Escalations were about 25% of run time.
-- Codex output shows an encoding artifact (`expressionï¿½s`): the last-message file is probably not UTF-8 on
+- Codex output shows an encoding artifact (`expression�s`): the last-message file is probably not UTF-8 on
   Windows. It affects statement text only, not citation checks.
 
 ## Luna vs Sol comparison (2026-09-28, `data/runs/20260928-ab-routed/` vs `20260928-ab-sol/`)
@@ -425,7 +455,7 @@ token accounting per call and tier, routed vs Sol-only comparison (routing stays
    worth it if API billing is acceptable versus the subscription, because at list prices a run already costs under $1.
    Costed 2026-10-04 (`docs/plans/unblocked-backlog.md` item 4): about $0.56 vs $0.68 per fresh run; not built.
 
-## Milestone tasks â€” model estimate
+## Milestone tasks — model estimate
 
 Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to implement well.
 **Opus**: design judgement, security reasoning, ambiguous matching, invariants that must not break.
@@ -435,13 +465,13 @@ Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to imp
 |---|---|---|---|
 | Pre-work | Move repo to company GitHub account | Haiku | Remote/URL updates only |
 | Pre-work | Confirm data-handling rules for real Polaris data | Sonnet | Draft checklist; humans decide |
-| v0.2 | Audit rejection of malformed inputs (raw exports untouched) âœ… | Sonnet | Tests against existing adapters |
-| v0.4 | Polaris DAST adapter (URL, method, parameter, CWE, redacted req/resp) âœ… | Sonnet | Mirrors `fva/adapters/polaris.py`; redaction via `fva/redact.py` |
-| v0.4 | SASTâ†”DAST linking by CWE, route/handler, parameter, with link confidence âœ… | Opus | Fuzzy routeâ†”handler matching; false links mislead verdicts |
-| v0.4 | SCAâ†”SAST linking via vulnerable-function call sites âœ… | Opus | Advisory-to-function mapping, reachability semantics |
-| v0.4 | Grouped issue record keeping every original finding âœ… | Sonnet | Schema extension in `fva/schemas.py` |
-| v0.4 | Assessor uses linked DAST as runtime evidence; no-hit never demotes âœ… | Opus | Touches `fva/invariants.py` verdict rules |
-| v0.4 | Runtime mode setting (`none`, `dast-evidence`, `live-localhost`) âœ… | Haiku | Config flag plus guard |
+| v0.2 | Audit rejection of malformed inputs (raw exports untouched) ✅ | Sonnet | Tests against existing adapters |
+| v0.4 | Polaris DAST adapter (URL, method, parameter, CWE, redacted req/resp) ✅ | Sonnet | Mirrors `fva/adapters/polaris.py`; redaction via `fva/redact.py` |
+| v0.4 | SAST↔DAST linking by CWE, route/handler, parameter, with link confidence ✅ | Opus | Fuzzy route↔handler matching; false links mislead verdicts |
+| v0.4 | SCA↔SAST linking via vulnerable-function call sites ✅ | Opus | Advisory-to-function mapping, reachability semantics |
+| v0.4 | Grouped issue record keeping every original finding ✅ | Sonnet | Schema extension in `fva/schemas.py` |
+| v0.4 | Assessor uses linked DAST as runtime evidence; no-hit never demotes ✅ | Opus | Touches `fva/invariants.py` verdict rules |
+| v0.4 | Runtime mode setting (`none`, `dast-evidence`, `live-localhost`) ✅ | Haiku | Config flag plus guard |
 | v0.5 | Per-application runtime profile (start, health, base URL, stop) | Sonnet | Straightforward harness |
 | v0.5 | Safe HTTP/browser probes, localhost test apps only | Opus | Safety boundary; must not over-reach |
 | v0.5 | Redacted evidence receipts and negative controls | Sonnet | Reuses provenance/redaction |
@@ -454,7 +484,7 @@ Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to imp
 | v0.6 | Approval-gated comment and triage previews | Sonnet | Preview only, no writes |
 | v0.7 | Independently adjudicated multi-app benchmark | Opus | Ground-truth judgement |
 | v0.7 | Metrics: queue reduction, precision, unresolved, incorrect demotions | Sonnet | Computation over ledgers |
-| v0.7 | Measure SASTâ†”DAST link accuracy | Sonnet | Metric over labelled links |
+| v0.7 | Measure SAST↔DAST link accuracy | Sonnet | Metric over labelled links |
 | v0.7 | Measure scanner-gap discoveries separately | Opus | Judging novel findings |
 | v0.7 | Document model/prompt/tool/source/runtime versions | Haiku | Recording metadata |
 | Open | Live model-assessor run on Juice Shop vs PoC ledger | Opus | Reasoning quality is what's measured |

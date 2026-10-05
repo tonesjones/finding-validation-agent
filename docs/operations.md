@@ -28,7 +28,7 @@ Don't change the checkout or its Git configuration while a pin runs.
 ## How a run works
 
 ```
-0 export â”€â”€â”€â”€â”€â”€â–º 1 assess â”€â”€â–º 2 worksheet â”€â”€â–º 3 score â”€â”€â–º 4 review (optional) â”€â”€â–º fixes
+0 export ──────► 1 assess ──► 2 worksheet ──► 3 score ──► 4 review (optional) ──► fixes
 read-only MCP    evidence     CSV + HTML      vs answer key   human decisions
 ```
 
@@ -121,7 +121,7 @@ and at runtime). Code: `fva/export/score.py`.
 2. Match each row to the key by Polaris issue id (`source_finding_id` = ledger `candidate_id`). Rows newer than
    the key are reported as `not_in_key` and not scored.
 3. Convert the key's classification to a verdict and reason code (`LEGACY_POC_MAP` in `fva/reason_codes.py`),
-   for example `test_only` â†’ not applicable / `TEST_ONLY`, `true_positive_runtime_validated` â†’ confirmed.
+   for example `test_only` → not applicable / `TEST_ONLY`, `true_positive_runtime_validated` → confirmed.
 4. Give each row one outcome:
 
 | Outcome | Meaning |
