@@ -1,7 +1,7 @@
 """Ranked report and one ticket per open grouped issue.
 
   python -m fva report data/runs/<run>
-  -> tickets.jsonl (open issues, ranked), report.md (counts, ranked table, closed issues with evidence ids)
+  -> tickets.jsonl (open issues, ranked), report.md, report.html (static demo page)
 
 Tickets carry evidence ids, type, stance and method only: never summaries or detail_ref (runtime
 records may describe raw receipts). Output is deterministic: same run directory, same bytes.
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from html import escape
 from pathlib import Path
 
 from fva import triage
@@ -91,7 +92,7 @@ def build(run_dir: Path) -> tuple[list[dict], list[dict]]:
             if not cited:
                 raise ValueError(f"closed issue {iid} cites no evidence id")
             closed.append({"issue_id": iid, "members": srcs, "reason_codes": codes, "evidence_ids": cited,
-                           "verdict": prim["verdict"]})
+                           "evidence": evidence, "verdict": prim["verdict"]})
             continue
         score = max(finding_score(_effective(m), m["severity"], by_finding.get(m["finding_id"], []), trusted)
                     for m in members)
@@ -119,7 +120,61 @@ def write(run_dir: Path) -> dict:
     by_verdict = Counter(t["verdict"] for t in tickets) + Counter(c["verdict"] for c in closed)
     with open(run_dir / "report.md", "w", encoding="utf-8", newline="\n") as fh:
         fh.write(_report(tickets, closed, by_verdict))
+    with open(run_dir / "report.html", "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(_html(tickets, closed))
     return {"open": len(tickets), "closed": len(closed), "by_verdict": dict(sorted(by_verdict.items()))}
+
+
+def _html(tickets: list[dict], closed: list[dict]) -> str:
+    """Render only the report's safe fields. Every finding belongs to exactly one issue."""
+    def h(value) -> str:
+        return escape(str(value), quote=True)
+
+    def members(issue: dict) -> str:
+        return "".join(f"<li>{h(source_id)}</li>" for source_id in issue["members"])
+
+    def evidence(issue: dict) -> str:
+        return "".join(
+            f"<li>{h(e['id'])} · {h(e['type'])} · {h(e['stance'])} · {h(e['method'])}</li>"
+            for e in issue["evidence"])
+
+    fix = [t for t in tickets if t["verdict"] in ("likely", "confirmed")]
+    review = [t for t in tickets if t["verdict"] not in ("likely", "confirmed")]
+    by_reason: dict[str, list[dict]] = {}
+    for issue in closed:
+        for code in issue["reason_codes"]:
+            by_reason.setdefault(code, []).append(issue)
+
+    lines = ["<!doctype html>", '<html lang="en"><head><meta charset="utf-8">',
+             "<title>Findings report</title>",
+             "<style>body{font:16px system-ui,sans-serif;max-width:72rem;margin:2rem auto;padding:0 1rem;"
+             "color:#17212b;background:#fff}h1,h2{line-height:1.2}section{margin:2rem 0}"
+             "article{border:1px solid #ccd5dd;border-radius:.5rem;padding:1rem;margin:.75rem 0}"
+             "ul{overflow-wrap:anywhere}dt{font-weight:700}dd{margin:0 0 .6rem}</style></head><body>",
+             "<h1>Findings report</h1>",
+             f"<p>Raw findings: {sum(len(i['members']) for i in tickets + closed)}</p>",
+             "<dl>", f"<dt>Closed issues</dt><dd>{len(closed)}</dd>",
+             f"<dt>Fix tickets (likely or confirmed)</dt><dd>{len(fix)}</dd>",
+             f"<dt>Needs review</dt><dd>{len(review)}</dd>", "</dl>"]
+    for label, issues in (("Fix tickets", fix), ("Needs review", review)):
+        lines.append(f"<section><h2>{label} ({len(issues)})</h2>")
+        for issue in issues:
+            lines.extend((f"<article><h4>#{h(issue['rank'])} · {h(issue['severity'])} · {h(issue['title'])}</h4>",
+                          f"<p>{h(issue['location'])} · issue {h(issue['issue_id'])} · "
+                          f"verdict {h(issue['verdict'])}</p>",
+                          f"<p>Original Polaris IDs</p><ul>{members(issue)}</ul>", "</article>"))
+        lines.append("</section>")
+    lines.append(f"<section><h2>Closed by reason code ({len(closed)})</h2>")
+    for code, issues in sorted(by_reason.items()):
+        lines.append(f"<h3>{h(code)} ({len(issues)})</h3>")
+        for issue in issues:
+            lines.extend((f"<article><h4>Issue {h(issue['issue_id'])}</h4>",
+                          f"<p>Verdict: {h(issue['verdict'])}</p>",
+                          f"<p>Original Polaris IDs</p><ul>{members(issue)}</ul>",
+                          f"<p>Evidence (id · type · stance · method)</p><ul>{evidence(issue)}</ul>",
+                          "</article>"))
+    lines.append("</section></body></html>")
+    return "\n".join(lines) + "\n"
 
 
 def _cell(x) -> str:

@@ -73,6 +73,12 @@ review until you run `assess` again. That costs nothing, because the model answe
 `python -m fva import-review <run_dir> <csv>`. Decisions become human-review evidence, and a reviewer's `confirmed`
 turns likely into confirmed. `review_summary.json` gives agreement per verdict.
 
+**Report.** `python -m fva report <run_dir>` writes ranked open issues to `tickets.jsonl`, a text summary to
+`report.md`, and a self-contained `report.html`. The HTML page shows the raw finding count, issue counts for
+closures, fix tickets and review, closures by reason code with cited evidence metadata, and every original Polaris
+ID in its grouped issue. It uses inline CSS and makes no external requests. Evidence summaries, receipt details
+and run summary fields other than the profile id are excluded.
+
 ## Assess options
 
 These options change how `python -m fva assess` runs. Output goes to `data/runs/<timestamp>-<client>/`.

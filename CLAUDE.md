@@ -21,7 +21,7 @@ python -m fva worksheet data\runs\<run>                     # triage worksheet.c
 python -m fva import-review data\runs\<run> filled.csv      # reviewer decisions -> human_review evidence
 python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
 python -m fva triage data\runs\<run>                        # auto vs review routing -> triage.jsonl, triage.md
-python -m fva report data\runs\<run>                        # ranked open issues -> tickets.jsonl, report.md
+python -m fva report data\runs\<run>                        # ranked issues -> tickets.jsonl, report.md, report.html
 python -m fva whatif data\runs\<run>                        # review-queue ceiling under passive runtime evidence
 python -m fva loaded-packages preload                       # passive Node loaded-package collection; then receipt, import
 python -m fva coverage receipt data\runs\<run> --coverage <cov> --source <checkout> --exercise "npm test" --out <receipt>
