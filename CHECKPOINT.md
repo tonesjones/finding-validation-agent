@@ -73,6 +73,9 @@ Last updated: 2026-10-04. Update this file when status changes.
   is complete. CI is green on Linux and Windows, there are 0 incorrect demotions, measured counts replace the
   whatif estimate, and every branch merged through a PR. Next, as a new plan: the paused T6 live run below, the
   pilot collector plan, and DAST once the entitlement arrives.
+- 2026-10-04: the new plan is `docs/plans/runtime-pilot.md`. Owner decisions: CVE-2021-23337 gets no probe
+  and stays `likely` (a fix ticket), the demo run is not scored (no answer key), and the pilot collector plan
+  is the table in that file. The only collection planned is the banner pair below.
 - Paused T6 live run (record-desk demo, 2026-10-03). Local paths, hashes and ports are in
   `data/LOCAL-NOTES.md`. The owner chose to reuse the `9ac5160` Polaris scan against a clone at the
   source-identity commit `0f17d90`. A run on that clone decided 3 findings automatically and left 3 open. The
