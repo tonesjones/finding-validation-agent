@@ -98,8 +98,14 @@ Last updated: 2026-10-04. Update this file when status changes.
   the `model:` header or Codex's session file, and `summary.json` has a `cost` block from `fva/reasoning/pricing.py`
   (`--prices` overrides). Cache keys are unchanged: a full Juice Shop assess on the branch came entirely from cache
   with identical triage on all 573 findings. Answers cached before this change have no usage, so they cost $0 in a
-  run and add nothing to `usd_when_first_made`. One real Codex smoke call to confirm `--json` output still waits on
-  the owner's OK.
+  run and add nothing to `usd_when_first_made`.
+- 2026-10-04: real smoke calls, one per model, on the same first cluster with an empty cache dir. With `--json`, Codex
+  still writes the last-message file and prints no `model:` header; the session file named the model correctly for
+  both. Luna: 25,239 input, 0 cached, 130 output, $0.0026. Sol: 23,318 input, 0 cached, 223 output (102 reasoning),
+  $0.0489. Codex's prompt cache was cold, so these cost about 4x the warm-cache estimate (Sol 1.24 cents); a full
+  run's real cache hit rate is still unmeasured. Sol's visible answer (223 - 102 = 121) is close to Luna's 130, which
+  supports the assumption that `output_tokens` includes reasoning. Usage also has `cache_write_input_tokens` (0
+  here), which the price table ignores.
 - 2026-10-04: malformed-input audit (`docs/plans/unblocked-backlog.md` item 3). Every adapter loader (SARIF,
   generic mapping, Polaris flat, MCP and DAST, PoC ledger) raises `ValueError` naming the file and record for
   truncated, invalid or wrongly shaped input, before returning any findings, and leaves the input bytes unchanged.
