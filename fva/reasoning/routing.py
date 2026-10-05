@@ -100,6 +100,11 @@ class Router:
     def model_id(self) -> str:
         return "routed" if self.routed else self._clients[FIXED].model_id
 
+    @property
+    def built(self) -> list:
+        """Clients created so far (lazy tiers that were never used are absent)."""
+        return list(self._clients.values())
+
     def client(self, tier: str):
         if tier not in self._clients:
             with self._lock:
