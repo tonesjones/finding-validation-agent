@@ -119,3 +119,11 @@ Blocked on entitlement. No code, no plan. CHECKPOINT keeps the line "awaits enti
 3. Item 2 is the table above, not a separate document.
 
 The owner's only manual step in this plan is one `runtime approve` for the banner plan.
+
+## Status (2026-10-04)
+
+- Item 1 done. The live identity header matched, the owner approved the banner plan, and the
+  collector sent 2 requests. The banner is `confirmed` (`RUNTIME_CONFIRMED`, auto) and the other
+  five findings kept their verdicts. The demo now decides 4 of 6 automatically.
+- Item 2 done as the table above; no further collection is planned.
+- Item 3 unchanged: DAST waits on entitlement.

@@ -76,24 +76,17 @@ Last updated: 2026-10-04. Update this file when status changes.
 - 2026-10-04: the new plan is `docs/plans/runtime-pilot.md`. Owner decisions: CVE-2021-23337 gets no probe
   and stays `likely` (a fix ticket), the demo run is not scored (no answer key), and the pilot collector plan
   is the table in that file. The only collection planned is the banner pair below.
-- Paused T6 live run (record-desk demo, 2026-10-03). Local paths, hashes and ports are in
-  `data/LOCAL-NOTES.md`. The owner chose to reuse the `9ac5160` Polaris scan against a clone at the
-  source-identity commit `0f17d90`. A run on that clone decided 3 findings automatically and left 3 open. The
-  banner finding still points at `app.js:4`, a blank line at `0f17d90` (the code moved to line 5), so any
-  confirmation must note the scan revision. While drafting the collection plan, a safety classifier stopped
-  two responses about the CVE-2021-23337 template-injection probe to `/layout`. No plan file was written, the
-  app was not started, no requests were sent and no approval exists. Next steps:
-  1. Banner first. Draft a plan with only the `header_disclosure` pair: `GET /` expecting
-     `X-Powered-By: Express`, with a different route as the control. It needs no injection
-     payload. The owner runs `runtime approve`; Claude collects and imports.
-  2. Before collecting, start the app from the clone on the profile's port. Check that its
-     `X-FVA-Source-SHA256` header equals the run's source hash. If not, find the difference
-     between the app's hash and `fva.correlation.source_pin` (file set or line endings) before
-     any plan.
-  3. CVE-2021-23337 has two options. The owner can write the probe URL in the plan; the collector
-     already gates it on the call-site link and the operator approval. Or it stays `likely` through
-     `VULNERABLE_FUNCTION_CALLED`. The earlier local validation outside FVA is not a collector
-     receipt, so it cannot confirm anything automatically.
+- 2026-10-04: T6 live run done on the record-desk demo (local paths, hashes and the port are in
+  `data/LOCAL-NOTES.md`). The scan is from `9ac5160`; the app ran from a clone at the source-identity commit
+  `0f17d90`. The app's `X-FVA-Source-SHA256` header matched the run's source hash, so no hash fix was needed.
+  The owner approved a one-pair `header_disclosure` plan (`GET /` for `X-Powered-By: Express`, `GET /message`
+  as the control) with `runtime approve`. The collector sent 2 requests, both 200 and source-bound. Import
+  confirmed the CWE-201 banner as `RUNTIME_CONFIRMED`, routed auto, citing the probe and its control. The
+  other five findings kept their verdicts. The derived run decides 4 of 6 automatically: 1 confirmed,
+  1 likely (CVE-2021-23337, a fix ticket), 2 not_applicable. 2 stay open: CVE-2026-4800 (conflicting
+  evidence) and CVE-2020-28500 (ReDoS, no safe probe). The banner confirmation holds for `0f17d90`; the
+  scan's `app.js:4` is a blank line there and the `express()` call is on line 5. The report and tickets
+  contain no raw response bytes. The demo run was not scored (no answer key).
 - Routine triage does not require grading model responses; open findings stay open as
   "open, not auto-verified".
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.

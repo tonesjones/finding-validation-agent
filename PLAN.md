@@ -26,7 +26,7 @@ The frozen blind pilot stays historical: no edits to its packets, prompt or demo
 | T3 | `fva triage` outputs and score columns | Sonnet | done |
 | T4 | Vulnerable-function call sites for SCA | Opus | done |
 | T5 | `assess-v2` stance semantics | Opus | done |
-| T6 | Collector oracles and demo runtime run | Codex + Opus review | code done; live run blocked on rescan |
+| T6 | Collector oracles and demo runtime run | Codex + Opus review | done (banner); CVE-2021-23337 not probed |
 | T7 | Ranked report and tickets | Sonnet | done |
 | T8 | More closing rules; "open, not auto-verified" wording | Opus | done |
 
@@ -76,6 +76,9 @@ call-site link, missing identity header. Then an exact plan for the operator, wh
 
 Done when: the banner and CVE-2021-23337 reach `RUNTIME_CONFIRMED` only through verified
 receipts, and everything else stays open.
+Result (2026-10-04, `docs/plans/runtime-pilot.md`): the banner reached `RUNTIME_CONFIRMED` through a verified
+`header_disclosure` receipt; the other five findings kept their verdicts. The owner chose not to probe
+CVE-2021-23337, so it stays `likely` as a fix ticket.
 
 ### T7 Ranked report and tickets
 Ranking by verdict, reachability, runtime and severity. One ticket per grouped issue, no
@@ -116,8 +119,8 @@ Result: auto share 78.0% -> 84.8%, auto agreement 99.3% -> 99.4%, 0 incorrect de
 - Juice Shop (assess-v2 + T8): 84.8% auto, 99.4% auto agreement, 0 incorrect demotions.
 - T6 oracle code is merged. Codex wrote the oracles and rejection tests; Claude's review added the Express
   `X-Powered-By` framework default (the demo banner has no literal in source) and stopped later receipt
-  verification from re-reading the checkout. The live run still needs the `0f17d90` rescan and one operator
-  `runtime approve`.
+  verification from re-reading the checkout. The live run is done (2026-10-04): the banner is confirmed by a
+  verified receipt, so the demo decides 4 of 6 automatically.
 - Model calls never close a finding; their only automated effect is promoting `needs_review`
   to `likely`. Rules close 430 of 573 Juice Shop findings with no model involvement.
 - Adding reason codes changes every prompt (the prompt lists allowed codes) and empties the
@@ -127,5 +130,5 @@ Result: auto share 78.0% -> 84.8%, auto agreement 99.3% -> 99.4%, 0 incorrect de
 
 - `VULNERABLE_FUNCTION_NOT_CALLED` closes automatically at medium confidence only up to medium
   severity; high/critical stay open (triage `HIGH_IMPACT_CLOSURE`).
-- T6 needs a Polaris rescan of the demo at the source-identity commit and one operator
-  `runtime approve` per collection plan (a safety gate, not grading).
+- Each runtime collection needs one operator `runtime approve` for its exact plan (a safety gate,
+  not grading). T6 reused the `9ac5160` scan against the `0f17d90` clone instead of a rescan.
