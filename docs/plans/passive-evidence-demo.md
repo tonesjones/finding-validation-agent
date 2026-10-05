@@ -99,6 +99,8 @@ needs_review is 84 and the passive receipts again change no verdict.
 
 Write the narrative from the actual numbers. Update `CHECKPOINT.md` with results, decisions and next steps.
 
+Done 2026-10-04: `docs/demo-pitch.md`, from runs `20261004-js-merged` and `20261004-js-merged-passive`.
+
 ## Codex tasks
 
 ### S1. Polaris triage-field check (read-only)
