@@ -1,4 +1,41 @@
-# Authenticated DAST attempt
+# Authenticated DAST attempts
+
+## Owner-authorized direct-network retry
+
+After the first zero-issue stop, the owner explicitly authorized one retry on the
+original non-internal Docker network, with the target published only at
+`127.0.0.1:3000`. The temporary HTTP guard and internal network were removed from
+the scan path. The same SQLI/XSS checker limits, login/logout exclusions,
+authentication method and 15-minute timeout were retained.
+
+The WSL loopback HEAD check returned 200. Docker Desktop was the only installed
+WSL distribution; it had no curl binary and rejected Docker CLI invocation there.
+The WSL check therefore used `wget --spider`, and Linux `curl -I` in the tunnel's
+Docker network independently returned 200 for the configured private target.
+Port inspection verified loopback-only publication. The restarted app reset the
+test account; it was recreated locally, then a fresh Chrome session verified
+anonymous basket 401 and non-admin authenticated basket 200. All 357 pinned source
+files matched. The fresh recording was uploaded, downloaded and compared exactly;
+the previous scan was reconciled as cancelled before one new scan was accepted.
+
+The retry again remained in the native scanning phase until the fifteen-minute
+wall-clock limit. Cancellation returned `Cancelled`; the read-only export
+succeeded with zero issues. The zero-issue stop rule applies again. No further
+scan or assessment ran, and the temporary tunnel and target were stopped.
+
+Exact target interface counters did not change over the 641 seconds between the
+first post-launch sample and the final sample. Sampling began after preflight and launch, so it
+does not establish a request count for the entire run or prove authentication.
+Native authenticated coverage remains unproven. Removing the internal network
+did not yield a successful scan; the native execution cause remains unresolved.
+Do not attribute the first attempt's result to network isolation without evidence.
+
+Baseline metrics below remain unchanged. Fresh assessment cost for the retry is
+$0.00000 because no assessment ran; scan and subscription cost are unmeasured.
+Validation again passed: 658 tests, five skipped. This branch still adds no public
+runner or production code.
+
+## First attempt
 
 Status: stopped on 2026-10-05. The native scan was cancelled at approximately
 15 minutes with zero scanner requests at the target. Its read-only export

@@ -2,10 +2,14 @@
 
 ## Authenticated DAST follow-up stopped (2026-10-05)
 
-The isolated target, non-admin local login and identical settings artifact
-read-back passed. One active scan was accepted and cancelled at approximately
-15 minutes with zero target traffic and zero exported issues. The zero-issue
-stop rule applies; native authentication and active coverage remain unproven.
+The isolated attempt and owner-authorized direct-network retry both passed local
+non-admin login and identical settings artifact read-back. The retry removed the
+internal network and HTTP guard, bound port 3000 to loopback only and passed WSL
+and Linux private-target HEAD checks (200). Both scans were accepted and cancelled
+at approximately 15 minutes, with zero exported issues. Retry interface counters
+were unchanged over the sampled interval; the native execution cause is unresolved.
+The zero-issue stop rule applies again; native authentication and active coverage
+remain unproven. Temporary containers are stopped.
 No new assessment ran (fresh assessment cost $0.00000). Baseline auto share 83.8%,
 auto agreement 99.4%, incorrect demotions 0/0 and link counts 0/0/0 are unchanged;
 precision remains undefined for every tier. Scan cost was not measured.

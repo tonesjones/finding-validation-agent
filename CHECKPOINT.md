@@ -2,13 +2,15 @@
 
 Last updated: 2026-10-05. Update this file when status changes.
 
-## Authenticated DAST attempt (2026-10-05)
+## Authenticated DAST attempts (2026-10-05)
 
-- Target isolation, pinned source (357 matches), non-admin local login and settings
-  artifact read-back passed; active attacks read back enabled. Native replay is unproven.
-- One scan was accepted, then cancelled at approximately 15 minutes: zero scanner
-  target requests, zero authenticated basket successes and zero exported issues.
-- The zero-issue stop rule applies. No repeat scan or assessment ran; temporary
+- Both attempts passed pinned source (357 matches), non-admin local login and settings
+  artifact read-back; active attacks read back enabled. Native replay remains unproven.
+- The owner authorized a direct-network retry: no internal network or HTTP guard,
+  loopback-only port 3000, WSL HEAD 200 and Linux curl private-target HEAD 200.
+- Both scans were cancelled at approximately 15 minutes and exported zero issues.
+  Retry counters were unchanged over the sampled interval; the cause is unresolved.
+- The zero-issue stop rule applies again. No further scan or assessment ran;
   containers are stopped. Account, settings and receipts remain ignored and private.
 - Baseline unchanged: auto share 83.8%, auto agreement 99.4%, incorrect demotions
   0/0; SAST-to-DAST links 0/0/0, precision undefined. Fresh assessment cost $0.
