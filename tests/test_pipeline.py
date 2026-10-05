@@ -90,6 +90,7 @@ def test_sast_sca_only_scan_is_static_only(tmp_path):
     """Non-web apps have no DAST: no runtime mode, every finding still indexed and grouped."""
     s, rows = _mcp_run(tmp_path, ["sast", "sca"])
     assert s["scanner_mix"] == ["sast", "sca"] and s["runtime_mode"] == "none"
+    assert s["scanner_counts"] == {"sast": 1, "sca": 1}
     assert len(rows) == 2 and all(r["issue_id"] for r in rows)
     assert s["grouped_issues"] == 2
 
@@ -97,6 +98,7 @@ def test_sast_sca_only_scan_is_static_only(tmp_path):
 def test_dast_findings_are_grouped_not_assessed(tmp_path):
     s, rows = _mcp_run(tmp_path, ["sast", "sca", "dast"])
     assert s["scanner_mix"] == ["dast", "sast", "sca"] and s["runtime_mode"] == "dast-evidence"
+    assert s["scanner_counts"] == {"dast": 1, "sast": 1, "sca": 1}
     (d,) = [r for r in rows if r["finding_type"] == "dast"]
     assert d["disposition"] == "runtime_only" and d["endpoint"] == "GET /rest/products/search"
     assert s["clusters"] <= 2  # DAST never becomes a model cluster

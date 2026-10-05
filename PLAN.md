@@ -1,5 +1,37 @@
 # Plan
 
+## DAST FVA plan completed (2026-10-05)
+
+D0-D6 in `docs/plans/dast-fva-app.md` passed on `codex/dast-fva`, following the
+owner-authorized API scan prerequisite. SAST/SCA/DAST completed against local
+Juice Shop commit `15b4641`; 357 runtime source files matched, with zero missing.
+The private Docker runtime and tunnel were stopped. No hosted target probing ran;
+active attacks were disabled. Raw IDs, receipts and exports remain ignored.
+
+| Measurement | FVA result | Baseline `20261004-js-merged` | Change |
+|---|---|---|---|
+| Findings | 518 SAST + 56 SCA + 11 DAST = 585 | 573 | Different population |
+| Auto share | 83.8% | 84.8% | -1.0 percentage point |
+| Auto agreement | 99.4% | 99.4% | Unchanged |
+| Incorrect demotions (all / auto) | 0 / 0 | 0 / 0 | Unchanged |
+| Overall agreement | 86.9% | 86.5% | +0.4 point; coverage differs |
+| Label coverage | 564/585 | 570/573 | DAST has no key labels |
+| SAST-to-DAST precision, high / medium / low | Undefined / undefined / undefined | No DAST | Zero links in every tier |
+| Fresh assessment cost | $0.00000; all 87 clusters cached | Not compared | Historical priced cache cost $0.16134 is partial |
+
+All 11 DAST rows remain `needs_review`; no static confirmation or closure comes
+from DAST and no row is `confirmed`. The current static-only rows have 490/574
+auto (85.37%); including DAST gives 490/585 (83.76%), a 1.61-point decrease.
+Do not interpret undefined link precision as perfect precision or differing
+baseline agreement as a DAST accuracy gain. Active-attack value remains unmeasured.
+
+Assessment used four workers and the existing Luna bulk / Sol sensitive and
+`supports` escalation routing; cached attempt metadata identifies 51 Luna and
+46 Sol attempts. No fresh model calls or subscription savings claims were made.
+Real-envelope mapping preserves all 11 scanner IDs, drops target hosts, redacts
+text and adds no reason codes. Score/report/SARIF completed with 11 DAST results.
+Windows: 658 passed, 5 skipped. Linux: 657 passed, 6 skipped.
+
 Started 2026-10-03 from main `5b93670` (346 passed, 4 skipped). Claude leads; Opus works
 inline, Sonnet runs well-specified write-heavy packages. Status lives in `CHECKPOINT.md`.
 

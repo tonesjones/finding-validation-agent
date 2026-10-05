@@ -1,4 +1,4 @@
-"""Polaris (Black Duck) SAST + SCA findings -> Finding[].
+"""Polaris (Black Duck) SAST, SCA and DAST findings -> Finding[].
 
 Input: the flat per-issue record shape the PoC collected through the Polaris MCP
 server (one JSON object per issue, JSON array / JSONL / CSV). Columns:
@@ -12,9 +12,9 @@ server (one JSON object per issue, JSON array / JSONL / CSV). Columns:
 
 Extra columns (e.g. a PoC's disposition fields) are ignored by this adapter.
 
-TODO(real MCP sample): the raw MCP tool responses were never saved. When one is,
-add a fixture and confirm the column names above against it; only this preset
-should need to change.
+The flat preset remains a compatibility input. Saved MCP list/get responses use
+the separate raw-object adapter below. The FVA DAST export verifies its structured
+evidence envelope; missing methods or parameter fields are never inferred.
 """
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ def _unwrap(doc):
     return doc if isinstance(doc, list) else [doc]
 
 
-# Real DAST samples use location/method and structured evidence links. Older flat
+# Verified FVA DAST exports use location/method and structured evidence links. Older flat
 # exports use url/http-method and inline snippets. Neither implies runtime proof.
 _SNIPPET_MAX = 500
 _PARAM_LOCS = {"query", "body", "header", "cookie", "path"}
@@ -91,8 +91,8 @@ def _app_path(url: str) -> str:
     return path if path.startswith("/") else "/" + path
 
 
-def _snippet(text, url: str) -> str | None:
-    """Scrub host, redact secrets, THEN truncate (so a cut never leaves a partial secret)."""
+def _dast_text(text, url: str) -> str | None:
+    """Scrub the target host and secrets, including interpolated type descriptions."""
     if not text:
         return None
     import re
@@ -104,7 +104,13 @@ def _snippet(text, url: str) -> str | None:
         t = re.sub(re.escape(host), "[HOST]", t, flags=re.I)
         t = re.sub(re.escape(host.rsplit("@", 1)[-1].split(":")[0]), "[HOST]", t, flags=re.I)
     t = re.sub(r"(?im)^\s*host\s*:.*$", "Host: [HOST]", t)
-    return redact_http(t)[:_SNIPPET_MAX]
+    return redact_http(t)
+
+
+def _snippet(text, url: str) -> str | None:
+    """Redact before truncation so a cut never leaves a partial secret."""
+    text = _dast_text(text, url)
+    return text[:_SNIPPET_MAX] if text else None
 
 
 def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, types: dict | None = None) -> _Finding:
@@ -112,7 +118,7 @@ def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, 
     op = {p["key"]: p["value"] for p in issue.get("occurrenceProperties", [])}
     ctx = issue.get("context") or {}
     iid = issue["id"]
-    # DAST weaknessId is not a unique type identity (e.g. w-0 has multiple types).
+    # DAST weaknessId is not a unique type identity; multiple types may share it.
     # A sidecar must be keyed by original issue ID; full get_issue details win.
     typ = issue.get("type") or (types or {}).get(iid) or {}
     url = str(op.get("location") or op.get("url") or "").strip()
@@ -162,8 +168,8 @@ def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, 
         source_tool="polaris", source_finding_id=iid,
         rule_id=(alt.split(":")[0] if alt else None) or "unknown",
         cwe=tuple(c.strip() for c in str(op.get("cwe", "")).split(",") if c.strip().startswith("CWE-")),
-        title=op.get("title") or localized.get("name") or "Untitled issue",
-        description=op.get("description") or details.get("description", ""),
+        title=_dast_text(op.get("title") or localized.get("name") or "Untitled issue", url),
+        description=_dast_text(op.get("description") or details.get("description", ""), url) or "",
         severity=_sev.from_vendor(str(op.get("severity", "info"))),
         finding_type=_FT.dast, endpoint=ep,
         scanner_metadata={k: v for k, v in meta.items() if v not in (None, "", [])},

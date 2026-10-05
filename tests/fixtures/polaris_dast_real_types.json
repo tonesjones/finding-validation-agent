@@ -1,0 +1,145 @@
+{
+  "DAST-REAL-01": {
+    "id": "fixture-type-01",
+    "altName": "Server Error",
+    "_localized": {
+      "name": "Server Error",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-02": {
+    "id": "fixture-type-02",
+    "altName": "Using Deprecated HTTP Headers",
+    "_localized": {
+      "name": "Using Deprecated HTTP Headers",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-03": {
+    "id": "fixture-type-03",
+    "altName": "Stack Trace",
+    "_localized": {
+      "name": "Verbose Error Messages (with Stack Trace)",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-04": {
+    "id": "fixture-type-04",
+    "altName": "Missing X-Content-Type-Options Header",
+    "_localized": {
+      "name": "Missing X-Content-Type-Options Header",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-05": {
+    "id": "fixture-type-05",
+    "altName": "Missing CSP",
+    "_localized": {
+      "name": "Missing Content-Security-Policy Header",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-06": {
+    "id": "fixture-type-06",
+    "altName": "HTTP Strict Transport Security (HSTS)",
+    "_localized": {
+      "name": "HTTP Strict Transport Security (HSTS) Not Implemented",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-07": {
+    "id": "fixture-type-07",
+    "altName": "Missing Cache Control Header",
+    "_localized": {
+      "name": "Missing Cache Control Header",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-08": {
+    "id": "fixture-type-08",
+    "altName": "Sensitive Form Over HTTP",
+    "_localized": {
+      "name": "Sensitive Form Over HTTP",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-09": {
+    "id": "fixture-type-09",
+    "altName": "Smart Setting Changes",
+    "_localized": {
+      "name": "Smart Setting Changes",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-10": {
+    "id": "fixture-type-10",
+    "altName": "Internal IP Disclosure",
+    "_localized": {
+      "name": "Internal IP Disclosure",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  },
+  "DAST-REAL-11": {
+    "id": "fixture-type-11",
+    "altName": "Crawl Report",
+    "_localized": {
+      "name": "Crawl Report",
+      "otherDetails": [
+        {
+          "key": "description",
+          "value": "Sanitized scanner description."
+        }
+      ]
+    }
+  }
+}

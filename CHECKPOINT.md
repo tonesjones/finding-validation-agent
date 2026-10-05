@@ -1,6 +1,83 @@
 # Checkpoint
 
-Last updated: 2026-10-04. Update this file when status changes.
+Last updated: 2026-10-05. Update this file when status changes.
+
+## Integration review and current findings (2026-10-05)
+
+- PR #38 (DAST plan) is merged. PR #39 combines the real-envelope implementation
+  and measured results with that plan; this checkpoint accompanies its reviewed
+  merge. The original Codex prompt is retained as historical context, not repeat
+  scan authorization. Shared plan text preserves the owner's local API scan scope.
+- Review covered both changed source files, tests, sanitized fixtures and docs,
+  including the redaction and confirmation boundaries. Scanner counts use the
+  same finding-type values as scanner-mix keys. No code defect was found in this
+  bounded review; broken document encoding and stale assumed-envelope text were
+  corrected. Combined local validation: 658 passed, 5 skipped. Linux/Windows CI
+  was green at both reviewed heads and is checked again on the combined head
+  before merge. No new scan or probe ran during review.
+- Current grouped report: 504 issues, 78 open and 426 closed. Open issues comprise
+  13 `likely` and 65 `needs_review`; closed issues comprise 411 `not_applicable`
+  and 15 `valid_non_security`. These are grouped issues, not the 585 scanner rows.
+- DAST supplied two medium, seven low and two informational findings: server
+  error; sensitive form over HTTP; stack trace; deprecated or missing security
+  and cache headers; internal IP disclosure; scanner settings and crawl reports.
+  The last two are informational metadata, not demonstrated vulnerabilities.
+  Transport findings describe the local HTTP deployment, not a hosted production
+  environment. All 11 remain open; no static finding gained confirmation or closure.
+- Entitlement and real-envelope integration are unblocked. The remaining evidence
+  gap is active-attack/authenticated coverage and precise route/parameter linkage,
+  not adapter readiness. This scan disabled active attacks and supplied no dedicated
+  parameter fields. Plan a bounded local follow-up with positive/negative controls
+  and explicit authorization before scanning or retrieving further runtime evidence.
+  Do not lower link thresholds to manufacture confirmations or treat no-hit as safe.
+
+## DAST FVA complete (2026-10-05)
+
+- Work branch `codex/dast-fva` starts from `origin/main` at `18fc93b`.
+  The plan was recovered from `claude/dast-fva-plan`; D0-D6 acceptance checks passed.
+- The owner explicitly authorized project creation and scan launches through the
+  API for FVA. SAST, SCA and DAST completed against local Juice Shop source commit
+  `15b4641`. This authorization was limited to those scan prerequisites; the
+  read-only MCP allowlist is unchanged. Credential values were kept out of outputs.
+- DAST used a Linux Secure Tunnel and a private Docker target, with active attacks
+  disabled and no host port exposed. Runtime source verification: 357 files,
+  zero mismatches or missing files. Optional SBOM packaging was skipped; no app
+  source was changed. Both temporary running containers were stopped after scans.
+  No hosted target requests ran. This scan does not measure active-attack coverage.
+- D0/D1: 518 SAST, 56 SCA and 11 DAST issues exported; all DAST context tool types
+  verified. The DAST type sidecar has 11 entries. The census and schema inventory
+  remain under ignored `data/`; the optional dashboard inventory has a required-ID
+  error, while issue list/detail schemas and exports succeeded. Field names only
+  are documented in `docs/operations.md`.
+- D2/D3: all 11 real DAST IDs load byte-identically; nine endpoints have methods,
+  two retain explicit missing-method metadata. No parameter fields were inferred.
+  Structured evidence is referenced, not promoted to runtime proof. Type text now
+  redacts interpolated target hosts and secrets. No new reason codes were needed.
+  Sanitized real-envelope fixtures cover all issues and the text-redaction defect.
+- D4: `data/runs/20261005-fva-dast` uses routed assessment, four workers and
+  `dast-evidence` mode: 585 findings, 87 clusters, zero errors. All 87 clusters
+  reused cached assessments: 51 Luna attempts and 46 Sol attempts, including six
+  Luna `supports` and four low-confidence escalations. Cached metadata identifies
+  the models; no fresh model calls ran. Current assessment cost is $0.00000;
+  recorded historical priced cost is $0.16134 (incomplete historical coverage,
+  not the total cost of creating the cache or a subscription savings estimate).
+- D5: SAST-to-DAST links: high 0, medium 0, low 0. Precision is undefined for
+  every tier because there are no links to review. All 11 DAST rows stay
+  `needs_review`; zero findings are `confirmed`. The 464 other links are SCA to
+  SAST. DAST added observations but supplied no linked static confirmation or closure.
+- D6: score, report and SARIF completed, including 11 results in `dast.sarif`.
+  Auto share 83.8%, auto agreement 99.4%, incorrect demotions 0 (auto 0).
+  Compared with `20261004-js-merged`: auto share -1.0 percentage point,
+  auto agreement unchanged, incorrect demotions unchanged at zero, overall
+  agreement 86.9% versus 86.5% (+0.4 point). Label coverage is 564/585 versus
+  baseline 570/573; all 11 DAST rows and ten SCA rows lack key labels. These
+  differing populations prevent attributing the agreement change to DAST.
+  Within the new run, static rows alone have 490/574 auto (85.37%); adding the
+  11 review-only DAST rows lowers auto share to 490/585 (83.76%), by 1.61 points.
+- Validation: Windows 658 passed, 5 skipped; Linux 657 passed, 6 skipped.
+  Private exports, receipts, profiles, census, prompt audit and link review remain
+  under ignored `data/`. The local prompt audit found zero credential, tenant or
+  service-host matches in 87 redacted prompts. No files under `data/` are tracked.
 
 ## Current state
 
@@ -164,7 +241,7 @@ they are not instructions to rerun or replace the frozen pilot.
 | Model routing | `fva/reasoning/routing.py` | Luna/Sol per cluster, one escalation, `--astra`, `--no-route`; tier and reported model in `tool_versions` |
 | Subscription CLI clients | `fva/reasoning/model.py` | `CodexCliClient` (`codex exec`), `ClaudeCodeClient` (`claude -p`); run in an empty temp dir; commands overridable via `FVA_CODEX_CMD` / `FVA_CLAUDE_CMD` |
 | Polaris raw-issue adapter | `fva/adapters/polaris.py` (`load_mcp`) | reads get_issue / list_issues responses; package identity from `component-origin-external-id`; drops internal links/tenant id |
-| DAST adapter | `fva/adapters/polaris.py` (`load_dast`) | DAST issues -> Finding with `EndpointRef` (app-relative path only, host dropped); redacted 500-char snippets; envelope ASSUMED until a real sample exists |
+| DAST adapter | `fva/adapters/polaris.py` (`load_dast`) | DAST issues -> Finding with `EndpointRef` (app-relative path only, host dropped); redacted 500-char snippets and type text; structured FVA envelope verified on 2026-10-05; missing methods/parameters stay explicit |
 | Runtime mode | `fva/runtime_mode.py` | `none` / `dast-evidence` (default) / `live-localhost` (http(s) localhost targets only) |
 | SAST↔DAST links | `fva/correlation/runtime_link.py` | Express route table + CWE + parameter near sink; high/medium/low |
 | SCA↔SAST links | `fva/correlation/package_link.py` | shipped import in the SAST file + CWE; test-only imports never link |
@@ -224,7 +301,7 @@ they are not instructions to rerun or replace the frozen pilot.
   4 reachability labels changed. Polaris package identity reproduces every hand-written name alias.
 - Raw responses contain internal service URLs and the tenant id in `context._links`; never commit raw responses.
 - `list_issues` returns no issue-type info; `export` fetches it once per `weaknessId` into `types.json`.
-- Cloud workspace can now reach `poc.polaris.blackduck.com` (allowlisted 2026-09-27).
+- Cloud workspace can now reach the Polaris API host (allowlisted 2026-09-27).
 
 ## Operating model and model routing (decided 2026-09-27, built in session 2: `fva/reasoning/routing.py`)
 

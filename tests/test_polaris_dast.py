@@ -128,3 +128,45 @@ def test_dast_inline_type_wins_over_sidecar():
     finding = polaris.from_issue(issue, run_id="sample", raw_digest="0" * 64, pointer="/issues/0",
                                  types={issue["id"]: wrong})
     assert finding.title == "Deprecated TLS Protocol Version"
+
+
+REAL_LIST = FIX.parent / "polaris_dast_real_list.json"
+REAL_TYPES = FIX.parent / "polaris_dast_real_types.json"
+
+
+def test_real_fva_envelope_loads_all_ids_and_missing_methods(tmp_path):
+    page = tmp_path / "page-0001.json"
+    page.write_bytes(REAL_LIST.read_bytes())
+    (tmp_path / "dast-types.json").write_bytes(REAL_TYPES.read_bytes())
+    _, findings = polaris.load_dast(page)
+    assert [f.source_finding_id for f in findings] == [f"DAST-REAL-{i:02d}" for i in range(1, 12)]
+    assert sum(f.endpoint is not None for f in findings) == 9
+    missing = [f for f in findings if f.endpoint is None]
+    assert len(missing) == 2
+    assert all(f.scanner_metadata["endpoint_missing_fields"] == ["method"] for f in missing)
+    assert all(f.endpoint is None or f.endpoint.parameter is None for f in findings)
+    assert all("type_details_missing" not in f.scanner_metadata for f in findings)
+    assert findings[0].title == "Server Error"
+    assert findings[-1].title == "Crawl Report"
+    for f in findings:
+        assert f.scanner_metadata["dast_evidence"]
+        assert all(a["raw_ref"].startswith("raw:sha256:")
+                   for e in f.scanner_metadata["dast_evidence"] for a in e["artifacts"])
+
+
+def test_interpolated_dast_type_text_redacts_target_and_credentials():
+    issue = polaris._unwrap(json.loads(REAL_LIST.read_text()))[-1]
+    for p in issue["occurrenceProperties"]:
+        if p["key"] == "location":
+            p["value"] = "http://fixture.local:3000/"
+    issue["type"] = {"altName": "Crawl Report", "_localized": {
+        "name": "Crawl Report for fixture.local:3000",
+        "otherDetails": [{"key": "description", "value":
+            "Scanned http://fixture.local:3000/\nCookie: session=FAKE-REPORT-SECRET\n" + "x" * 600}]}}
+    finding = polaris.from_dast_issue(issue, run_id="sample", raw_digest="0" * 64, pointer="/issues/0")
+    text = finding.model_dump_json()
+    assert "fixture.local" not in text and ":3000" not in text
+    assert "FAKE-REPORT-SECRET" not in text
+    assert "[REDACTED]" in finding.description
+    assert len(finding.description) > 500  # Only HTTP snippets are truncated.
+    assert finding.endpoint is None

@@ -5,12 +5,17 @@ assumed envelope in `fva/adapters/polaris.py` (`from_dast_issue`, `load_dast`). 
 has SAST, SCA and DAST. This plan gets a real DAST export, replaces the assumptions with measured facts, and
 measures what DAST evidence adds. Codex does the work (prompt: `dast-fva-codex-prompt.md`); Claude reviews the PR.
 
-## Prerequisite (owner, in the Polaris UI)
+## Prerequisite (API scans authorized by owner on 2026-10-05)
 
 - Run a DAST scan for app FVA against a Juice Shop 20.2.0 target you are authorized to scan, and SAST/SCA
   on the same source commit.
 - Record the project and branch ids in `data/LOCAL-NOTES.md`, never in git.
-- Codex never starts scans, never probes hosted targets, and uses only `READ_ONLY_TOOLS`.
+- Owner correction on 2026-10-05: app FVA has no project data yet. Codex is explicitly
+  authorized to create the required projects and launch SAST, SCA and DAST through
+  the API using the local Juice Shop source. DAST targets the local app through
+  Polaris Secure Tunnel. No browser sign-in or hosted target probing is requested.
+- Keep `fva.polaris_mcp` and its `READ_ONLY_TOOLS` unchanged. This authorization is
+  specific to these scan prerequisites, not unrelated tenant mutations.
 
 ## Items (branch `codex/dast-fva`, one PR)
 

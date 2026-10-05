@@ -1,6 +1,8 @@
 # Codex prompt: DAST on the Polaris app "FVA"
 
-Paste the block below into Codex from the repo root.
+Historical prompt for the completed D0-D6 run. The owner later authorized the
+local API scan prerequisite recorded in `dast-fva-app.md`; the current outcome
+is in `CHECKPOINT.md`. This block does not authorize repeat scans or merges.
 
 ```
 You are working in C:\TestCode\finding-validation-agent. Read CLAUDE.md, CHECKPOINT.md and
@@ -19,7 +21,7 @@ or a token in output.
 
 Use routed assessment (Luna for bulk, Sol for security-sensitive clusters and Luna `supports`
 escalation) with --workers 4. Run python -m pytest before each commit. Normalize touched files to LF.
-Before pushing, grep the staged files for the tenant id, Polaris hostnames and "Bearer", and put the
+Before pushing, grep the staged files for the tenant id, Polaris hostnames and the authorization-scheme keyword, and put the
 zero-hit result in the PR body. Update CHECKPOINT.md and PLAN.md with measured numbers (auto share, auto
 agreement, incorrect demotions, link precision by tier, cost). Open a PR into main and don't merge it.
 Claude will review.
