@@ -91,15 +91,21 @@ Last updated: 2026-10-04. Update this file when status changes.
   audit, API-client plan). Credential default measured on Juice Shop, all from cache: `ask` decides 5 of the 40
   assessed credential findings automatically (`routes/login.ts:59-64`, `likely`, all agree with the key) and
   `skip` decides none. Overall auto share 84.8% vs 83.9%, auto agreement 99.4% in both, 0 incorrect demotions in
-  both. Recommendation: keep `ask`; awaiting the owner's decision. API client: recommend not building it (saves
+  both. Decided 2026-10-04 by the owner: `ask` stays the default; `skip` stays opt-in. API client: recommend not building it (saves
   about $0.12 per fresh run at list prices and moves spend off the subscription).
 - 2026-10-04: cost accounting (backlog item 8, `docs/plans/unblocked-backlog.md` item 2). Codex runs with
   `--json`; each fresh call records input, cached-input and output tokens in its cache meta, the model comes from
   the `model:` header or Codex's session file, and `summary.json` has a `cost` block from `fva/reasoning/pricing.py`
   (`--prices` overrides). Cache keys are unchanged: a full Juice Shop assess on the branch came entirely from cache
   with identical triage on all 573 findings. Answers cached before this change have no usage, so they cost $0 in a
-  run and add nothing to `usd_when_first_made`. One real Codex smoke call to confirm `--json` output still waits on
-  the owner's OK.
+  run and add nothing to `usd_when_first_made`.
+- 2026-10-04: real smoke calls, one per model, on the same first cluster with an empty cache dir. With `--json`, Codex
+  still writes the last-message file and prints no `model:` header; the session file named the model correctly for
+  both. Luna: 25,239 input, 0 cached, 130 output, $0.0026. Sol: 23,318 input, 0 cached, 223 output (102 reasoning),
+  $0.0489. Codex's prompt cache was cold, so these cost about 4x the warm-cache estimate (Sol 1.24 cents); a full
+  run's real cache hit rate is still unmeasured. Sol's visible answer (223 - 102 = 121) is close to Luna's 130, which
+  supports the assumption that `output_tokens` includes reasoning. Usage also has `cache_write_input_tokens` (0
+  here), which the price table ignores.
 - 2026-10-04: malformed-input audit (`docs/plans/unblocked-backlog.md` item 3). Every adapter loader (SARIF,
   generic mapping, Polaris flat, MCP and DAST, PoC ledger) raises `ValueError` naming the file and record for
   truncated, invalid or wrongly shaped input, before returning any findings, and leaves the input bytes unchanged.
@@ -336,7 +342,7 @@ token accounting per call and tier, routed vs Sol-only comparison (routing stays
    issue is `non_security`. Consider aggregation where a cited refutation of the precondition beats a
    restated sink. Bump `PROMPT_VERSION`. This is the main remaining source of disagreement.
 2. Credential CWEs: `--credential-model skip` exists (opt-in, 2026-10-02). Score both modes on the real export,
-   then decide the default. Scored 2026-10-04 (`docs/plans/unblocked-backlog.md` item 1): `ask` recommended.
+   then decide the default. Scored 2026-10-04 (`docs/plans/unblocked-backlog.md` item 1): `ask` kept as the default.
 3. SCA prompts: include advisory text, affected function, and config/usage sites so precondition checks are possible.
 4. Runtime harness: allowlist and approval gate before any probe.
 5. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
