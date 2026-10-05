@@ -123,7 +123,8 @@ Last updated: 2026-10-04. Update this file when status changes.
   0 incorrect demotions. The fresh-run over-flags it targets are not measured yet (7 Sol calls).
 - Routine triage does not require grading model responses; open findings stay open as
   "open, not auto-verified".
-- The pilot DAST scan still awaits entitlement. Its coverage is unknown.
+- 2026-10-05: DAST entitlement resolved. A new Polaris app "FVA" has SAST, SCA and DAST. The DAST freeze is
+  lifted for `docs/plans/dast-fva-app.md`; Codex runs it from `docs/plans/dast-fva-codex-prompt.md`.
 
 ## Historical development log
 
