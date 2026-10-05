@@ -85,6 +85,14 @@ is written to `guid`, so `fva.adapters.sarif` reads it back unchanged. `properti
 triage did not auto-route shows as `needs_review`), route, reason codes, issue id and evidence as id, type, stance
 and method; summaries and receipt content are excluded. Polaris import of these files is unverified.
 
+**Polaris preview.** `python -m fva preview <run_dir>` writes `preview.jsonl` and `preview.md`: one row per
+original finding with the current Polaris triage status and severity (when the run recorded them), the suggested
+values from `fva/export/polaris_triage_map.py`, an `action` and `approved: false`. Only auto-routed rows can
+propose a change; review rows stay open. Change rows carry the comment a future writer would post (verdict, reason
+codes, issue id, evidence id/type/stance/method; never summaries or receipt content). The label map is ASSUMED. This
+is a dry run: nothing is written to Polaris and every row needs approval. Runs made before `triage_status` was
+recorded in `findings.jsonl` show the current status as null.
+
 ## Assess options
 
 These options change how `python -m fva assess` runs. Output goes to `data/runs/<timestamp>-<client>/`.
