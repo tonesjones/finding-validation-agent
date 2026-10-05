@@ -31,3 +31,4 @@
 2026-10-04 | S2 coverage importer | write-heavy | codex gpt-6-sol | worktree | fix | 76k (codex) | Opus fixed V8 char offsets, canonical receipt bytes, and verify/import; folded into the L2 PR
 2026-10-04 | L2 loaded-package collector | reasoning | opus | inline | pass | n/a |
 2026-10-04 | L3 verdict rules | reasoning | opus | inline | pass | n/a | owns invariants and verdicts; mutation-checked the new tests
+2026-10-04 | L4 Juice Shop passive run | read-heavy | opus | inline | pass | n/a | ran collection in a clone; 0 verdict changes, 0 incorrect demotions

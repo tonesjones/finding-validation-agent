@@ -52,9 +52,10 @@ Last updated: 2026-10-04. Update this file when status changes.
   Every one of the 573 issues is `not-dismissed` with reason `unset`, and set-by, set-at and
   history are absent. There are no labels to harvest, so S3 is skipped for this tenant.
   L2 (loaded-package collector) and S2 (coverage importer) are merged as PR #17. L3 (verdict rules) is
-  on `claude/l3-verdict-rules`. Next: L4 collects on Juice Shop and checks every new closure against
-  the PoC ledger. L4 needs Node 22.15 or later for the "not loaded" result, and c8 source maps for
-  the `.ts` findings.
+  merged as PR #18. L4 ran Juice Shop's server and API tests on Node 24.14 with both collectors, against
+  `20261003-js-assess-v2`. The result is `20261004-js-l4-passive`. No verdict changed: 0 new closures,
+  0 incorrect demotions, agreement 0.798, review queue 123 (the whatif ceiling was 106). 13 `likely` SAST
+  findings now cite `EXECUTED_UNDER_TEST`. Next: S4 (demo report), then L5 (pitch).
 - PR #13 (paired status) is merged. Its aggregate command verified the existing
   sealed 12-case run with matching receipt, clean audits, exact case coverage and no
   processing failures.
@@ -112,6 +113,15 @@ they are not instructions to rerun or replace the frozen pilot.
 
 ## Decisions
 
+- 2026-10-04 (L4): On Juice Shop 20.2.0 the passive signals do not tell true findings from false ones, which
+  backs keeping them out of `supports`. All 6 packages behind the 29 open SCA findings loaded under the tests,
+  and every one has a shipped import, so `PACKAGE_NOT_LOADED` cannot fire. The ledger calls those findings 7
+  confirmed, 9 not_applicable and 12 needs_review (1 is not in the key). Of the 44 open SAST findings whose line
+  ran, the ledger has 10 confirmed, 9 not_applicable and 25 valid_non_security. The whatif ceiling assumed the
+  answer key picks which signal settles each finding; the real signals carry no such information. The 5 lines
+  that never ran are all Polaris dead-code findings that the ledger calls valid_non_security. Closing those as
+  `QUALITY_NOT_SECURITY` would need observations to carry `non_security`, which the decision below rules out.
+  Left open for the owner.
 - 2026-10-04: Passive `runtime_observation` evidence does not count toward `likely` and never confirms. It is in
   neither `CONFIRMING_TYPES` nor `RULE_TYPES`, and the schema allows only `neutral`, or `refutes` for a package that
   was not loaded. A coverage hit shows that code ran, not that it is vulnerable, so a `likely` still needs a cited

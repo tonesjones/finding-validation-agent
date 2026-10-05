@@ -275,6 +275,30 @@ outside the checkout. For a single file, `raw_file.sha256` hashes its bytes. For
 big-endian integer, the name, the byte length in the same form, and then the bytes. V8 offsets count characters,
 so lines with characters outside the Basic Multilingual Plane can shift by one.
 
+**Juice Shop 20.2.0 recipe.** Collect in a `git clone` of the reference checkout. Tracked files hash the same,
+and the reference copy stays free of `node_modules`. Copy the resolved lockfile in as `package-lock.json`, so
+installed versions match the run. The root `postinstall` builds the frontend, so skip scripts and rebuild only
+the native modules. Importing `server.ts` exits unless `build/server.js` and the frontend dist files exist. For
+server-side collection, placeholder files in `frontend/dist/frontend/` are enough (`index.html`, `styles.css`,
+`main.js`, `polyfills.js`, `hacking-instructor-stub.js`). Name them in the exercise, because tests that fetch
+frontend assets then fail. The API tests call the app in-process through supertest. The app's own startup check
+still contacts `https://www.alchemy.com/`. The tests run TypeScript through `tsx`, which embeds source maps.
+`c8 report` over the `NODE_V8_COVERAGE` directory therefore writes `.ts` paths.
+
+```powershell
+git clone "C:\TestCode\Juiceshop 20.2.0" C:\TestCode\juiceshop-l4; cd C:\TestCode\juiceshop-l4
+copy <fva>\data\resolved\juiceshop-20.2.0-package-lock-resolved-2026-09-27.json package-lock.json
+$env:CYPRESS_INSTALL_BINARY = "0"; $env:SCARF_ANALYTICS = "false"
+npm ci --ignore-scripts; npm rebuild sqlite3 libxmljs2 esbuild; npm run build:server
+$env:FVA_LOADED_MODULES_DIR = "<fva>\data\loaded\<dir>"; $env:NODE_V8_COVERAGE = "<fva>\data\coverage\<v8dir>"
+$env:NODE_OPTIONS = "--require <fva>\fva\node\loaded_modules.cjs"
+npm run test:server; npm run test:api
+Remove-Item Env:NODE_OPTIONS, Env:NODE_V8_COVERAGE
+npx c8@12.0.0 report --temp-directory <fva>\data\coverage\<v8dir> --reporter=json --report-dir <fva>\data\coverage\<c8dir> --src .
+```
+
+Import the loaded-package receipt into the base run, then the coverage receipt into that result.
+
 ## Which AI model handles each finding
 
 The tool sends each group of findings (findings on the same code line or advisory) to one of
