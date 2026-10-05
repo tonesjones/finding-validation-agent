@@ -432,7 +432,9 @@ def test_execution_plan_digest_unchanged(prepared):
     assert set(pair) == {"finding_id", "probe", "control", "marker", "rationale"}
     assert set(plan.model_dump(mode="json")) == {"profile_id", "source_content_sha256",
                                                  "findings_sha256", "allowed_urls", "pairs"}
-    assert runtime.digest(plan.model_dump(mode="json")) == "cb6bc7354a746eb7fda3290ea90ad6e134adf057689d94ff8d15c1a59ab5c658"
+    # findings.jsonl is written in text mode, so its hash depends on the OS line ending; the format check does not.
+    stable = plan.model_dump(mode="json") | {"findings_sha256": "0" * 64}
+    assert runtime.digest(stable) == "8fc06852f6a8676c20ab48fa95100ebb16088e3f37f1ea76052f5068a6a0c0bb"
 
 
 @pytest.mark.parametrize("oracle", ["header_disclosure", "sca_marker"])
