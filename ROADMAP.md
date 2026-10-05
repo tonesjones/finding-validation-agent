@@ -23,7 +23,7 @@ prioritized issue per real flaw, built from Polaris SAST, SCA, and DAST results.
 - [x] Extract the observed Polaris SAST/SCA export adapter from the proof of concept.
 - [x] Add a Polaris MCP adapter for raw issue responses.
 - [x] Add a simple declarative CSV/JSON field-mapping adapter.
-- [ ] Reject malformed inputs without modifying the raw exports (audit coverage).
+- [x] Reject malformed inputs without modifying the raw exports (audit coverage, `tests/test_adapter_malformed.py`).
 
 ## v0.3 — Source and deployment analysis
 

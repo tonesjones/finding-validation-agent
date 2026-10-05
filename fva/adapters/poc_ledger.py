@@ -44,11 +44,9 @@ def load(path: Path, profile: DeploymentProfile = JUICESHOP_PROFILE):
     evidence, verdicts = [], []
     for f, r in zip(findings, rows, strict=True):
         sid = f.source_finding_id
-        try:
-            code = reason_codes.LEGACY_POC_MAP[r["classification"]]
-            r["disposition"]
-        except KeyError as e:
-            raise ValueError(f"{path.name}: ledger row for {sid!r} has missing or unknown field {e}") from e
+        code = reason_codes.LEGACY_POC_MAP.get(r.get("classification"))
+        if code is None or "disposition" not in r:
+            raise ValueError(f"{path.name}: ledger row for {sid!r} lacks a known classification or a disposition")
         verdict = reason_codes.verdict_for(code)
         summary = r.get("evidence") or ""
         if r.get("runtime_component_version"):

@@ -276,8 +276,9 @@ def load_mcp(paths, *, source_commit: str | None = None):
             try:
                 if not isinstance(issue, dict):
                     raise TypeError(f"expected an object, got {type(issue).__name__}")
+                kind_types = (dast_types if dast_types is not None else types) if is_dast(issue) else types
                 out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}",
-                                      types=(dast_types if dast_types is not None else types) if is_dast(issue) else types))
+                                      types=kind_types))
             except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
                 raise ValueError(f"{p.name}/issues/{i}: malformed issue: {e!r}") from e
     return run, out
