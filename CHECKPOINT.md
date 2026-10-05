@@ -110,6 +110,14 @@ Last updated: 2026-10-04. Update this file when status changes.
   generic mapping, Polaris flat, MCP and DAST, PoC ledger) raises `ValueError` naming the file and record for
   truncated, invalid or wrongly shaped input, before returning any findings, and leaves the input bytes unchanged.
   Empty JSONL or CSV files still mean zero findings. The real Juice Shop export (573) and PoC ledger (570) load as before.
+- 2026-10-04: plan `docs/plans/remaining-unblocked.md`. ROADMAP synced with the code. `summary.json` has a
+  `versions` block, and the `tokens` stat is rebuilt from usage under `--json`. `fva sarif` (PR #33) and `fva preview`
+  (PR #34, dry run, label map ASSUMED). A fresh full Juice Shop run (`20261004-js-fresh-cost`, separate cache):
+  97 calls, $0.825 at list prices, Codex prompt cache 68.2% hit (Luna 64%, Sol 74%; Sol 1.91 cents per call). Same auto
+  share (84.8%) as the cached baseline, auto agreement 98.8% vs 99.4%, 0 incorrect demotions, 4 over-flags (baseline 1). 8 of the
+  9 changed rows came from Luna answers. Two are credential `likely` rows the key calls inactive, so on fresh answers `ask`
+  gives 3 correct and 2 wrong credential decisions. Open decision: send Luna-backed `likely` to Sol (or to review)
+  before it auto-routes.
 - Routine triage does not require grading model responses; open findings stay open as
   "open, not auto-verified".
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
@@ -341,11 +349,15 @@ token accounting per call and tier, routed vs Sol-only comparison (routing stays
 1. Stance semantics: tell the model that restating the scanner's sink is `neutral`, and that a real quality
    issue is `non_security`. Consider aggregation where a cited refutation of the precondition beats a
    restated sink. Bump `PROMPT_VERSION`. This is the main remaining source of disagreement.
+   Done in `assess-v2` (PLAN.md T5).
 2. Credential CWEs: `--credential-model skip` exists (opt-in, 2026-10-02). Score both modes on the real export,
    then decide the default. Scored 2026-10-04 (`docs/plans/unblocked-backlog.md` item 1): `ask` kept as the default.
 3. SCA prompts: include advisory text, affected function, and config/usage sites so precondition checks are possible.
+   Done: the prompt has the advisory description and call/import-site code windows; affected function names reach
+   it through call-site evidence, which covers lodash and sanitize-html only.
 4. Runtime harness: allowlist and approval gate before any probe.
-5. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
+5. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger. Partial: verdicts,
+   worksheet, triage, report, `fva score`; SARIF in PR #33; no standalone verdict ledger file.
 6. Done 2026-10-02: `.gitattributes` (`* text=auto`).
 7. Evaluate Jev (TypeSafe AI, early access since 2026-09-15) as a routing/triage classifier, not an assessor.
    Jev returns typed choices with calibrated confidence and no text, so it cannot produce the cited claims the

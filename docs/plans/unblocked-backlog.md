@@ -70,6 +70,10 @@ literals must not reach a model even redacted. Nothing changes in code.
 
 Decision (owner, 2026-10-04): keep `ask`.
 
+Update (2026-10-04, fresh answers): a full run with an empty cache gave 3 correct and 2 wrong credential `likely`
+rows (`routes/changePassword.ts:19`, `routes/resetPassword.ts:26`, both over-flags). See
+`docs/plans/remaining-unblocked.md` item 5.
+
 ## 2. Exact cost accounting (CHECKPOINT backlog item 8)
 
 Today the `tokens` field is Codex's `tokens used` footer, which counts uncached input plus output.
@@ -156,6 +160,9 @@ What it would take:
 Measured 2026-10-04: two real calls with Codex's prompt cache cold had 0 cached input tokens, so Sol cost 4.9
 cents instead of 1.24. The savings above assume a warm cache. They are larger for sparse or one-off runs. The next
 fresh full run's `cost` block will give the real hit rate.
+
+Measured 2026-10-04 on a full fresh run: 68.2% of input tokens cached, $0.825 for 97 calls. A direct API client
+would cost about $0.45 for the same calls, about 46% less (`docs/plans/remaining-unblocked.md` item 5).
 
 Recommendation: don't build it now. It saves about $0.12 per fresh run at list prices and adds real
 spend in place of the subscription. Build the shared parts when `--client litellm` is unblocked.

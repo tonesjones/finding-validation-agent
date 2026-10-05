@@ -205,6 +205,9 @@ class _CliClient:
         usage = done[0].get("usage") if done else None
         usage = {k: v for k, v in usage.items() if isinstance(v, int)} if isinstance(usage, dict) else None
         self.last_usage = usage or None
+        if self.last_tokens is None and usage and {"input_tokens", "output_tokens"} <= usage.keys():
+            # `--json` drops the footer; rebuild its figure (uncached input plus output) from the usage event
+            self.last_tokens = usage["input_tokens"] - usage.get("cached_input_tokens", 0) + usage["output_tokens"]
         if self.audit:
             tools, unknown = [], []
             for event in rows:

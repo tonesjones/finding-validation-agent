@@ -14,18 +14,21 @@ from __future__ import annotations
 
 import glob
 import json
+import platform
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 
 from fva.adapters import polaris
-from fva import runtime_mode, surface
+from fva import reason_codes, runtime_mode, surface
 from fva.correlation import (advisory_applicability, dast_evidence, dependency, grouping, locate, package_link, quality,
                              reachability, runtime_link)
-from fva.correlation.source_pin import iter_files, pin
+from fva.correlation.source_pin import _git, iter_files, pin
 from fva.langpacks import REGISTRY
 from fva.reasoning import assessor, pricing
 from fva.reasoning.routing import Router
@@ -169,6 +172,35 @@ def write_findings_index(out_dir: Path, findings: list[Finding], batch: Batch, i
                 "triage_status": f.scanner_metadata.get("triage_status")}) + "\n")
 
 
+def _cli_version(argv0: str) -> str | None:
+    try:
+        r = subprocess.run([argv0, "--version"], capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip().splitlines()[0] if r.returncode == 0 and r.stdout.strip() else None
+
+
+def versions(router: Router, snap) -> dict:
+    """What a rerun needs to match: fva code, Python, source revision and the model CLIs used. No paths."""
+    repo = Path(__file__).resolve().parent.parent
+    head = _git(repo, "rev-parse", "HEAD")
+    changes = _git(repo, "diff", "--ignore-cr-at-eol", "--stat", "HEAD") if head else None
+    try:
+        fva_version = metadata.version("fva")
+    except metadata.PackageNotFoundError:
+        fva_version = None
+    cli = {}
+    for c in router.built:
+        argv = getattr(c, "_argv", None)
+        if argv:
+            cli[Path(argv[0]).stem] = _cli_version(argv[0])
+    return {"fva": fva_version, "fva_commit": head, "fva_dirty": None if changes is None else bool(changes),
+            "python": platform.python_version(), "platform": platform.system(),
+            "reason_codes": reason_codes.VOCABULARY_VERSION, "source_commit": snap.vcs_commit,
+            "source_dirty": snap.vcs_dirty, "cli": dict(sorted(cli.items()))}
+
+
 def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, client, out_dir: Path,
         lockfile: Path | None = None, cache_dir: Path | None = None, limit: int | None = None,
         dry_run: bool = False, workers: int = 1, credential_model: str = "ask", prices: dict | None = None,
@@ -305,7 +337,8 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
                "prompt_version": assessor.PROMPT_VERSION, "profile": profile.profile_id,
                "source_content_sha256": snap.content_sha256, "findings_total": len(findings),
                "scanner_mix": mix, "runtime_mode": mode.value, "grouped_issues": len(issues), "links": len(links),
-               "skipped": batch.skipped, **stats, "cost": pricing.finish(cost), "seconds": round(time.time() - t0, 1)}
+               "skipped": batch.skipped, **stats, "cost": pricing.finish(cost), "versions": versions(router, snap),
+               "seconds": round(time.time() - t0, 1)}
     for t in stats["tiers"].values():
         pricing.finish(t["cost"])
     log(pricing.summary_line(summary["cost"]))

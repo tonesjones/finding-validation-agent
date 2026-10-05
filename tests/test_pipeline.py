@@ -126,3 +126,34 @@ def test_credential_clusters_can_skip_the_model(tmp_path):
     from fva.export import worksheet
     k = next(r for r in worksheet.build(out) if r["source_finding_id"] == "K")
     assert k["fva_verdict"] == "needs_review" and k["evidence_ids"]  # rule evidence still recorded
+
+
+def test_summary_records_versions(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "server.ts").write_text("console.log(1)\n")
+    fj = tmp_path / "f.jsonl"
+    fj.write_text("")
+    prof = DeploymentProfile(profile_id="p", name="t", language_packs=("node",), entrypoints=("server.ts",))
+    s = pipeline.run(findings_spec=str(fj), source_root=src, profile=prof, client=ScriptedClient([]),
+                     out_dir=tmp_path / "out", cache_dir=tmp_path / "cache", log=lambda *_: None)
+    v = json.loads((tmp_path / "out" / "summary.json").read_text())["versions"]
+    assert v == s["versions"]
+    assert v["python"] and v["reason_codes"] and v["source_commit"] is None and v["cli"] == {}
+    assert not any(str(tmp_path) in str(x) for x in v.values())
+
+
+def test_cli_versions_never_fail_the_run():
+    import sys
+    from pathlib import Path
+
+    from fva.reasoning.routing import Router
+
+    class Cli:
+        def __init__(self, exe):
+            self._argv = [exe, "-"]
+
+    snap = type("Snap", (), {"vcs_commit": None, "vcs_dirty": None})()
+    v = pipeline.versions(Router({"a": Cli(sys.executable), "b": Cli("no-such-cli-xyz")}), snap)
+    assert v["cli"]["no-such-cli-xyz"] is None
+    assert v["cli"][Path(sys.executable).stem].startswith("Python 3")

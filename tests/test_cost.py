@@ -62,7 +62,7 @@ def test_codex_usage_and_session_model(monkeypatch, tmp_path):
     c.complete("s", "u")
     assert seen["argv"].count("--json") == 1 and c.cache_tag == "schema-v1"
     assert c.last_usage == {**LUNA, "reasoning_output_tokens": 64}
-    assert c.last_reported_model == "gpt-6-luna" and c.last_tokens is None
+    assert c.last_reported_model == "gpt-6-luna" and c.last_tokens == 23969 - 20224 + 205  # footer equivalent
 
 
 def test_codex_header_model_wins_over_session(monkeypatch, tmp_path):
@@ -81,7 +81,7 @@ def test_missing_turn_completed_means_no_usage(monkeypatch, tmp_path):
     assert c.last_usage
     _fake_codex(monkeypatch, _events(usage=False))
     c.complete("s", "u")
-    assert c.last_usage is None
+    assert c.last_usage is None and c.last_tokens is None
 
 
 def test_last_agent_message_when_no_output_file(monkeypatch, tmp_path):

@@ -43,7 +43,9 @@ status.
 - [x] Polaris DAST adapter: URL, method, parameter, CWE, redacted request/response.
 - [x] SAST↔DAST linking by CWE, route/handler, and parameter, with link confidence.
 - [x] SCA↔SAST linking via shipped import sites in the SAST file (file-level).
-- [ ] Refine SCA↔SAST linking to call sites of the vulnerable function.
+- [ ] Refine SCA↔SAST linking to call sites of the vulnerable function. Partial: call-site evidence and
+      closures for 5 lodash advisories and sanitize-html options (`fva/correlation/advisory_applicability.py`);
+      the links themselves stay file-level.
 - [x] Grouped issue record that keeps every original finding and its evidence.
 - [x] Assessor treats a linked DAST observation as runtime evidence; absence of a
       DAST hit never demotes a finding.
@@ -54,10 +56,14 @@ status.
 Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `none` and rely on
 `likely` plus human review instead.
 
-- [ ] Per-application runtime profile: start, health check, base URL, stop.
-- [ ] Safe HTTP/browser probes restricted to localhost, intentionally vulnerable apps.
-- [ ] Store redacted evidence receipts and negative controls.
-- [ ] Require human approval for intrusive tests; exclude crash and denial-of-service tests.
+- [ ] Per-application runtime profile: start, health check, base URL, stop. Not built: the operator starts the app.
+- [ ] Safe HTTP/browser probes restricted to localhost, intentionally vulnerable apps. Partial: approved
+      loopback GET pairs (`fva/runtime.py`); no browser probes.
+- [ ] Store redacted evidence receipts and negative controls. Partial: source-bound receipts and
+      `negative_control` evidence exist, but receipts keep response bodies unredacted on disk (never sent to
+      models or tickets).
+- [x] Require human approval for intrusive tests; exclude crash and denial-of-service tests (`runtime approve`,
+      GET only, bounded pairs, time and size; `tests/test_runtime_collector.py`).
 
 ## v0.6 — Decisions, prioritization, and remediation output
 
@@ -68,23 +74,28 @@ Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `
       plus an agreement score per suggested verdict.
 - [x] Every rule closure cites its evidence (deployment boundary, dependency resolution).
 
-- [ ] Evidence-backed verdicts with confidence and reason codes per grouped issue.
-- [ ] Evidence-based priority ranking (verdict × reachability × runtime evidence × severity).
-- [ ] One remediation ticket per grouped issue: fix location, route, DAST request, linked findings.
-- [ ] Deterministic JSONL output and human-readable report.
-- [ ] Enriched Polaris-ready SAST, SCA, and DAST SARIF, kept separate.
-- [ ] Approval-gated platform comment and triage previews.
+- [ ] Evidence-backed verdicts with confidence and reason codes per grouped issue. Partial: per finding
+      (`fva/triage.py`); tickets roll codes and evidence up per issue but carry no issue-level confidence.
+- [x] Evidence-based priority ranking (verdict × reachability × runtime evidence × severity) (`fva/export/report.py`).
+- [ ] One remediation ticket per grouped issue: fix location, route, DAST request, linked findings. Partial:
+      `tickets.jsonl` has the location and linked findings; no HTTP route or DAST request yet.
+- [x] Deterministic JSONL output and human-readable report (`fva report`: tickets.jsonl, report.md, report.html).
+- [ ] Enriched Polaris-ready SAST, SCA, and DAST SARIF, kept separate. Partial: `fva sarif` (PR #33) writes one
+      file per scanner type; Polaris import is unverified and DAST waits on the entitlement.
+- [x] Approval-gated platform comment and triage previews (`fva preview`, PR #34; dry run, label map ASSUMED).
 
 ## v0.7 — Evaluation
 
 - [ ] Independently adjudicated benchmark across multiple applications.
-- [ ] Measure queue reduction, precision improvement, unresolved rate, and incorrect demotions.
+- [ ] Measure queue reduction, precision improvement, unresolved rate, and incorrect demotions. Partial:
+      `fva score` has all but precision.
 - [ ] Measure SAST↔DAST link accuracy.
 - [ ] Measure scanner-gap discoveries separately.
 - [x] Polaris data tools: MCP inventory, field census, correlation value of candidate join keys (built 2026-10-02).
 - [ ] Complete live Polaris correlation checks. Static export census and six-record
       sample DAST compatibility are checked; pilot DAST links remain unverified.
-- [ ] Document model, prompt, tool, source, and runtime versions for reproducibility.
+- [x] Document model, prompt, tool, source, and runtime versions for reproducibility (`summary.json`
+      `versions` block, plus model and prompt version).
 - [ ] Evaluate TypeSafe AI's Jev (typed decisions with calibrated confidence, no text) as a triage and routing
       step: skip / junior / senior per cluster, or predict junior escalation. Never as evidence, because Jev
       produces no citations. Gate: vendor data-handling review before sending even redacted code.
