@@ -65,8 +65,12 @@ def _md(rows: list[dict]) -> str:
     L = ["# Polaris triage preview", "",
          f"- The status and severity label map is **{MAP_STATUS}** (`MAP_STATUS` in `fva/export/polaris_triage_map.py`).",
          "- This is a dry run: nothing was written to Polaris.",
-         "- Every row needs approval (`approved` is false for all rows).", "",
-         "## Rows by action", "", "| Action | Rows |", "|---|---|"]
+         "- Every row needs approval (`approved` is false for all rows)."]
+    unknown = sum(1 for r in rows if r["action"] == CHANGE and r["current_status"] is None)
+    if unknown:
+        L.append(f"- {unknown} proposed changes have no current Polaris status in this run (runs made before "
+                 "`findings.jsonl` recorded it, or non-Polaris input), so they may already match.")
+    L += ["", "## Rows by action", "", "| Action | Rows |", "|---|---|"]
     L += [f"| {a} | {n} |" for a, n in sorted(counts.items())]
     L += ["", "## Proposed changes", "",
           "| Finding | Issue | Current status | Suggested status | Current severity | Suggested severity |",

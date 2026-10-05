@@ -116,7 +116,7 @@ def main(argv=None):
     rp.add_argument("run_dir")
     sa = sub.add_parser("sarif", help="write sast.sarif/sca.sarif (and dast.sarif if any): enriched SARIF export")
     sa.add_argument("run_dir")
-    pv = sub.add_parser("preview", help="write preview.jsonl/preview.md: proposed Polaris triage changes (dry run, never sent)")
+    pv = sub.add_parser("preview", help="write preview.jsonl/preview.md: proposed Polaris triage (dry run)")
     pv.add_argument("run_dir")
     r = sub.add_parser("import-review", help="turn a filled worksheet into human_review evidence and verdicts")
     r.add_argument("run_dir")

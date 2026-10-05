@@ -69,6 +69,10 @@ def test_markdown_header_and_counts(run):
     md = (run / "preview.md").read_text(encoding="utf-8")
     assert "ASSUMED" in md and "dry run" in md and "nothing was written to Polaris" in md and "approval" in md
     assert "| change |" in md and "| POL-d |" in md and "| POL-m |" not in md
+    assert "have no current Polaris status" in md
+    _set_status(run, {s: "Not triaged" for s in ("POL-t", "POL-l", "POL-m", "POL-d", "POL-q")})
+    preview.write(run)
+    assert "have no current Polaris status" not in (run / "preview.md").read_text(encoding="utf-8")
 
 
 def test_deterministic_bytes_and_lf(run):
