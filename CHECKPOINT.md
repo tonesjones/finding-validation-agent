@@ -1,6 +1,54 @@
 # Checkpoint
 
-Last updated: 2026-10-04. Update this file when status changes.
+Last updated: 2026-10-05. Update this file when status changes.
+
+## DAST FVA complete (2026-10-05)
+
+- Work branch `codex/dast-fva` starts from `origin/main` at `18fc93b`.
+  The plan was recovered from `claude/dast-fva-plan`; D0-D6 acceptance checks passed.
+- The owner corrected the scan prerequisite and explicitly authorized API creation
+  and scans for FVA, using the prior workflow credential. SAST, SCA and DAST
+  completed against local Juice Shop source commit `15b4641`. The read-only MCP
+  allowlist is unchanged. No credential values were printed or recorded.
+- DAST used a Linux Secure Tunnel and a private Docker target, with active attacks
+  disabled and no host port exposed. Runtime source verification: 357 files,
+  zero mismatches or missing files. Optional SBOM packaging was skipped; no app
+  source was changed. Both temporary running containers were stopped after scans.
+  No hosted target requests ran. This scan does not measure active-attack coverage.
+- D0/D1: 518 SAST, 56 SCA and 11 DAST issues exported; all DAST context tool types
+  verified. The DAST type sidecar has 11 entries. The census and schema inventory
+  remain under ignored `data/`; the optional dashboard inventory has a required-ID
+  error, while issue list/detail schemas and exports succeeded. Field names only
+  are documented in `docs/operations.md`.
+- D2/D3: all 11 real DAST IDs load byte-identically; nine endpoints have methods,
+  two retain explicit missing-method metadata. No parameter fields were inferred.
+  Structured evidence is referenced, not promoted to runtime proof. Type text now
+  redacts interpolated target hosts and secrets. No new reason codes were needed.
+  Sanitized real-envelope fixtures cover all issues and the text-redaction defect.
+- D4: `data/runs/20261005-fva-dast` uses routed assessment, four workers and
+  `dast-evidence` mode: 585 findings, 87 clusters, zero errors. All 87 clusters
+  reused cached assessments: 51 Luna attempts and 46 Sol attempts, including six
+  Luna `supports` and four low-confidence escalations. Cached metadata identifies
+  the models; no fresh model calls ran. Current assessment cost is $0.00000;
+  recorded historical priced cost is $0.16134 (incomplete historical coverage,
+  not the total cost of creating the cache or a subscription savings estimate).
+- D5: SAST-to-DAST links: high 0, medium 0, low 0. Precision is undefined for
+  every tier because there are no links to review. All 11 DAST rows stay
+  `needs_review`; zero findings are `confirmed`. The 464 other links are SCA to
+  SAST. DAST added observations but supplied no linked static confirmation or closure.
+- D6: score, report and SARIF completed, including 11 results in `dast.sarif`.
+  Auto share 83.8%, auto agreement 99.4%, incorrect demotions 0 (auto 0).
+  Compared with `20261004-js-merged`: auto share -1.0 percentage point,
+  auto agreement unchanged, incorrect demotions unchanged at zero, overall
+  agreement 86.9% versus 86.5% (+0.4 point). Label coverage is 564/585 versus
+  baseline 570/573; all 11 DAST rows and ten SCA rows lack key labels. These
+  differing populations prevent attributing the agreement change to DAST.
+  Within the new run, static rows alone have 490/574 auto (85.37%); adding the
+  11 review-only DAST rows lowers auto share to 490/585 (83.76%), by 1.61 points.
+- Validation: Windows 658 passed, 5 skipped; Linux 657 passed, 6 skipped.
+  Private exports, receipts, profiles, census, prompt audit and link review remain
+  under ignored `data/`. The local prompt audit found zero credential, tenant or
+  service-host matches in 87 redacted prompts. No files under `data/` are tracked.
 
 ## Current state
 
@@ -138,7 +186,7 @@ they are not instructions to rerun or replace the frozen pilot.
 | Canonical schemas | `fva/schemas.py` | IngestionRun, Finding, EvidenceRecord (many findings per record), DeploymentProfile, Verdict (append-only, `supersedes`) |
 | Reason codes | `fva/reason_codes.py` | Vocabulary v1: 35 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer; 2 appended 2026-10-04: `PACKAGE_NOT_LOADED`, `EXECUTED_UNDER_TEST`; 7 written 2026-10-03 and merged 2026-10-04: 5 triage exceptions, 2 call sites); 16 map 1:1 from the PoC |
 | Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence; `PACKAGE_NOT_LOADED` needs a not-loaded observation beyond startup and no shipped import; `EXECUTED_UNDER_TEST` needs an executed line and a static or model `supports` |
-| Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
+| Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCAâ†”SAST and SASTâ†”DAST links + groups wired in; `findings.jsonl` indexes every original finding |
 | Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
 | Passive observations | `fva/observations.py` | receipt format `fva.runtime_observation/1` -> `runtime_observation` evidence bound to run profile, source and findings; neutral, or `refutes` for a package not loaded; `import_receipt` writes a new run after the collector rebuilds the receipt from raw output |
 | Passive collectors | `fva/loaded_packages.py` + `fva/node/loaded_modules.cjs`, `fva/coverage.py` | Node preload records loaded module paths (append as loaded, ESM via `registerHooks`); "not loaded" only with complete records; V8 or c8 coverage -> `line_executed`; verdict rules in `docs/operations.md` |
@@ -165,8 +213,8 @@ they are not instructions to rerun or replace the frozen pilot.
 | Polaris raw-issue adapter | `fva/adapters/polaris.py` (`load_mcp`) | reads get_issue / list_issues responses; package identity from `component-origin-external-id`; drops internal links/tenant id |
 | DAST adapter | `fva/adapters/polaris.py` (`load_dast`) | DAST issues -> Finding with `EndpointRef` (app-relative path only, host dropped); redacted 500-char snippets; envelope ASSUMED until a real sample exists |
 | Runtime mode | `fva/runtime_mode.py` | `none` / `dast-evidence` (default) / `live-localhost` (http(s) localhost targets only) |
-| SAST↔DAST links | `fva/correlation/runtime_link.py` | Express route table + CWE + parameter near sink; high/medium/low |
-| SCA↔SAST links | `fva/correlation/package_link.py` | shipped import in the SAST file + CWE; test-only imports never link |
+| SASTâ†”DAST links | `fva/correlation/runtime_link.py` | Express route table + CWE + parameter near sink; high/medium/low |
+| SCAâ†”SAST links | `fva/correlation/package_link.py` | shipped import in the SAST file + CWE; test-only imports never link |
 | Grouping | `fva/correlation/grouping.py` | connected components; every finding kept; SAST primary |
 | DAST evidence | `fva/correlation/dast_evidence.py` | only high-confidence links `support`; no DAST hit = no evidence; reason code `DAST_OBSERVED` |
 
@@ -223,7 +271,7 @@ they are not instructions to rerun or replace the frozen pilot.
   4 reachability labels changed. Polaris package identity reproduces every hand-written name alias.
 - Raw responses contain internal service URLs and the tenant id in `context._links`; never commit raw responses.
 - `list_issues` returns no issue-type info; `export` fetches it once per `weaknessId` into `types.json`.
-- Cloud workspace can now reach `poc.polaris.blackduck.com` (allowlisted 2026-09-27).
+- Cloud workspace can now reach the Polaris API host (allowlisted 2026-09-27).
 
 ## Operating model and model routing (decided 2026-09-27, built in session 2: `fva/reasoning/routing.py`)
 
@@ -297,7 +345,7 @@ Luna 89 calls / 660 s (7.4 s avg), Sol 82 calls / 725 s (8.8 s avg). Codex heade
 - **Escalation cost vs value:** 40/89 Luna calls escalated (30 low confidence, 9 unparseable, 1 bad citation).
   Sol changed the answer in 11 (10 neutral->refutes, 1 ->non_security) and stayed neutral in 29, 19 of them
   credentials that no model can decide. Escalations were about 25% of run time.
-- Codex output shows an encoding artifact (`expression�s`): the last-message file is probably not UTF-8 on
+- Codex output shows an encoding artifact (`expressionï¿½s`): the last-message file is probably not UTF-8 on
   Windows. It affects statement text only, not citation checks.
 
 ## Luna vs Sol comparison (2026-09-28, `data/runs/20260928-ab-routed/` vs `20260928-ab-sol/`)
@@ -377,7 +425,7 @@ token accounting per call and tier, routed vs Sol-only comparison (routing stays
    worth it if API billing is acceptable versus the subscription, because at list prices a run already costs under $1.
    Costed 2026-10-04 (`docs/plans/unblocked-backlog.md` item 4): about $0.56 vs $0.68 per fresh run; not built.
 
-## Milestone tasks — model estimate
+## Milestone tasks â€” model estimate
 
 Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to implement well.
 **Opus**: design judgement, security reasoning, ambiguous matching, invariants that must not break.
@@ -387,13 +435,13 @@ Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to imp
 |---|---|---|---|
 | Pre-work | Move repo to company GitHub account | Haiku | Remote/URL updates only |
 | Pre-work | Confirm data-handling rules for real Polaris data | Sonnet | Draft checklist; humans decide |
-| v0.2 | Audit rejection of malformed inputs (raw exports untouched) ✅ | Sonnet | Tests against existing adapters |
-| v0.4 | Polaris DAST adapter (URL, method, parameter, CWE, redacted req/resp) ✅ | Sonnet | Mirrors `fva/adapters/polaris.py`; redaction via `fva/redact.py` |
-| v0.4 | SAST↔DAST linking by CWE, route/handler, parameter, with link confidence ✅ | Opus | Fuzzy route↔handler matching; false links mislead verdicts |
-| v0.4 | SCA↔SAST linking via vulnerable-function call sites ✅ | Opus | Advisory-to-function mapping, reachability semantics |
-| v0.4 | Grouped issue record keeping every original finding ✅ | Sonnet | Schema extension in `fva/schemas.py` |
-| v0.4 | Assessor uses linked DAST as runtime evidence; no-hit never demotes ✅ | Opus | Touches `fva/invariants.py` verdict rules |
-| v0.4 | Runtime mode setting (`none`, `dast-evidence`, `live-localhost`) ✅ | Haiku | Config flag plus guard |
+| v0.2 | Audit rejection of malformed inputs (raw exports untouched) âœ… | Sonnet | Tests against existing adapters |
+| v0.4 | Polaris DAST adapter (URL, method, parameter, CWE, redacted req/resp) âœ… | Sonnet | Mirrors `fva/adapters/polaris.py`; redaction via `fva/redact.py` |
+| v0.4 | SASTâ†”DAST linking by CWE, route/handler, parameter, with link confidence âœ… | Opus | Fuzzy routeâ†”handler matching; false links mislead verdicts |
+| v0.4 | SCAâ†”SAST linking via vulnerable-function call sites âœ… | Opus | Advisory-to-function mapping, reachability semantics |
+| v0.4 | Grouped issue record keeping every original finding âœ… | Sonnet | Schema extension in `fva/schemas.py` |
+| v0.4 | Assessor uses linked DAST as runtime evidence; no-hit never demotes âœ… | Opus | Touches `fva/invariants.py` verdict rules |
+| v0.4 | Runtime mode setting (`none`, `dast-evidence`, `live-localhost`) âœ… | Haiku | Config flag plus guard |
 | v0.5 | Per-application runtime profile (start, health, base URL, stop) | Sonnet | Straightforward harness |
 | v0.5 | Safe HTTP/browser probes, localhost test apps only | Opus | Safety boundary; must not over-reach |
 | v0.5 | Redacted evidence receipts and negative controls | Sonnet | Reuses provenance/redaction |
@@ -406,7 +454,7 @@ Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to imp
 | v0.6 | Approval-gated comment and triage previews | Sonnet | Preview only, no writes |
 | v0.7 | Independently adjudicated multi-app benchmark | Opus | Ground-truth judgement |
 | v0.7 | Metrics: queue reduction, precision, unresolved, incorrect demotions | Sonnet | Computation over ledgers |
-| v0.7 | Measure SAST↔DAST link accuracy | Sonnet | Metric over labelled links |
+| v0.7 | Measure SASTâ†”DAST link accuracy | Sonnet | Metric over labelled links |
 | v0.7 | Measure scanner-gap discoveries separately | Opus | Judging novel findings |
 | v0.7 | Document model/prompt/tool/source/runtime versions | Haiku | Recording metadata |
 | Open | Live model-assessor run on Juice Shop vs PoC ledger | Opus | Reasoning quality is what's measured |

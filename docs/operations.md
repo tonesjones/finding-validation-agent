@@ -28,7 +28,7 @@ Don't change the checkout or its Git configuration while a pin runs.
 ## How a run works
 
 ```
-0 export ──────► 1 assess ──► 2 worksheet ──► 3 score ──► 4 review (optional) ──► fixes
+0 export â”€â”€â”€â”€â”€â”€â–º 1 assess â”€â”€â–º 2 worksheet â”€â”€â–º 3 score â”€â”€â–º 4 review (optional) â”€â”€â–º fixes
 read-only MCP    evidence     CSV + HTML      vs answer key   human decisions
 ```
 
@@ -121,7 +121,7 @@ and at runtime). Code: `fva/export/score.py`.
 2. Match each row to the key by Polaris issue id (`source_finding_id` = ledger `candidate_id`). Rows newer than
    the key are reported as `not_in_key` and not scored.
 3. Convert the key's classification to a verdict and reason code (`LEGACY_POC_MAP` in `fva/reason_codes.py`),
-   for example `test_only` → not applicable / `TEST_ONLY`, `true_positive_runtime_validated` → confirmed.
+   for example `test_only` â†’ not applicable / `TEST_ONLY`, `true_positive_runtime_validated` â†’ confirmed.
 4. Give each row one outcome:
 
 | Outcome | Meaning |
@@ -379,7 +379,36 @@ read-only and write only summaries that are safe to share.
   each link points at), and lift (how much knowing one finding is real raises the odds that its linked finding is
   real). The output is totals only.
 
-The census ran on the saved Polaris export. The full correlation check against live DAST data is still open.
+The census and correlation check ran on the saved FVA export. This scan produced
+no SAST-to-DAST links; precision is undefined without linked findings to review.
+
+### Verified DAST envelope
+
+The FVA export and maximal-detail inventory verify the MCP `content[].text` JSON
+envelope, with `data._items` for list results and `data` for issue details. The
+listed issue fields include `id`, `weaknessId`, `context`, `occurrenceProperties`,
+`triageProperties` and `_links`. Context includes `toolType`, `toolId`, `date` and
+`tenantId`; the adapter drops `tenantId` and internal links.
+
+Observed occurrence property names are `location`, `method`, `cwe`, `severity`,
+`original-severity`, `attack-scope`, `attack-segment`, `attack-target`, `evidence`,
+`base-risk-score`, `family-hash`, `matched-strings`, `overall-score`, `scores` and
+`version`. `location` identifies the URL; `method` can be empty. The adapter retains
+only the application path and never infers a missing request method. Dedicated
+`parameter-name` and `parameter-location` fields are absent in this export;
+`attack-target` stays a raw reference rather than an inferred parameter.
+
+Structured `evidence[]` includes `label`, `attack.scope`, `attack.segment`,
+`attack.target` and `_links[]`. Evidence links have `rel`, `href` and `method`;
+their method describes artifact retrieval, not the observed application request.
+The adapter keeps content-addressed references and relations, dropping artifact
+URLs and raw attack targets. Inline `request` and `response-snippet` properties
+are absent in this export; the older compatibility path still redacts them.
+
+`get_issue` supplies `type.id`, `type.altName`, `type._localized.name` and
+`type._localized.otherDetails`. The sidecar `dast-types.json` is keyed by original
+issue ID because `weaknessId` does not identify each DAST type uniquely. Missing
+type details or endpoint fields remain explicit metadata, without new reason codes.
 
 ## Decisions from validation evidence
 

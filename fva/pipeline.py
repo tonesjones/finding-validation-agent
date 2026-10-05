@@ -215,6 +215,7 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
     graph = reachability.build_graph(source_root, files, profile)
     findings = load_findings(findings_spec)
     mix = scanner_mix(findings)
+    counts = {kind: sum(f.finding_type.value == kind for f in findings) for kind in mix}
     mode = runtime_mode.default_for(mix)
     batch = prepare([f for f in findings if f.finding_type is not FindingType.dast], source_root, profile,
                     lockfile, snap.content_sha256, idx, graph)
@@ -252,6 +253,7 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
                                      "reason": why}) + "\n")
         log(f"dry run: wrote {len(keys)} prompts to {pdir}; first-pass tiers {tiers}")
         return {"clusters": len(keys), "dry_run": True, "first_pass_tiers": tiers, "scanner_mix": mix,
+                "scanner_counts": counts,
                 "runtime_mode": mode.value, "grouped_issues": len(issues)}
     ev_out = open(out_dir / "evidence.jsonl", "w", encoding="utf-8")
     as_out = open(out_dir / "assessments.jsonl", "w", encoding="utf-8")
@@ -336,7 +338,8 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
     summary = {"run_at": datetime.now(timezone.utc).isoformat(), "model": router.model_id,
                "prompt_version": assessor.PROMPT_VERSION, "profile": profile.profile_id,
                "source_content_sha256": snap.content_sha256, "findings_total": len(findings),
-               "scanner_mix": mix, "runtime_mode": mode.value, "grouped_issues": len(issues), "links": len(links),
+               "scanner_mix": mix, "scanner_counts": counts, "runtime_mode": mode.value,
+               "grouped_issues": len(issues), "links": len(links),
                "skipped": batch.skipped, **stats, "cost": pricing.finish(cost), "versions": versions(router, snap),
                "seconds": round(time.time() - t0, 1)}
     for t in stats["tiers"].values():
