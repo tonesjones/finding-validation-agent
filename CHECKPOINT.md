@@ -6,10 +6,10 @@ Last updated: 2026-10-05. Update this file when status changes.
 
 - Work branch `codex/dast-fva` starts from `origin/main` at `18fc93b`.
   The plan was recovered from `claude/dast-fva-plan`; D0-D6 acceptance checks passed.
-- The owner corrected the scan prerequisite and explicitly authorized API creation
-  and scans for FVA, using the prior workflow credential. SAST, SCA and DAST
-  completed against local Juice Shop source commit `15b4641`. The read-only MCP
-  allowlist is unchanged. No credential values were printed or recorded.
+- The owner explicitly authorized project creation and scan launches through the
+  API for FVA. SAST, SCA and DAST completed against local Juice Shop source commit
+  `15b4641`. This authorization was limited to those scan prerequisites; the
+  read-only MCP allowlist is unchanged. Credential values were kept out of outputs.
 - DAST used a Linux Secure Tunnel and a private Docker target, with active attacks
   disabled and no host port exposed. Runtime source verification: 357 files,
   zero mismatches or missing files. Optional SBOM packaging was skipped; no app
