@@ -1,5 +1,6 @@
 import json
 
+from fva import triage
 from fva.export import score
 from tests.test_worksheet import run  # noqa: F401  (fixture: findings t,l,m,d,q)
 
@@ -32,5 +33,12 @@ def test_score_run(run, tmp_path):
     m = json.loads((run / "score.json").read_text())
     assert m["reason_code_match_on_agree"] == 1  # TEST_ONLY matches; DAST_OBSERVED != RUNTIME_CONFIRMED
     assert m["by"]["tier"]["rules"]["agree"] == 2
+    routes = {t["finding_id"]: t["route"] for t in triage.build(run)}
+    auto = [f for f, r in routes.items() if r == "auto"]
+    assert s["auto_share"] == round(len(auto) / 5, 3)
+    assert s["auto_incorrect_demotions"] == 0
+    assert s["auto_agreement"] is None or 0 <= s["auto_agreement"] <= 1
+    assert sum(sum(c.values()) for c in m["by"]["route"].values()) == 5
+    assert "Auto share" in (run / "score.md").read_text()
     assert "Incorrect demotions (0)" in (run / "score.md").read_text()
     assert (run / "score_rows.csv").read_text(encoding="utf-8-sig").startswith("source_finding_id")

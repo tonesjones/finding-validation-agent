@@ -23,7 +23,8 @@ from pathlib import Path
 
 from fva.adapters import polaris
 from fva import runtime_mode, surface
-from fva.correlation import advisory_applicability, dast_evidence, dependency, grouping, locate, package_link, reachability, runtime_link
+from fva.correlation import (advisory_applicability, dast_evidence, dependency, grouping, locate, package_link, quality,
+                             reachability, runtime_link)
 from fva.correlation.source_pin import iter_files, pin
 from fva.langpacks import REGISTRY
 from fva.reasoning import assessor
@@ -75,6 +76,7 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
     clusters: OrderedDict = OrderedDict()
     skipped: dict[str, int] = {}
     pre, sites, disp = {}, {}, {}
+    calls: dict = {}
 
     def skip(f: Finding, why: str, ev: list):
         """Rule-decided finding: keep the evidence the rule used, so the closure can cite it."""
@@ -87,9 +89,13 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
         if not is_deployed(surf, profile):
             skip(f, f"surface:{surf.value}", [surface.to_evidence(f, profile)])
             continue
-        ev = []
+        ev, called = [], []
         if f.location:
             ev.append(locate.to_evidence(locate.locate(f, idx), source_content_sha256=snapshot_sha))
+        if name := quality.checker(f):
+            ev.append(quality.to_evidence(f, name, profile.profile_id))
+            skip(f, f"quality:{name}", ev)
+            continue
         if f.package and inventory is not None:
             d = dependency.reconcile(f, inventory)
             ev.append(dependency.to_evidence(d, inventory_ref=str(lockfile.name), profile_id=profile.profile_id))
@@ -104,6 +110,17 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
                     if not applies:
                         skip(f, "dependency:advisory_version_unaffected", ev)
                         continue
+                    name = f.package.name.lower()
+                    if name not in calls:  # one source scan and lockfile read per package per run
+                        calls[name] = (advisory_applicability.scan(source_root, sorted(graph.files), profile, name),
+                                       REGISTRY["node"].dependents(lockfile, f.package.name))
+                    use = advisory_applicability.use_evidence(f, *calls[name], profile.profile_id)
+                    if use:
+                        ev.append(use[0])
+                        if use[1]:
+                            skip(f, use[1], ev)
+                            continue
+                        called = advisory_applicability.called_at(f, calls[name][0])
         r = reachability.assess(f, graph, profile, declared_direct=direct)
         ev.append(reachability.to_evidence(r, source_content_sha256=snapshot_sha, profile_id=profile.profile_id))
         if r.status == "imported_only_outside_deployment":
@@ -113,7 +130,7 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
         pre[f.finding_id] = ev
         key = cluster_key(f)
         clusters.setdefault(key, []).append(f)
-        sites[key] = [(s.rsplit(":", 1)[0], int(s.rsplit(":", 1)[1])) for s in r.sites]
+        sites[key] = called + [(s.rsplit(":", 1)[0], int(s.rsplit(":", 1)[1])) for s in r.sites]
     return Batch(clusters, skipped, pre, sites, disp)
 
 

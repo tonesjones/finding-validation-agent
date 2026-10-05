@@ -90,3 +90,29 @@ def test_cache(env, tmp_path):
     f, idx, _ = env
     second = assess(f, idx, ScriptedClient([]), source_content_sha256="0" * 64, profile_id="p", cache_dir=tmp_path / "cache")
     assert second.cached and second.evidence.stance is first.evidence.stance
+
+
+def _claim(stance, path, line, code=None):
+    return {"stance": stance, "suggested_reason_code": code, "statement": "s",
+            "citations": [{"path": path, "line": line, "quote": "q"}]}
+
+
+def test_cited_precondition_refutation_outranks_restated_sink():
+    from fva.reasoning.assessor import _aggregate
+    sink = ("routes/a.ts", 40)
+    restated = _claim("supports", "routes/a.ts", 41)
+    precondition = _claim("refutes", "routes/a.ts", 12, "NO_ATTACKER_CONTROL")
+    assert _aggregate([restated, precondition], sink) is Stance.refutes
+    # a supports claim that cites the input path keeps the conflict neutral
+    assert _aggregate([restated, _claim("supports", "routes/b.ts", 5), precondition], sink) is Stance.neutral
+    # a refutation without a precondition code, or citing only the sink, does not win
+    assert _aggregate([restated, _claim("refutes", "routes/a.ts", 12)], sink) is Stance.neutral
+    assert _aggregate([restated, _claim("refutes", "routes/a.ts", 40, "NO_ATTACKER_CONTROL")], sink) is Stance.neutral
+    assert _aggregate([restated, precondition]) is Stance.neutral  # no sink location (e.g. SCA)
+
+
+def test_prompt_lists_only_model_reason_codes():
+    from fva.reasoning.assessor import MODEL_CODES, SYSTEM
+    assert not {"MODEL_ONLY_REFUTATION", "REVIEWER_CONFIRMED", "PACKAGE_NOT_LOADED", "EXECUTED_UNDER_TEST"} & set(MODEL_CODES)
+    assert {"NO_ATTACKER_CONTROL", "VULNERABLE_FUNCTION_NOT_CALLED", "INSUFFICIENT_EVIDENCE"} <= set(MODEL_CODES)
+    assert "Restating what the scanner flagged" in SYSTEM

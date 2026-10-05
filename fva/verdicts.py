@@ -10,17 +10,27 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from fva.correlation.quality import QUALITY_CHECKERS
 from fva.invariants import InvariantError, check_verdict
+from fva.reason_codes import verdict_for
 from fva.schemas import EvidenceRecord, EvidenceType, Stance, Verdict, VerdictValue as V
 
-# pipeline skip disposition -> not_applicable reason code (decided before any model call)
+# pipeline skip disposition -> closing reason code (decided before any model call)
 SKIP_CODES = {
     "surface:test": "TEST_ONLY", "surface:fixture": "NON_EXECUTABLE_FIXTURE",
     "surface:infrastructure": "UNUSED_DEPLOYMENT_CONFIG", "surface:api_spec": "DOCUMENTATION_ONLY",
     "surface:documentation": "DOCUMENTATION_ONLY", "dependency:version_drift": "VERSION_DRIFT",
     "dependency:not_installed": "VERSION_DRIFT",
     "dependency:advisory_version_unaffected": "ADVISORY_VERSION_MISMATCH",
+    "dependency:vulnerable_function_not_called": "VULNERABLE_FUNCTION_NOT_CALLED",
+    "dependency:advisory_precondition_absent": "ADVISORY_PRECONDITION_ABSENT",
+    **{f"quality:{name}": "QUALITY_NOT_SECURITY" for name in QUALITY_CHECKERS},
 }
+# Rule closures that can miss a use the source scan cannot see stay below high confidence.
+# A quality checker can flag a mistyped security check, so its closure also stays below high.
+SKIP_CONFIDENCE = {"dependency:vulnerable_function_not_called": "medium",
+                   "dependency:advisory_precondition_absent": "medium",
+                   **{f"quality:{name}": "medium" for name in QUALITY_CHECKERS}}
 RULE_CONTEXT = {EvidenceType.static_source, EvidenceType.reachability, EvidenceType.dependency_resolution}
 
 
@@ -65,10 +75,11 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
     if profile and any(e.deployment_profile_id and e.deployment_profile_id != profile for e in evs):
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
-    if disp in SKIP_CODES:  # deployment-boundary / dependency rules: decided before any model call
-        code = (SKIP_CODES[disp],)
-        if check_suggestion(row["finding_id"], V.not_applicable, code, evs, "high", profile):
-            return V.not_applicable, code, "high", evs
+    if disp in SKIP_CODES:  # boundary, dependency and quality rules: decided before any model call
+        code, conf = (SKIP_CODES[disp],), SKIP_CONFIDENCE.get(disp, "high")
+        verdict = verdict_for(code[0])
+        if check_suggestion(row["finding_id"], verdict, code, evs, conf, profile):
+            return verdict, code, conf, evs
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs  # e.g. a run made before rule evidence
     # Not loaded closes only when no shipped code imports the package (checked by the invariant). Otherwise the
     # exercise may simply not have reached it, so the finding goes on through the rules below.
@@ -97,7 +108,9 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
         if check_suggestion(row["finding_id"], V.valid_non_security, ("QUALITY_NOT_SECURITY",), evs, "medium", profile):
             return V.valid_non_security, ("QUALITY_NOT_SECURITY",), "medium", evs
     if Stance.supports in stances and any(e.evidence_type in RULE_CONTEXT for e in evs):
-        if row["finding_type"] == "sca":
+        if any(e.method == "advisory_call_site:called" for e in evs):
+            codes = ["VULNERABLE_FUNCTION_CALLED"]
+        elif row["finding_type"] == "sca":
             codes = ["VULNERABLE_VERSION_IMPORTED"]
         else:
             executed = _observed(evs, "line_executed", True)

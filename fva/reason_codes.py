@@ -60,6 +60,15 @@ _CODES = [
                "Package was not loaded by the running app under the recorded exercise, and no shipped code imports it."),
     ReasonCode("EXECUTED_UNDER_TEST", V.likely,
                "Flagged line executed under the recorded exercise, with a cited static or model argument for the issue."),
+    # triage exceptions (v1 append, written 2026-10-03, merged 2026-10-04): why `fva.triage` routes a suggestion to a person
+    ReasonCode("LOW_CONFIDENCE", V.needs_review, "Suggested verdict is below the confidence triage policy accepts unreviewed."),
+    ReasonCode("MODEL_ONLY_REFUTATION", V.needs_review, "Only model output argues the issue is absent; no rule-derived evidence refutes it."),
+    ReasonCode("PROFILE_MISMATCH", V.needs_review, "Evidence names no deployment profile or a different one than the run."),
+    ReasonCode("UNVERIFIED_RUNTIME", V.needs_review, "Runtime evidence has no verified collector receipt."),
+    ReasonCode("HIGH_IMPACT_CLOSURE", V.needs_review, "A high or critical finding would be closed or demoted without high-confidence rule evidence."),
+    # advisory call sites (v1 append, written 2026-10-03, merged 2026-10-04)
+    ReasonCode("VULNERABLE_FUNCTION_CALLED", V.likely, "Shipped code calls a function the advisory names, on an affected version; not executed."),
+    ReasonCode("VULNERABLE_FUNCTION_NOT_CALLED", V.not_applicable, "No shipped code or installed package calls the functions the advisory names."),
 ]
 
 CODES: dict[str, ReasonCode] = {c.code: c for c in _CODES}
