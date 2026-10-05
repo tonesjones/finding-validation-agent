@@ -116,8 +116,11 @@ Last updated: 2026-10-04. Update this file when status changes.
   97 calls, $0.825 at list prices, Codex prompt cache 68.2% hit (Luna 64%, Sol 74%; Sol 1.91 cents per call). Same auto
   share (84.8%) as the cached baseline, auto agreement 98.8% vs 99.4%, 0 incorrect demotions, 4 over-flags (baseline 1). 8 of the
   9 changed rows came from Luna answers. Two are credential `likely` rows the key calls inactive, so on fresh answers `ask`
-  gives 3 correct and 2 wrong credential decisions. Open decision: send Luna-backed `likely` to Sol (or to review)
-  before it auto-routes.
+  gives 3 correct and 2 wrong credential decisions.
+- 2026-10-04: owner decision: a Luna `supports` escalates once to Sol, so no `likely` rests on Luna alone. On the
+  baseline's cached answers (`20261004-js-sol-supports`, 6 fresh Sol calls, $0.16) Sol backed 3 of 6 and left 3
+  `routes/login.ts` credentials (key: confirmed) open. Auto share 84.8% to 84.3%, auto agreement 99.4% in both,
+  0 incorrect demotions. The fresh-run over-flags it targets are not measured yet (7 Sol calls).
 - Routine triage does not require grading model responses; open findings stay open as
   "open, not auto-verified".
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
@@ -249,7 +252,8 @@ Codex `tokenomics` skill (copy in `data/codex-tokenomics-skill.md`, not committe
   943), SSRF (918), authn/authz and JWT (284, 285, 287, 347, 639, 862, 863), crypto (320, 326, 327),
   SCA advisory-precondition questions, and any critical-severity finding.
 - **Escalate Luna -> Sol once** when Luna is mismatched: citations rejected, unparseable output, conflicting
-  claims, low self-reported confidence, or Luna `refutes` a high/critical finding. No further retries.
+  claims, low self-reported confidence, Luna `refutes` a high/critical finding, or Luna `supports` (owner,
+  2026-10-04: no `likely` rests on Luna alone). No further retries.
 - **Astra** is never automatic; only on an explicit flag for a specific hard cluster.
 - Record who did the work: `tool_versions.agent_model` from the model Codex reports running (its header
   line `model: ...`), not just the requested one; plus `routing_tier` and `routing_reason`. Cache keys already

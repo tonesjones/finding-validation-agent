@@ -72,6 +72,7 @@ def test_clean_junior_answer_is_kept(tmp_path, idx):
     ("not json", "low", "unparseable output"),
     (reply(conf="low"), "low", "low confidence"),
     (reply("refutes"), "high", "refutes high/critical"),
+    (reply("supports"), "low", "supports"),
     (json.dumps({"claims": [json.loads(reply("supports"))["claims"][0], json.loads(reply("refutes"))["claims"][0]],
                  "confidence": "high"}), "low", "conflicting claims")])
 def test_escalates_once_to_senior(tmp_path, idx, junior, severity, why):
@@ -83,13 +84,19 @@ def test_escalates_once_to_senior(tmp_path, idx, junior, severity, why):
 
 
 def test_low_confidence_credential_is_not_escalated(tmp_path, idx):
-    r, _, s = routed(tmp_path, idx, "CWE-798", "medium", [reply(conf="low")])
+    r, _, s = routed(tmp_path, idx, "CWE-798", "medium", [reply("neutral", conf="low")])
     assert r.tier == JUNIOR and not s.prompts
 
 
 def test_credential_still_escalates_on_rejected_citation(tmp_path, idx):
     r, _, s = routed(tmp_path, idx, "CWE-798", "medium", [reply(quote="invented", conf="low")], [reply()])
     assert r.tier == SENIOR and r.attempts[0]["escalate"] == "citations rejected"
+
+
+def test_supporting_credential_escalates(tmp_path, idx):
+    r, _, s = routed(tmp_path, idx, "CWE-798", "medium", [reply("supports")], [reply("neutral")])
+    assert r.tier == SENIOR and r.attempts[0]["escalate"] == "supports"
+    assert r.result.evidence.stance.value == "neutral"  # the senior answer replaces the junior one
 
 
 def test_junior_refuting_low_finding_is_not_escalated(tmp_path, idx):

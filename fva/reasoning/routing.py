@@ -3,7 +3,7 @@
 `codex exec` fixes its model at launch, so routing happens here, per model call:
 * junior (Luna) first for clear, bounded, low-ambiguity findings;
 * senior (Sol) first for security-sensitive or judgment-bearing findings;
-* one escalation junior -> senior when the junior answer is mismatched; no further retries;
+* one escalation junior -> senior when the junior answer is mismatched or supports the finding; no further retries;
 * astra only for clusters named explicitly by the caller.
 """
 from __future__ import annotations
@@ -70,6 +70,10 @@ def escalation_reason(res: assessor.AssessmentResult, group: list[Finding]) -> s
         return "low confidence"
     if res.evidence.stance is Stance.refutes and max(_RANK[f.severity] for f in group) >= _RANK[Severity.high]:
         return "refutes high/critical"
+    # a model `supports` can make a finding `likely` and route it automatically; on fresh answers Luna's
+    # supports over-flagged 4 rows, 2 of them inactive credentials (docs/plans/remaining-unblocked.md)
+    if res.evidence.stance is Stance.supports:
+        return "supports"
     return None
 
 
