@@ -46,3 +46,4 @@
 2026-10-04 | L4 Juice Shop passive run | read-heavy | opus | inline | pass | n/a | ran collection in a clone; 0 verdict changes, 0 incorrect demotions
 2026-10-04 | merge T1-T8 (claude/triage-exceptions) | reasoning | opus | inline | pass | n/a | conflicts in verdicts/worksheet/reason codes; worksheet.load returns verified observation ids; excluded observation codes from MODEL_CODES so the assess-v2 cache holds; full re-assess all cached
 2026-10-04 | L5 pitch | write-heavy | opus | inline | pass | n/a | numbers from merged-main runs; S4 running on Codex meanwhile
+2026-10-04 | S4 demo report | write-heavy | codex gpt-6-sol | worktree | fix | 74k (codex) | Opus reordered sections, added ticket fields, dropped a second triage pass; codex exec needs < /dev/null in background
