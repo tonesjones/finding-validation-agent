@@ -87,6 +87,12 @@ Last updated: 2026-10-04. Update this file when status changes.
   evidence) and CVE-2020-28500 (ReDoS, no safe probe). The banner confirmation holds for `0f17d90`; the
   scan's `app.js:4` is a blank line there and the `express()` call is on line 5. The report and tickets
   contain no raw response bytes. The demo run was not scored (no answer key).
+- 2026-10-04: new plan `docs/plans/unblocked-backlog.md` (credential default, cost accounting, malformed-input
+  audit, API-client plan). Credential default measured on Juice Shop, all from cache: `ask` decides 5 of the 40
+  assessed credential findings automatically (`routes/login.ts:59-64`, `likely`, all agree with the key) and
+  `skip` decides none. Overall auto share 84.8% vs 83.9%, auto agreement 99.4% in both, 0 incorrect demotions in
+  both. Recommendation: keep `ask`; awaiting the owner's decision. API client: recommend not building it (saves
+  about $0.12 per fresh run at list prices and moves spend off the subscription).
 - Routine triage does not require grading model responses; open findings stay open as
   "open, not auto-verified".
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
@@ -284,6 +290,7 @@ Both runs used schema-enforced output and no credential low-confidence escalatio
   (21,344 cached), 238 output; 0 reasoning tokens for both. About 20k of the input is Codex's own
   system prompt, served from cache; our prompt is about 3-4k.
 - **Cost:** Luna 0.068 cents per call; Sol 1.22 cents (standard cache price) or 0.81 cents (low-tier cache).
+  Recomputed 2026-10-04 from the token counts above: Sol 1.24 cents, or 0.84 cents low-tier.
   Run of 131 clusters: routed (89 Luna + 50 Sol calls) $0.67 vs Sol-only $1.60 (42%), or $0.47 vs $1.06 (44%)
   on the low-tier cache price.
 - **Decision history:** Sol-only was chosen first on footer token counts, with the explanation that "Luna
@@ -318,7 +325,7 @@ token accounting per call and tier, routed vs Sol-only comparison (routing stays
    issue is `non_security`. Consider aggregation where a cited refutation of the precondition beats a
    restated sink. Bump `PROMPT_VERSION`. This is the main remaining source of disagreement.
 2. Credential CWEs: `--credential-model skip` exists (opt-in, 2026-10-02). Score both modes on the real export,
-   then decide the default.
+   then decide the default. Scored 2026-10-04 (`docs/plans/unblocked-backlog.md` item 1): `ask` recommended.
 3. SCA prompts: include advisory text, affected function, and config/usage sites so precondition checks are possible.
 4. Runtime harness: allowlist and approval gate before any probe.
 5. Verdict reasoner, exports (ledger, enriched SARIF, report), benchmark against the PoC ledger.
@@ -335,6 +342,7 @@ token accounting per call and tier, routed vs Sol-only comparison (routing stays
    comparison above). `codex exec --json` has the split but not the model name; find a way to get both.
 9. Consider an API client for GPT-6 (OpenAI-compatible) to drop Codex's ~20k-token system prompt per call. Only
    worth it if API billing is acceptable versus the subscription, because at list prices a run already costs under $1.
+   Costed 2026-10-04 (`docs/plans/unblocked-backlog.md` item 4): about $0.56 vs $0.68 per fresh run; not built.
 
 ## Milestone tasks — model estimate
 

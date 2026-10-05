@@ -100,12 +100,14 @@ rows unchanged, every new closure agrees with the PoC key.
 Result: auto share 78.0% -> 84.8%, auto agreement 99.3% -> 99.4%, 0 incorrect demotions, 0 model calls
 (all cached); 32/32 `no_effect` and 6/6 scored sanitize-html closures agree.
 
+Follow-up plan (2026-10-04): `docs/plans/unblocked-backlog.md`.
+
 ## Later or blocked
 
 - DAST: waits on entitlement.
 - `--client litellm`: work laptop.
 - Polaris writer (v0.8): company GitHub plus sign-off.
-- Jev evaluation, multi-app benchmark, malformed-input audit, repo migration.
+- Jev evaluation, multi-app benchmark, repo migration. The malformed-input audit moved to the follow-up plan.
 
 ## Status (2026-10-03)
 
