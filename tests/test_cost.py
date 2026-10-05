@@ -75,9 +75,10 @@ def test_codex_header_model_wins_over_session(monkeypatch, tmp_path):
 
 def test_missing_turn_completed_means_no_usage(monkeypatch, tmp_path):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path))
-    c = CodexCliClient()
     _fake_codex(monkeypatch, _events())
+    c = CodexCliClient()
     c.complete("s", "u")
+    assert c.last_usage
     _fake_codex(monkeypatch, _events(usage=False))
     c.complete("s", "u")
     assert c.last_usage is None
