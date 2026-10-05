@@ -14,6 +14,9 @@ Last updated: 2026-10-05. Update this file when status changes.
   containers are stopped. Account, settings and receipts remain ignored and private.
 - Baseline unchanged: auto share 83.8%, auto agreement 99.4%, incorrect demotions
   0/0; SAST-to-DAST links 0/0/0, precision undefined. Fresh assessment cost $0.
+- Likely cause found in review: the `excludedHosts` lookahead matches every target
+  URL with a path, so the scanner may skip all requests. Corrected private settings
+  are ready. A relaunch needs owner approval of the attack scope. No scan ran.
 - Active authenticated DAST value remains unmeasured. Details and limits:
   [authenticated attempt](docs/plans/dast-authenticated.md). PR #40 remains unmerged.
 

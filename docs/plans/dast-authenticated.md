@@ -1,5 +1,26 @@
 # Authenticated DAST attempts
 
+## Likely cause: host exclusion matched every target URL
+
+Review on 2026-10-05 found a settings difference that fits zero target requests.
+The successful unauthenticated scan set no `excludedHosts`. Both authenticated
+attempts set one entry, a negative lookahead meant to exclude every host except
+the target. Its `$` anchor follows the optional port, so it fails to match only a
+bare origin. Any URL with a path, including the recording's login URL and every
+crawled page, matches and is excluded. If the engine matches full URLs, it may
+send no requests, which fits zero counter movement and stalled progress. If its
+regex engine rejects lookahead, the setting is invalid instead. Neither reading
+is proven, but both point to the same entry.
+
+`excludedAttackUrls` uses the same lookahead pattern. The recording also omits
+the `setViewport` first step that Chrome Recorder exports emit.
+
+Corrected private settings drop `excludedHosts`, because network placement already
+confines the target, and add `setViewport`. They also drop the lookahead attack
+exclusion. That widens active checks to `/rest/` routes other than product search.
+The owner must approve that scope or name explicit `/rest/` exclusions before any
+relaunch. No scan ran during this review.
+
 ## Owner-authorized direct-network retry
 
 After the first zero-issue stop, the owner explicitly authorized one retry on the
