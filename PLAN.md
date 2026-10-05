@@ -1,5 +1,26 @@
 # Plan
 
+## DAST correlation follow-up (2026-10-05)
+
+Work branch: `codex/dast-correlation`. Exact scope and launch gates are recorded
+in `docs/plans/dast-correlation-followup.md`.
+
+| Step | Status | Measured result / next gate |
+|---|---|---|
+| Saved DAST source/configuration review | Source context reviewed; response bodies unavailable | Nine substantive observations, two informational records; zero verified identity links or new confirmations; zero selected-source mismatches |
+| Bounded active/authenticated local pass | Approved; local control-runner boundary implemented; scan not launched | Real-browser fixture test blocks unapproved network requests; Polaris browser integration/settings, isolation and session proof remain unresolved |
+| Matched baseline comparison | Baseline frozen; follow-up unmeasured | Compare identical static IDs/labels; report links/precision, attributable resolutions, auto share/agreement, demotions and cost |
+
+Baseline: auto share 83.8%, auto agreement 99.4%, incorrect demotions 0/0,
+SAST-to-DAST links 0/0/0 and precision undefined in all tiers; fresh assessment
+cost $0. No repeat scan or probe has run. Sol reviewed the requested Luna source
+collection; observed child model and routing savings remain unknown.
+The existing approval stands. Resolve browser enforcement and settings first;
+then build/test the isolated runtime and authentication proof before launching.
+The local runner is restricted to exact initial control/probe URLs; it does not
+enforce a boundary around Polaris's scanner-controlled browser or arbitrary
+same-document fragment mutations. It produces no FVA confirmation evidence.
+
 ## DAST FVA plan completed (2026-10-05)
 
 D0-D6 in `docs/plans/dast-fva-app.md` passed on `codex/dast-fva`, following the

@@ -2,6 +2,62 @@
 
 Last updated: 2026-10-05. Update this file when status changes.
 
+## DAST correlation follow-up (2026-10-05)
+
+- Branch `codex/dast-correlation` starts from merged main `4d8edd9`.
+  The owner requested saved-evidence mapping, a bounded active/authenticated local
+  pass, and a comparison against the existing baseline. The exact proposed scope
+  is in `docs/plans/dast-correlation-followup.md`; the owner approved it with
+  "ok go for it". Launch stopped at the technical gates below, not for permission.
+- Source review covers nine substantive DAST observations and two informational
+  records. Selected source files match the frozen archive with zero mismatches.
+  There are zero verified SAST-to-DAST identity links and zero new confirmations.
+  Header, error-handling and configuration context does not establish finding
+  identity. Saved request/response bodies remain unavailable through a verified
+  public API; internal artifact URLs were not dereferenced.
+- Tokenomics routed one bounded source-collection assignment to requested Luna.
+  Child runtime model metadata was unavailable; Sol reviewed and corrected the
+  source map. No model execution or subscription savings claim rests on the
+  requested child model. Scan scope and security judgments remain with Sol.
+- No follow-up scan, security probe or authentication setup has run. Scanner
+  settings, independent guard enforcement and authentication proof remain launch
+  gates. Exact-scope approval must precede probes; never fabricate a runtime
+  approval receipt. Private plans, source snapshots and baseline copies stay in
+  ignored `data/dast-correlation/`.
+- Baseline remains 585 scanner rows, 11 DAST rows all `needs_review`, auto share
+  83.8%, auto agreement 99.4%, incorrect demotions 0/0 and zero SAST-to-DAST links
+  in every tier (precision undefined). Baseline fresh assessment cost is $0;
+  active-attack value and attributable resolutions remain unmeasured.
+- Preparation validation: 658 passed, 5 skipped; touched public documents use LF.
+- Approved-scope preflight: the existing profile API returned its manual settings
+  and active attacks disabled, with no effective engine/browser settings. The
+  official settings references disagree on inclusion and Smart Settings field
+  names. The old Docker network is not internal; the target remains stopped.
+- A disposable local HTTP fixture verified that approved and unapproved browser
+  fragments both arrive as `/`. An HTTP guard alone cannot enforce the DOM
+  payload boundary. At that preflight, no browser-level enforcement was verified.
+  No follow-up scan, target probe, account creation or login ran. Next work is
+  to verify browser enforcement and current settings, then build/test the guard
+  and isolated runtime before launching under the existing approval.
+- Local browser boundary is now implemented in `fva/node/browser_boundary.cjs`.
+  It accepts exact initial DOM control/probe URLs in fresh contexts and brokers
+  permitted loopback GETs. Browser networking is offline, with a deny proxy as
+  fallback; WebSockets, service workers, popups, child-frame navigations and
+  subsequent document requests are blocked. Redirects, non-GET requests,
+  unlisted routes/query values, oversized responses and excess requests are denied.
+- A real headless-browser test used disposable loopback fixtures: the approved
+  marker executed, the control had no marker, and the unapproved fixture received
+  zero HTTP requests or WebSocket upgrades. This is local control-runner coverage,
+  not a guard installed in Polaris. The runner restricts initial fragments; it is
+  not a sandbox proving that arbitrary same-document fragment mutations cannot
+  execute. Do not attach an interactive or scanner-generated payload driver.
+  No Juice Shop probe, login or new Polaris scan ran; no confirming evidence was
+  imported. Polaris browser integration and settings verification remain unresolved.
+- Boundary implementation validation: 659 passed, 5 skipped, including the real
+  browser checks through the optional local Playwright installation. This adds
+  one behavior test to the 658-test baseline. No scanner results or auto-routing
+  metrics changed, and no model assessment was rerun.
+
 ## Integration review and current findings (2026-10-05)
 
 - PR #38 (DAST plan) is merged. PR #39 combines the real-envelope implementation
