@@ -46,6 +46,8 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 
 ## Rules (non-negotiable)
 
+- **This repo is public on GitHub.** Commit only this repo's own work: never Polaris data, secrets,
+  or content copied from other repos or local folders.
 - **Never commit `data/`.** It holds real Polaris exports, the PoC ledger, lockfiles, tokens, run output.
   Raw Polaris responses contain internal service URLs and the tenant id. Commit only sanitized fixtures
   under `tests/fixtures/`, and check them for real ids before committing.
