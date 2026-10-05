@@ -105,6 +105,7 @@ def main(argv=None):
                    help="skip: no model call for hard-coded-credential findings (only a runtime test decides them)")
     a.add_argument("--no-route", action="store_true",
                    help="codex: GPT-6 Sol for every cluster instead of Luna/Sol routing (--model also disables routing)")
+    a.add_argument("--prices", help="JSON file of per-1M-token prices by model name (overrides the built-in table)")
     a.add_argument("--astra", action="append", metavar="SOURCE_FINDING_ID",
                    help="send the cluster containing this scanner finding id to GPT-6 Astra (repeatable; needs routing)")
     w = sub.add_parser("worksheet", help="write worksheet.csv/.html for a run (suggestions only, nothing sent to Polaris)")
@@ -152,6 +153,7 @@ def main(argv=None):
         return
 
     from fva import pipeline
+    from fva.reasoning import pricing
     out = Path(args.out or f"data/runs/{datetime.now():%Y%m%d-%H%M%S}-{args.client}")
     client = _router(args)
     lock = Path(args.lockfile) if args.lockfile and Path(args.lockfile).exists() else None
@@ -161,7 +163,8 @@ def main(argv=None):
                            profile=load_profile(args.profile, args.profile_file),
                            client=client, out_dir=out, lockfile=lock, cache_dir=Path(args.cache),
                            limit=args.limit, dry_run=args.dry_run, workers=args.workers,
-                           credential_model=args.credential_model)
+                           credential_model=args.credential_model,
+                           prices=pricing.load_prices(Path(args.prices)) if args.prices else None)
     print(f"done -> {out}\n{summary}")
 
 

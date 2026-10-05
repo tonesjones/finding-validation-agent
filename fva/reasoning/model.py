@@ -79,6 +79,33 @@ SCHEMA_FILE = Path(__file__).with_name("assessment.schema.json")  # reply shape,
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
+def _jsonl(text: str) -> list[dict | None]:
+    """One entry per stdout line: the parsed event, or None when the line is not a JSON object."""
+    rows = []
+    for line in text.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            event = None
+        rows.append(event if isinstance(event, dict) else None)
+    return rows
+
+
+def _session_model(thread: str) -> str | None:
+    """Model named in this thread's own Codex session file; never other sessions or config defaults."""
+    sessions = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "sessions"
+    model = None
+    for path in sessions.glob(f"**/*{thread}.jsonl"):
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict) and row.get("type") == "turn_context":
+                model = (row.get("payload") or {}).get("model") or model
+    return model
+
+
 class _CliClient:
     """Runs a local agent CLI non-interactively in an EMPTY temp directory, prompt on stdin.
 
@@ -97,6 +124,7 @@ class _CliClient:
     # complete() on the same thread. None until a call on this thread has set them.
     #   last_reported_model: str | None  parsed from the CLI's own `model: <name>` header line
     #   last_tokens: int | None          parsed from the CLI's `tokens used` footer, when it prints one
+#   last_usage: dict | None          int fields of the `turn.completed` usage in --json output, else None
     @property
     def last_reported_model(self) -> str | None:
         return getattr(self._local, "last_reported_model", None)
@@ -112,6 +140,14 @@ class _CliClient:
     @last_tokens.setter
     def last_tokens(self, value: int | None) -> None:
         self._local.last_tokens = value
+
+    @property
+    def last_usage(self) -> dict | None:
+        return getattr(self._local, "last_usage", None)
+
+    @last_usage.setter
+    def last_usage(self, value: dict | None) -> None:
+        self._local.last_usage = value
 
     def __init__(self, command: str | None = None, timeout: int = 600, model: str | None = None,
                  schema_file: Path | None = None, audit: bool = False):
@@ -143,7 +179,7 @@ class _CliClient:
     def _run(self, prompt: str, workdir: Path) -> str:
         argv = [a.replace("{out}", str(workdir / "last_message.txt")).replace("{schema}", str(self.schema_file))
                 for a in self._argv]
-        self.last_reported_model = self.last_tokens = None
+        self.last_reported_model = self.last_tokens = self.last_usage = None
         self._local.last_audit = None
         r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
                            cwd=workdir, timeout=self._timeout)
@@ -160,15 +196,21 @@ class _CliClient:
         self.last_reported_model = m.group(1) if m else None
         t = re.search(r"^tokens used\s*\n\s*([\d,]+)", log, re.M)
         self.last_tokens = int(t.group(1).replace(",", "")) if t else None
+        rows = _jsonl(r.stdout)
+        events = [e for e in rows if e is not None]
+        thread = next((e.get("thread_id") for e in events if e.get("type") == "thread.started"), None)
+        if not self.last_reported_model and thread:
+            self.last_reported_model = _session_model(thread)
+        done = [e for e in events if e.get("type") == "turn.completed"]
+        usage = done[0].get("usage") if done else None
+        usage = {k: v for k, v in usage.items() if isinstance(v, int)} if isinstance(usage, dict) else None
+        self.last_usage = usage or None
         if self.audit:
-            events, tools, unknown = [], [], []
-            for line in r.stdout.splitlines():
-                try:
-                    event = json.loads(line)
-                except ValueError:
+            tools, unknown = [], []
+            for event in rows:
+                if event is None:
                     unknown.append("non-JSON event")
                     continue
-                events.append(event)
                 kind = event.get("type")
                 if kind not in {"thread.started", "turn.started", "turn.completed", "item.started",
                                 "item.updated", "item.completed", "error", "turn.failed"}:
@@ -176,21 +218,16 @@ class _CliClient:
                 item = event.get("item", {})
                 if item and item.get("type") not in {"agent_message", "reasoning"}:
                     tools.append(item.get("type", "unknown"))
-            thread = next((e.get("thread_id") for e in events if e.get("type") == "thread.started"), None)
-            if not self.last_reported_model and thread:
-                # Read only the fresh call's session metadata, never other sessions or config defaults.
-                sessions = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "sessions"
-                for path in sessions.glob(f"**/*{thread}.jsonl"):
-                    for line in path.read_text(encoding="utf-8").splitlines():
-                        row = json.loads(line)
-                        if row.get("type") == "turn_context":
-                            self.last_reported_model = row.get("payload", {}).get("model")
-            usage = next((e.get("usage") for e in events if e.get("type") == "turn.completed"), None)
             self._local.last_audit = {"thread_id": thread, "tool_items": tools, "unknown_events": unknown,
-                                      "usage": usage, "observed_model": self.last_reported_model,
-                                      "complete": any(e.get("type") == "turn.completed" for e in events)}
+                                      "usage": done[0].get("usage") if done else None,
+                                      "observed_model": self.last_reported_model, "complete": bool(done)}
         out_file = workdir / "last_message.txt"
-        return out_file.read_text(encoding="utf-8") if out_file.exists() else r.stdout
+        if out_file.exists():
+            return out_file.read_text(encoding="utf-8")
+        texts = [e["item"]["text"] for e in events if e.get("type") == "item.completed"
+                 and isinstance(e.get("item"), dict) and e["item"].get("type") == "agent_message"
+                 and isinstance(e["item"].get("text"), str)]
+        return texts[-1] if texts else r.stdout
 
     def complete(self, system: str, user: str, *, max_tokens: int = 2000) -> str:
         prompt = (f"{system}\n\n---\n\n{user}\n\nRespond with the JSON object only. Do not run commands or read files. "
@@ -205,7 +242,7 @@ class CodexCliClient(_CliClient):
 
     env_var = "FVA_CODEX_CMD"
     default_cmd = ("codex exec --skip-git-repo-check --sandbox read-only --output-schema {schema} "
-                   "--output-last-message {out} -")
+                   "--output-last-message {out} --json -")
     model_id = "codex-cli"
 
     @property
