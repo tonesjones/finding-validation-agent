@@ -338,8 +338,9 @@ The first matching rule wins, and if any finding in a group needs the senior tie
 
 **Escalation.** A junior answer is re-asked once on the senior tier (no further retries, never to Astra) when:
 the output can't be parsed; a cited code quote isn't in the source; the answer argues both ways; the model reports
-low confidence (except hard-coded credentials, which only a runtime test can decide); or it argues that a high or
-critical finding doesn't apply. Both attempts are kept in `assessments.jsonl`.
+low confidence (except hard-coded credentials, which only a runtime test can decide); it argues that a high or
+critical finding doesn't apply; or it supports the finding. A model `supports` can make a finding `likely` and route
+it automatically, so no `likely` rests on a junior answer alone. Both attempts are kept in `assessments.jsonl`.
 
 **Current model per tier** (`--client codex`, personal Codex subscription). Change a tier with its environment
 variable, no code change needed:

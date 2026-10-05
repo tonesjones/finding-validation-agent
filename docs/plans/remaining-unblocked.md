@@ -115,6 +115,14 @@ credential `likely` rows, not 5 correct. A single Luna `supports` plus a static 
 `likely` automatically. Options for the owner, not built: send model-backed `likely` from Luna to Sol before it
 auto-routes, or route model-backed credential `likely` to review. The `ask` default is unchanged.
 
+Decision (owner, 2026-10-04): a Luna `supports` escalates once to Sol, and Sol's answer replaces it
+(`fva/reasoning/routing.py`). Measured on the baseline's cached answers (`data/runs/20261004-js-sol-supports`, 6 fresh
+Sol calls, $0.16): Sol backed 3 of the 6 Luna `supports` and answered neutral on 3, all `routes/login.ts` credentials
+the key confirms. Auto share 84.8% to 84.3% (486 to 483), auto agreement 99.4% in both, 0 incorrect demotions,
+over-flags 1 in both. On these answers the rule costs 3 correct automatic decisions and fixes none. The baseline's
+Luna `supports` were all right. The case it targets is the fresh run's 2 credential over-flags, and that is not
+measured: it needs 7 more Sol calls on the fresh run's answers.
+
 ## Status
 
 - 2026-10-04: all five items done. PRs #33 and #34 open; this branch holds items 1, 2 and 5.
