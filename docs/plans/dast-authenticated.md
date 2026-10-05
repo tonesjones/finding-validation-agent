@@ -21,6 +21,21 @@ exclusion. That widens active checks to `/rest/` routes other than product searc
 The owner must approve that scope or name explicit `/rest/` exclusions before any
 relaunch. No scan ran during this review.
 
+## Corrected-settings run (2026-10-05)
+
+The owner approved the wider attack scope and one relaunch. Preflight matched the
+earlier attempts: non-admin login, basket 401 then 200, identical settings
+read-back and tunnel identity. The scan stopped at progress 66 again, but this time
+Polaris marked it `Failed` after about 11 minutes. Its error detail said the login
+preflight failed because fingerprint generation hit a context deadline. The export
+had zero issues, so the zero-issue stop rule applies.
+
+The host exclusion fix moved the failure: the scanner now attempts the login
+recording and gives a concrete reason, where before it stalled silently. The open
+problem is that the recorded login, or the authenticated-state check after it,
+does not finish in time. A next attempt could raise the authenticator's
+`timeoutMultiplier` (documented default 1), but only with separate owner approval.
+
 ## Owner-authorized direct-network retry
 
 After the first zero-issue stop, the owner explicitly authorized one retry on the

@@ -17,6 +17,9 @@ Last updated: 2026-10-05. Update this file when status changes.
 - Likely cause found in review: the `excludedHosts` lookahead matches every target
   URL with a path, so the scanner may skip all requests. Corrected private settings
   are ready. A relaunch needs owner approval of the attack scope. No scan ran.
+- Corrected-settings relaunch (owner approved): `Failed` at about 11 minutes,
+  "preflight failed: failed to log in: could not generate a fingerprint: context
+  deadline exceeded". Zero issues; stop rule applies. Next: login timeout tuning.
 - Active authenticated DAST value remains unmeasured. Details and limits:
   [authenticated attempt](docs/plans/dast-authenticated.md). PR #40 remains unmerged.
 
