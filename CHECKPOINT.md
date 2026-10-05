@@ -2,6 +2,19 @@
 
 Last updated: 2026-10-05. Update this file when status changes.
 
+## Authenticated DAST attempt (2026-10-05)
+
+- Target isolation, pinned source (357 matches), non-admin local login and settings
+  artifact read-back passed; active attacks read back enabled. Native replay is unproven.
+- One scan was accepted, then cancelled at approximately 15 minutes: zero scanner
+  target requests, zero authenticated basket successes and zero exported issues.
+- The zero-issue stop rule applies. No repeat scan or assessment ran; temporary
+  containers are stopped. Account, settings and receipts remain ignored and private.
+- Baseline unchanged: auto share 83.8%, auto agreement 99.4%, incorrect demotions
+  0/0; SAST-to-DAST links 0/0/0, precision undefined. Fresh assessment cost $0.
+- Active authenticated DAST value remains unmeasured. Details and limits:
+  [authenticated attempt](docs/plans/dast-authenticated.md). PR #40 remains unmerged.
+
 ## Integration review and current findings (2026-10-05)
 
 - PR #38 (DAST plan) is merged. PR #39 combines the real-envelope implementation

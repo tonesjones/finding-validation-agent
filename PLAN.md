@@ -1,5 +1,16 @@
 # Plan
 
+## Authenticated DAST follow-up stopped (2026-10-05)
+
+The isolated target, non-admin local login and identical settings artifact
+read-back passed. One active scan was accepted and cancelled at approximately
+15 minutes with zero target traffic and zero exported issues. The zero-issue
+stop rule applies; native authentication and active coverage remain unproven.
+No new assessment ran (fresh assessment cost $0.00000). Baseline auto share 83.8%,
+auto agreement 99.4%, incorrect demotions 0/0 and link counts 0/0/0 are unchanged;
+precision remains undefined for every tier. Scan cost was not measured.
+See [the attempt and evidence limits](docs/plans/dast-authenticated.md).
+
 ## DAST FVA plan completed (2026-10-05)
 
 D0-D6 in `docs/plans/dast-fva-app.md` passed on `codex/dast-fva`, following the
