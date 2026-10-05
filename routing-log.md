@@ -45,3 +45,4 @@
 2026-10-04 | L3 verdict rules | reasoning | opus | inline | pass | n/a | owns invariants and verdicts; mutation-checked the new tests
 2026-10-04 | L4 Juice Shop passive run | read-heavy | opus | inline | pass | n/a | ran collection in a clone; 0 verdict changes, 0 incorrect demotions
 2026-10-04 | merge T1-T8 (claude/triage-exceptions) | reasoning | opus | inline | pass | n/a | conflicts in verdicts/worksheet/reason codes; worksheet.load returns verified observation ids; excluded observation codes from MODEL_CODES so the assess-v2 cache holds; full re-assess all cached
+2026-10-04 | L5 pitch | write-heavy | opus | inline | pass | n/a | numbers from merged-main runs; S4 running on Codex meanwhile
