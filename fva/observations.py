@@ -130,6 +130,32 @@ def evidence_from_receipt(data: dict, run: Path) -> list[EvidenceRecord]:
         for n, obs in enumerate(receipt.observations)]
 
 
+def verify_observations(run: Path, evidence: list[EvidenceRecord]) -> tuple[frozenset[str], str | None]:
+    """Ids of observation records that match a stored receipt bound to this run, and a warning if any do not.
+
+    Each receipt in `observations/` must be named by its content hash, match its bytes and still bind to the
+    run; its stored records must equal the ones it produces. The raw collector records were checked at import.
+    """
+    stored = {e.evidence_id: e for e in evidence if e.evidence_type is EvidenceType.runtime_observation}
+    if not stored:
+        return frozenset(), None
+    verified = set()
+    for path in sorted((run / "observations").glob("*.json")):
+        try:
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            if not path.stem == file_digest(path) == digest(receipt):
+                continue
+            expected = evidence_from_receipt(receipt, run)
+        except (ValueError, KeyError, TypeError, OSError):
+            continue  # an unreadable receipt verifies nothing; the warning below counts its records
+        if all(stored.get(e.evidence_id) == e for e in expected):
+            verified.update(e.evidence_id for e in expected)
+    unverified = len(stored.keys() - verified)
+    warning = (f"{unverified} runtime observation record(s) do not match a stored receipt and are ignored."
+               if unverified else None)
+    return frozenset(verified), warning
+
+
 def import_receipt(run: Path, receipt_path: Path, out: Path, verify: Callable[[dict], None]) -> dict:
     """Copy `run` to a new `out` with the receipt's evidence appended.
 

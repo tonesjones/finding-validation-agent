@@ -51,9 +51,10 @@ Last updated: 2026-10-04. Update this file when status changes.
   export's `list_issues` triage properties are `status`, `is-dismissed` and `dismissal-reason`.
   Every one of the 573 issues is `not-dismissed` with reason `unset`, and set-by, set-at and
   history are absent. There are no labels to harvest, so S3 is skipped for this tenant.
-  L2 (loaded-package collector) and S2 (coverage importer, Codex draft reworked in review) are on
-  `claude/l2-loaded-packages`. Next: L3 verdict rules, then L4 collects on Juice Shop. L4 needs
-  Node 22.15 or later for the "not loaded" result, and c8 source maps for the `.ts` findings.
+  L2 (loaded-package collector) and S2 (coverage importer) are merged as PR #17. L3 (verdict rules) is
+  on `claude/l3-verdict-rules`. Next: L4 collects on Juice Shop and checks every new closure against
+  the PoC ledger. L4 needs Node 22.15 or later for the "not loaded" result, and c8 source maps for
+  the `.ts` findings.
 - PR #13 (paired status) is merged. Its aggregate command verified the existing
   sealed 12-case run with matching receipt, clean audits, exact case coverage and no
   processing failures.
@@ -76,13 +77,13 @@ they are not instructions to rerun or replace the frozen pilot.
 |---|---|---|
 | Canonical schemas | `fva/schemas.py` | IngestionRun, Finding, EvidenceRecord (many findings per record), DeploymentProfile, Verdict (append-only, `supersedes`) |
 | Reason codes | `fva/reason_codes.py` | Vocabulary v1: 28 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer; 2 appended 2026-10-04: `PACKAGE_NOT_LOADED`, `EXECUTED_UNDER_TEST`); 16 map 1:1 from the PoC |
-| Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence |
+| Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence; `PACKAGE_NOT_LOADED` needs a not-loaded observation beyond startup and no shipped import; `EXECUTED_UNDER_TEST` needs an executed line and a static or model `supports` |
 | Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
 | Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
 | Passive observations | `fva/observations.py` | receipt format `fva.runtime_observation/1` -> `runtime_observation` evidence bound to run profile, source and findings; neutral, or `refutes` for a package not loaded; `import_receipt` writes a new run after the collector rebuilds the receipt from raw output |
-| Passive collectors | `fva/loaded_packages.py` + `fva/node/loaded_modules.cjs`, `fva/coverage.py` | Node preload records loaded module paths (append as loaded, ESM via `registerHooks`); "not loaded" only with complete records; V8 or c8 coverage -> `line_executed`; no verdict rules yet (L3) |
+| Passive collectors | `fva/loaded_packages.py` + `fva/node/loaded_modules.cjs`, `fva/coverage.py` | Node preload records loaded module paths (append as loaded, ESM via `registerHooks`); "not loaded" only with complete records; V8 or c8 coverage -> `line_executed`; verdict rules in `docs/operations.md` |
 | Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; `import-review` -> `human_review` evidence, superseding verdicts, agreement score |
-| Suggested verdicts | `fva/verdicts.py` | rules over a run's evidence; every closure, rule closures included, must pass `check_verdict` |
+| Suggested verdicts | `fva/verdicts.py` | rules over a run's evidence; every closure, rule closures included, must pass `check_verdict`; observations count only after the worksheet re-verifies their receipts |
 | Rule evidence | `fva/surface.py` (`to_evidence`), `fva/pipeline.py` | skipped findings keep `deployment_boundary` / `dependency_resolution` / reachability records; never sent to a model |
 | Polaris data tools | `fva/polaris_mcp.py` (`inventory`), `fva/analysis/` | read-only MCP survey; sanitized field census with adapter-dropped keys; correlation value (coverage, fan-out, coherence, lift) of candidate join keys vs the PoC ledger |
 | Parallel assess | `fva/pipeline.py`, `fva/reasoning/model.py` | `--workers N`, results consumed in cluster order; per-thread CLI model/token fields |
@@ -117,7 +118,9 @@ they are not instructions to rerun or replace the frozen pilot.
   static or model `supports` plus rule evidence. Observations only pick the reason code (`EXECUTED_UNDER_TEST`,
   `VULNERABLE_VERSION_IMPORTED`). Invariants are unchanged. L3 must add two code checks to `fva/invariants.py`.
   First, `PACKAGE_NOT_LOADED` needs a no-shipped-import reachability record. Second, it needs an exercise broader
-  than "startup only", because lazy `require` calls can be missed.
+  than "startup only", because lazy `require` calls can be missed. Done in L3: `startup`, `startup only` and
+  `npm start` are too narrow. A loaded package with no `supports` stays where it was, so the plan's "loaded ->
+  likely" holds only when a cited argument already exists.
 - 2026-10-02: The PoC tenant has no DAST. Freeze the DAST stack (no extensions) until a real DAST export exists;
   measure what Polaris returns for SAST/SCA (inventory, census) and the decision value of candidate links
   (correlation-value) before building more linking.

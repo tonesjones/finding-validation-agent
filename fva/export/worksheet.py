@@ -51,13 +51,16 @@ def build(run_dir: Path, *, warnings: list[str] | None = None) -> list[dict]:
             by_finding.setdefault(fid, []).append(e)
     from fva.runtime import verify_runtime
     trusted_runtime, runtime_warning = verify_runtime(run_dir, all_evidence)
-    if runtime_warning and warnings is not None:
-        warnings.append(runtime_warning)
+    from fva.observations import verify_observations
+    trusted_observations, observation_warning = verify_observations(run_dir, all_evidence)
+    if warnings is not None:
+        warnings.extend(w for w in (runtime_warning, observation_warning) if w)
     rows = []
     for r in findings:
         evs = by_finding.get(r["finding_id"], [])
         verdict, codes, conf, cited = suggest_verdict({**r, "deployment_profile_id": profile}, evs,
-                                                    verified_runtime_ids=trusted_runtime)
+                                                    verified_runtime_ids=trusted_runtime,
+                                                    verified_observation_ids=trusted_observations)
         status, sev = suggest(verdict, r["severity"])
         loc = r.get("endpoint") or r.get("package") or (f"{r['path']}:{r['line']}" if r.get("path") else "")
         rows.append({
