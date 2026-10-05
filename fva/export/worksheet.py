@@ -35,7 +35,9 @@ def _read_jsonl(p: Path) -> list[dict]:
     return [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()] if p.exists() else []
 DECISIONS = {"agree", V.confirmed.value, V.not_applicable.value, V.valid_non_security.value, V.needs_review.value}
 
-def build(run_dir: Path, *, warnings: list[str] | None = None) -> list[dict]:
+def load(run_dir: Path, *, warnings: list[str] | None = None
+         ) -> tuple[list[dict], dict[str, list[EvidenceRecord]], str | None, frozenset[str], frozenset[str]]:
+    """(findings, evidence by finding id, run profile id, verified runtime and observation ids) for one run."""
     run_dir = Path(run_dir)
     findings = _read_jsonl(run_dir / "findings.jsonl")
     if not findings:
@@ -55,6 +57,11 @@ def build(run_dir: Path, *, warnings: list[str] | None = None) -> list[dict]:
     trusted_observations, observation_warning = verify_observations(run_dir, all_evidence)
     if warnings is not None:
         warnings.extend(w for w in (runtime_warning, observation_warning) if w)
+    return findings, by_finding, profile, trusted_runtime, trusted_observations
+
+
+def build(run_dir: Path, *, warnings: list[str] | None = None) -> list[dict]:
+    findings, by_finding, profile, trusted_runtime, trusted_observations = load(run_dir, warnings=warnings)
     rows = []
     for r in findings:
         evs = by_finding.get(r["finding_id"], [])

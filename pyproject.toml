@@ -7,7 +7,7 @@ name = "fva"
 version = "0.2.0.dev0"
 description = "Finding Validation Agent: evidence-backed verdicts for SAST/SCA findings"
 requires-python = ">=3.10"
-dependencies = ["pydantic>=2.6"]
+dependencies = ["pydantic>=2.11"]  # Field(exclude_if=...)
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

@@ -14,7 +14,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from fva import reason_codes
+from fva import reason_codes, triage
 from fva.export import worksheet
 from fva.schemas import VerdictValue as V
 
@@ -90,27 +90,35 @@ def score(run_dir: Path, key_path: Path = DEFAULT_KEY) -> dict:
         raise SystemExit(f"answer key not found: {key_path}")
     key, tiers = load_key(key_path), _tiers(run_dir)
     rows = worksheet.build(run_dir)
-    scored, by = [], {"verdict": {}, "scanner": {}, "tier": {}}
+    routes = {t["finding_id"]: t["route"] for t in triage.build(run_dir)}
+    scored, by = [], {"verdict": {}, "scanner": {}, "tier": {}, "route": {}}
     matrix: dict[str, Counter] = {}
     for r in rows:
         k = key.get(r["source_finding_id"])
         exp = k["verdict"] if k else None
         o = outcome(exp, r["fva_verdict"])
         tier = tiers.get(r["finding_id"], "rules")
+        route = routes.get(r["finding_id"], triage.REVIEW)
         code_match = bool(k) and o == "agree" and k["code"] in r["reason_codes"].split()
         scored.append({**{c: r[c] for c in ("source_finding_id", "scanner", "title", "location", "fva_verdict",
                                             "reason_codes", "evidence_summary")},
-                       "tier": tier, "key_verdict": exp or "", "key_classification": k["classification"] if k else "",
+                       "tier": tier, "route": route, "key_verdict": exp or "", "key_classification": k["classification"] if k else "",
                        "outcome": o, "reason_code_match": "yes" if code_match else ""})
         if exp:
             matrix.setdefault(exp, Counter())[r["fva_verdict"]] += 1
-        for dim, val in (("verdict", exp or "not_in_key"), ("scanner", r["scanner"]), ("tier", tier)):
+        for dim, val in (("verdict", exp or "not_in_key"), ("scanner", r["scanner"]), ("tier", tier), ("route", route)):
             by[dim].setdefault(val, Counter())[o] += 1
     total = Counter(s["outcome"] for s in scored)
     n = sum(v for o, v in total.items() if o != "not_in_key")
     queue = sum(1 for r in rows if r["fva_verdict"] in (V.needs_review.value, V.likely.value, V.confirmed.value))
+    auto = [s for s in scored if s["route"] == triage.AUTO]
+    auto_keyed = [s for s in auto if s["outcome"] != "not_in_key"]
     metrics = {
         "rows": len(rows), "scored": n, "outcomes": dict(total),
+        "auto_share": round(len(auto) / len(rows), 3) if rows else None,
+        "auto_agreement": round(sum(s["outcome"] in ("agree", "agree_static") for s in auto_keyed)
+                                / len(auto_keyed), 3) if auto_keyed else None,
+        "auto_incorrect_demotions": sum(s["outcome"] == "incorrect_demotion" for s in auto),
         "agreement": round((total["agree"] + total["agree_static"]) / n, 3) if n else None,
         "strict_agreement": round(total["agree"] / n, 3) if n else None,
         "incorrect_demotions": total["incorrect_demotion"],
@@ -128,7 +136,8 @@ def score(run_dir: Path, key_path: Path = DEFAULT_KEY) -> dict:
         w.writerows(sorted(scored, key=lambda s: (list(OUTCOMES).index(s["outcome"]), s["source_finding_id"])))
     (run_dir / "score.md").write_text(_report(metrics, scored), encoding="utf-8")
     return {k: metrics[k] for k in ("rows", "scored", "agreement", "strict_agreement", "incorrect_demotions",
-                                    "unresolved_rate", "queue_reduction", "outcomes")}
+                                    "unresolved_rate", "queue_reduction", "outcomes", "auto_share",
+                                    "auto_agreement", "auto_incorrect_demotions")}
 
 
 def _pct(x) -> str:
@@ -146,6 +155,10 @@ def _report(m: dict, scored: list[dict]) -> str:
          f"| Unresolved (needs_review) | {_pct(m['unresolved_rate'])} |",
          f"| Queue reduction | {_pct(m['queue_reduction'])} |",
          f"| Reason code also matches (of agree) | {m['reason_code_match_on_agree']} |", "",
+         "## Triage routing", "", "| Metric | Value |", "|---|---|",
+         f"| Auto share | {_pct(m['auto_share'])} |",
+         f"| Auto agreement | {_pct(m['auto_agreement'])} |",
+         f"| Auto incorrect demotions | {m['auto_incorrect_demotions']} |", "",
          "## Outcomes", "", "| Outcome | Count | Meaning |", "|---|---|---|"]
     L += [f"| {o} | {m['outcomes'].get(o, 0)} | {d} |" for o, d in OUTCOMES.items()]
     L += ["", "## Confusion (rows: answer key, columns: fva)", "",
@@ -153,7 +166,7 @@ def _report(m: dict, scored: list[dict]) -> str:
     for e in verdicts:
         if e in m["confusion"]:
             L.append(f"| {e} | " + " | ".join(str(m["confusion"][e].get(v, 0)) for v in verdicts) + " |")
-    for dim in ("tier", "scanner"):
+    for dim in ("tier", "scanner", "route"):
         L += ["", f"## By {dim}", "", f"| {dim} | " + " | ".join(OUTCOMES) + " |", "|---" * (len(OUTCOMES) + 1) + "|"]
         L += [f"| {k} | " + " | ".join(str(c.get(o, 0)) for o in OUTCOMES) + " |" for k, c in m["by"][dim].items()]
     bad = [s for s in scored if s["outcome"] == "incorrect_demotion"]

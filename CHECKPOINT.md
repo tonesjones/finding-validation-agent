@@ -55,15 +55,41 @@ Last updated: 2026-10-04. Update this file when status changes.
   merged as PR #18. L4 ran Juice Shop's server and API tests on Node 24.14 with both collectors, against
   `20261003-js-assess-v2`. The result is `20261004-js-l4-passive`. No verdict changed: 0 new closures,
   0 incorrect demotions, agreement 0.798, review queue 123 (the whatif ceiling was 106). 13 `likely` SAST
-  findings now cite `EXECUTED_UNDER_TEST`. Next: S4 (demo report), then L5 (pitch).
+  findings now cite `EXECUTED_UNDER_TEST`. These numbers predate the T1-T8 merge below.
 - PR #13 (paired status) is merged. Its aggregate command verified the existing
   sealed 12-case run with matching receipt, clean audits, exact case coverage and no
   processing failures.
 - The source-identity app PR and advisory-range PR are merged. Prepare an exact
   collector plan for operator review before running the real pilot.
-- Routine triage does not require grading every model response. Route exceptions for
-  review using confidence, evidence/citation validity, conflicts and impact. Per-response
-  reasoning grades remain optional benchmark work.
+- 2026-10-04: T1-T8 (exception-routed triage, lodash call sites, assess-v2, ranked report and tickets,
+  quality-checker closures) and the T6 oracle code were written 2026-10-03 on `claude/triage-exceptions`,
+  never pushed, and are now merged into main through `claude/integrate-triage-exceptions`. Tasks and results
+  are in `PLAN.md`. The model's allowed codes leave out the passive-observation codes, so the assess-v2 prompt and
+  its model cache are unchanged. A full assess on merged main (`20261004-js-merged`) came entirely from cache.
+  The result: 84.8% routed automatically with 99.4% agreement, needs_review 84, overall agreement 0.865,
+  0 incorrect demotions. `fva report` gives 73 open and 426 closed issues. The L4 passive receipts, rebuilt for
+  that run (`20261004-js-merged-passive`), again change no verdict, and the whatif ceiling is 67.
+  Next: S4 (an HTML page added to the existing `fva report`), then L5 (pitch).
+- Paused T6 live run (record-desk demo, 2026-10-03). Local paths, hashes and ports are in
+  `data/LOCAL-NOTES.md`. The owner chose to reuse the `9ac5160` Polaris scan against a clone at the
+  source-identity commit `0f17d90`. A run on that clone decided 3 findings automatically and left 3 open. The
+  banner finding still points at `app.js:4`, a blank line at `0f17d90` (the code moved to line 5), so any
+  confirmation must note the scan revision. While drafting the collection plan, a safety classifier stopped
+  two responses about the CVE-2021-23337 template-injection probe to `/layout`. No plan file was written, the
+  app was not started, no requests were sent and no approval exists. Next steps:
+  1. Banner first. Draft a plan with only the `header_disclosure` pair: `GET /` expecting
+     `X-Powered-By: Express`, with a different route as the control. It needs no injection
+     payload. The owner runs `runtime approve`; Claude collects and imports.
+  2. Before collecting, start the app from the clone on the profile's port. Check that its
+     `X-FVA-Source-SHA256` header equals the run's source hash. If not, find the difference
+     between the app's hash and `fva.correlation.source_pin` (file set or line endings) before
+     any plan.
+  3. CVE-2021-23337 has two options. The owner can write the probe URL in the plan; the collector
+     already gates it on the call-site link and the operator approval. Or it stays `likely` through
+     `VULNERABLE_FUNCTION_CALLED`. The earlier local validation outside FVA is not a collector
+     receipt, so it cannot confirm anything automatically.
+- Routine triage does not require grading model responses; open findings stay open as
+  "open, not auto-verified".
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
 
 ## Historical development log
@@ -77,7 +103,7 @@ they are not instructions to rerun or replace the frozen pilot.
 | Area | Module | Status |
 |---|---|---|
 | Canonical schemas | `fva/schemas.py` | IngestionRun, Finding, EvidenceRecord (many findings per record), DeploymentProfile, Verdict (append-only, `supersedes`) |
-| Reason codes | `fva/reason_codes.py` | Vocabulary v1: 28 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer; 2 appended 2026-10-04: `PACKAGE_NOT_LOADED`, `EXECUTED_UNDER_TEST`); 16 map 1:1 from the PoC |
+| Reason codes | `fva/reason_codes.py` | Vocabulary v1: 35 codes (4 appended 2026-10-01: 2 `likely`, 2 reviewer; 2 appended 2026-10-04: `PACKAGE_NOT_LOADED`, `EXECUTED_UNDER_TEST`; 7 written 2026-10-03 and merged 2026-10-04: 5 triage exceptions, 2 call sites); 16 map 1:1 from the PoC |
 | Verdict invariants | `fva/invariants.py` | confirmed needs `supports`, not_applicable needs `refutes`, conflict forces needs_review; `likely` needs `supports` plus rule-derived static evidence; `PACKAGE_NOT_LOADED` needs a not-loaded observation beyond startup and no shipped import; `EXECUTED_UNDER_TEST` needs an executed line and a static or model `supports` |
 | Scanner mix | `fva/pipeline.py`, `fva/runtime_mode.py` | any mix; no DAST -> runtime mode `none`; SCA↔SAST and SAST↔DAST links + groups wired in; `findings.jsonl` indexes every original finding |
 | Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
@@ -119,9 +145,8 @@ they are not instructions to rerun or replace the frozen pilot.
   confirmed, 9 not_applicable and 12 needs_review (1 is not in the key). Of the 44 open SAST findings whose line
   ran, the ledger has 10 confirmed, 9 not_applicable and 25 valid_non_security. The whatif ceiling assumed the
   answer key picks which signal settles each finding; the real signals carry no such information. The 5 lines
-  that never ran are all Polaris dead-code findings that the ledger calls valid_non_security. Closing those as
-  `QUALITY_NOT_SECURITY` would need observations to carry `non_security`, which the decision below rules out.
-  Left open for the owner.
+  that never ran are all Polaris dead-code findings that the ledger calls valid_non_security. The T8 quality-checker
+  rule already closes them as `QUALITY_NOT_SECURITY` by checker id, so no observation rule is needed.
 - 2026-10-04: Passive `runtime_observation` evidence does not count toward `likely` and never confirms. It is in
   neither `CONFIRMING_TYPES` nor `RULE_TYPES`, and the schema allows only `neutral`, or `refutes` for a package that
   was not loaded. A coverage hit shows that code ran, not that it is vulnerable, so a `likely` still needs a cited

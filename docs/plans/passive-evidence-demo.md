@@ -92,7 +92,8 @@ stubbed (recipe in `docs/operations.md`). Receipts: 6 loaded packages (none abse
 demotions. Agreement is 0.798 and the review queue is 123, against a whatif ceiling of 106. 13 `likely` SAST
 findings switched reason code to `EXECUTED_UNDER_TEST`: the ledger confirms 12, and calls 1 (a permissive CORS
 policy, `server.ts:183`) mitigated, which it already disagreed with before L4. Analysis: `CHECKPOINT.md`,
-decision 2026-10-04 (L4).
+decision 2026-10-04 (L4). These numbers predate the T1-T8 merge. On the merged rules (`20261004-js-merged`),
+needs_review is 84 and the passive receipts again change no verdict.
 
 ### L5. Pitch and checkpoint
 

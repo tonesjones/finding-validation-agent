@@ -116,14 +116,18 @@ def test_approval_template_cannot_approve_or_overwrite(prepared, tmp_path):
 @pytest.fixture
 def server(prepared):
     _, run = prepared
-    source_hash = json.loads((run / "summary.json").read_text())["source_content_sha256"]
     seen = []
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             seen.append(self.path)
+            source_hash = json.loads((run / "summary.json").read_text())["source_content_sha256"]
             self.send_response(302 if self.path == "/redirect" else 200)
             self.send_header("X-FVA-Source-SHA256", "wrong" if self.path == "/wrong" else source_hash)
+            if self.path == "/duplicate-identity":
+                self.send_header("X-FVA-Source-SHA256", "wrong")
+            if self.path in {"/probe", "/duplicate-identity"}:
+                self.send_header("X-Record-Banner", "RecordDesk/1.2.3")
             self.send_header("Location", "/never-follow")
             self.end_headers()
             if self.path == "/slow":
@@ -134,7 +138,7 @@ def server(prepared):
                         time.sleep(0.2)
                 except (BrokenPipeError, ConnectionResetError):
                     pass
-            elif self.path == "/probe":
+            elif self.path in {"/probe", "/sca-probe"}:
                 # The fixture computes a marker, rather than reflecting a marker from a request.
                 self.wfile.write(bytes([ord(c) for c in MARKER]))
             elif self.path == "/huge":
@@ -382,3 +386,219 @@ def test_second_import_into_derived_run_is_explicitly_rejected(prepared, tmp_pat
     runtime.import_collection(run, collection, out)
     with pytest.raises(ValueError, match="one collection"):
         runtime.import_collection(out, collection, tmp_path / "second")
+
+
+def oracle_plan(source, run, oracle, origin="http://127.0.0.1:12345"):
+    plan = make_plan(run, origin).model_dump(mode="json")
+    plan["source_root"] = str(source)
+    pair = plan["pairs"][0]
+    pair["oracle"] = oracle
+    if oracle == "header_disclosure":
+        pair.pop("marker")
+        pair.update(header_name="X-Record-Banner", expected_value="RecordDesk/1.2.3")
+    if oracle == "sca_marker":
+        pair["call_site"] = "routes/template.js:2"
+        plan["entrypoints"] = ["server.js"]
+        plan["allowed_urls"][1] = pair["probe"]["url"] = origin + "/sca-probe"
+    return plan
+
+
+def oracle_finding(source, run, oracle):
+    row = runtime.read_rows(run / "findings.jsonl")[0]
+    if oracle == "header_disclosure":
+        (source / "app.txt").write_text('res.setHeader("X-Record-Banner", "RecordDesk/1.2.3")\n')
+        row.update(finding_type="sast", cwe=["CWE-201"], path="app.txt", line=1)
+    else:
+        (source / "server.js").write_text("const template = require('./routes/template')\napp.get('/sca-probe', template.run)\n")
+        routes = source / "routes"
+        routes.mkdir()
+        (routes / "template.js").write_text("import _ from 'lodash'\n_.template(input)\n")
+        row.update(finding_type="sca", cwe=[], path=None, line=None)
+        evidence = {"evidence_id": "f:callsite:called", "finding_ids": ["f"],
+                    "evidence_type": "static_source", "method": "advisory_call_site:called",
+                    "stance": "supports", "summary": "CVE-2021-23337 affects lodash template: template at routes/template.js:2",
+                    "deployment_profile_id": "p", "collected_at": "2026-10-03T00:00:00Z"}
+        (run / "evidence.jsonl").write_text(json.dumps(evidence) + "\n")
+    (run / "findings.jsonl").write_text(json.dumps(row) + "\n")
+    summary = json.loads((run / "summary.json").read_text())
+    summary["source_content_sha256"] = runtime.pin(source).content_sha256
+    runtime.write_json(run / "summary.json", summary)
+
+
+def test_execution_plan_digest_unchanged(prepared):
+    _, run = prepared
+    plan = make_plan(run)
+    pair = plan.model_dump(mode="json")["pairs"][0]
+    assert set(pair) == {"finding_id", "probe", "control", "marker", "rationale"}
+    assert set(plan.model_dump(mode="json")) == {"profile_id", "source_content_sha256",
+                                                 "findings_sha256", "allowed_urls", "pairs"}
+    # findings.jsonl is written in text mode, so its hash depends on the OS line ending; the format check does not.
+    stable = plan.model_dump(mode="json") | {"findings_sha256": "0" * 64}
+    assert runtime.digest(stable) == "8fc06852f6a8676c20ab48fa95100ebb16088e3f37f1ea76052f5068a6a0c0bb"
+
+
+@pytest.mark.parametrize("oracle", ["header_disclosure", "sca_marker"])
+def test_oracle_collects_support_with_bound_control(prepared, tmp_path, server, oracle):
+    source, run = prepared
+    oracle_finding(source, run, oracle)
+    origin, seen = server
+    plan = runtime.Plan.model_validate(oracle_plan(source, run, oracle, origin))
+    plan_path, approval = inputs(tmp_path, plan)
+    collection = tmp_path / "collection"
+    runtime.collect(run, source, plan_path, approval, collection)
+    receipt = json.loads((collection / "receipt.json").read_text())
+    records = runtime.evidence_from_receipt(receipt, run)
+    if oracle == "header_disclosure":
+        assert receipt["observations"][0]["probe"]["headers"] == {"x-record-banner": "RecordDesk/1.2.3"}
+        assert receipt["observations"][0]["control"]["headers"] == {"x-record-banner": None}
+    assert [e.stance.value for e in records] == ["supports", "neutral"]
+    assert records[1].tool_versions["control_for"] == records[0].evidence_id
+    assert seen == (["/control", "/probe"] if oracle == "header_disclosure" else ["/control", "/sca-probe"])
+    out = tmp_path / "imported"
+    runtime.import_collection(run, collection, out)
+    assert json.loads((out / "summary.json").read_text())["verdicts"] == {"confirmed": 1}
+
+
+@pytest.mark.parametrize("oracle", ["header_disclosure", "sca_marker"])
+@pytest.mark.parametrize("change", ["outside", "post", "unknown"])
+def test_new_oracles_reject_unapproved_requests_before_network(prepared, tmp_path, monkeypatch, oracle, change):
+    source, run = prepared
+    oracle_finding(source, run, oracle)
+    plan = oracle_plan(source, run, oracle)
+    pair = plan["pairs"][0]
+    if change == "outside":
+        pair["probe"]["url"] = "http://127.0.0.1:12345/other"
+    elif change == "post":
+        pair["probe"]["method"] = "POST"
+    else:
+        pair["oracle"] = "unrecognized"
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(plan))
+    monkeypatch.setattr(runtime, "fetch", lambda *args: pytest.fail("gate sent a request"))
+    with pytest.raises(ValueError):
+        runtime.collect(run, source, plan_path, approval, tmp_path / "collection")
+
+
+@pytest.mark.parametrize("change", ["missing_record", "wrong_site", "wrong_route"])
+def test_sca_requires_called_site_on_probed_route(prepared, tmp_path, monkeypatch, change):
+    source, run = prepared
+    oracle_finding(source, run, "sca_marker")
+    plan = oracle_plan(source, run, "sca_marker")
+    if change == "missing_record":
+        (run / "evidence.jsonl").write_text("")
+    elif change == "wrong_site":
+        plan["pairs"][0]["call_site"] = "routes/template.js:3"
+    else:
+        plan["allowed_urls"][1] = plan["pairs"][0]["probe"]["url"] = "http://127.0.0.1:12345/unrelated"
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(plan))
+    monkeypatch.setattr(runtime, "fetch", lambda *args: pytest.fail("gate sent a request"))
+    with pytest.raises(ValueError, match="call site|route"):
+        runtime.collect(run, source, plan_path, approval, tmp_path / "collection")
+
+
+@pytest.mark.parametrize("change", ["cwe", "source_value"])
+def test_header_requires_disclosure_finding_and_source_literal(prepared, tmp_path, monkeypatch, change):
+    source, run = prepared
+    oracle_finding(source, run, "header_disclosure")
+    if change == "cwe":
+        row = runtime.read_rows(run / "findings.jsonl")[0]
+        row["cwe"] = ["CWE-94"]
+        (run / "findings.jsonl").write_text(json.dumps(row) + "\n")
+    plan = oracle_plan(source, run, "header_disclosure")
+    if change == "source_value":
+        plan["pairs"][0]["expected_value"] = "Other/1.2.3"
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(plan))
+    monkeypatch.setattr(runtime, "fetch", lambda *args: pytest.fail("gate sent a request"))
+    with pytest.raises(ValueError):
+        runtime.collect(run, source, plan_path, approval, tmp_path / "collection")
+
+
+@pytest.mark.parametrize("oracle", ["header_disclosure", "sca_marker"])
+@pytest.mark.parametrize("response", ["control", "probe"])
+def test_new_oracles_require_identity_on_both_responses(prepared, tmp_path, server, oracle, response):
+    source, run = prepared
+    oracle_finding(source, run, oracle)
+    origin, _ = server
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(oracle_plan(source, run, oracle, origin)))
+    collection = tmp_path / "collection"
+    runtime.collect(run, source, plan_path, approval, collection)
+    receipt = json.loads((collection / "receipt.json").read_text())
+    receipt["observations"][0][response]["source_content_sha256"] = None
+    assert all(e.stance.value == "neutral" for e in runtime.evidence_from_receipt(receipt, run))
+
+
+def test_header_value_must_match_exactly(prepared, tmp_path, server):
+    source, run = prepared
+    oracle_finding(source, run, "header_disclosure")
+    origin, _ = server
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(oracle_plan(source, run, "header_disclosure", origin)))
+    collection = tmp_path / "collection"
+    runtime.collect(run, source, plan_path, approval, collection)
+    receipt = json.loads((collection / "receipt.json").read_text())
+    receipt["observations"][0]["probe"]["headers"]["x-record-banner"] = "RecordDesk/1.2.3-extra"
+    assert all(e.stance.value == "neutral" for e in runtime.evidence_from_receipt(receipt, run))
+
+
+def test_header_receipt_rejects_unapproved_headers(prepared, tmp_path, server):
+    source, run = prepared
+    oracle_finding(source, run, "header_disclosure")
+    origin, _ = server
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(oracle_plan(source, run, "header_disclosure", origin)))
+    collection = tmp_path / "collection"
+    runtime.collect(run, source, plan_path, approval, collection)
+    receipt = json.loads((collection / "receipt.json").read_text())
+    receipt["observations"][0]["probe"]["headers"]["set-cookie"] = "unapproved"
+    with pytest.raises(ValueError, match="unapproved header"):
+        runtime.evidence_from_receipt(receipt, run)
+
+
+def test_duplicate_identity_header_cannot_support(prepared, tmp_path, server):
+    source, run = prepared
+    oracle_finding(source, run, "header_disclosure")
+    origin, _ = server
+    plan = oracle_plan(source, run, "header_disclosure", origin)
+    plan["allowed_urls"][1] = plan["pairs"][0]["probe"]["url"] = origin + "/duplicate-identity"
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(plan))
+    collection = tmp_path / "collection"
+    runtime.collect(run, source, plan_path, approval, collection)
+    receipt = json.loads((collection / "receipt.json").read_text())
+    assert receipt["observations"][0]["probe"]["source_content_sha256"] is None
+    assert all(e.stance.value == "neutral" for e in runtime.evidence_from_receipt(receipt, run))
+
+
+@pytest.mark.parametrize("app,accepted", [
+    ("import express from 'express'\nconst app = express()\n", True),
+    ("const express = require('express')\nconst app = express()\n", True),
+    ("const app = createServer()\n", False),  # no framework import and no literal value
+])
+def test_framework_default_header_needs_the_framework_import(prepared, app, accepted):
+    source, run = prepared
+    oracle_finding(source, run, "header_disclosure")
+    (source / "app.txt").write_text(app)
+    summary = json.loads((run / "summary.json").read_text())
+    summary["source_content_sha256"] = runtime.pin(source).content_sha256
+    runtime.write_json(run / "summary.json", summary)
+    plan = oracle_plan(source, run, "header_disclosure")
+    plan["source_content_sha256"] = summary["source_content_sha256"]
+    plan["pairs"][0].update(header_name="X-Powered-By", expected_value="Express")
+    if accepted:
+        runtime.bind_run(runtime.Plan.model_validate(plan), run)
+    else:
+        with pytest.raises(ValueError, match="absent near the finding line"):
+            runtime.bind_run(runtime.Plan.model_validate(plan), run)
+
+
+def test_imported_receipt_still_verifies_after_the_checkout_changes(prepared, tmp_path, server):
+    source, run = prepared
+    oracle_finding(source, run, "header_disclosure")
+    origin, _ = server
+    plan_path, approval = inputs(tmp_path, runtime.Plan.model_validate(oracle_plan(source, run, "header_disclosure", origin)))
+    runtime.collect(run, source, plan_path, approval, tmp_path / "collection")
+    out = tmp_path / "imported"
+    runtime.import_collection(run, tmp_path / "collection", out)
+    evidence = [runtime.EvidenceRecord.model_validate_json(line)
+                for line in (out / "evidence.jsonl").read_text().splitlines() if line.strip()]
+    (source / "app.txt").write_text("edited after import\n")
+    trusted, warning = runtime.verify_runtime(out, evidence)
+    assert warning is None and len(trusted) == 2
+    with pytest.raises(ValueError, match="pinned source root"):  # a fresh import re-checks the source
+        runtime.import_collection(run, tmp_path / "collection", tmp_path / "again")
