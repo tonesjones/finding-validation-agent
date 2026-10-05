@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(python -m fva.polaris_mcp *)",
+      "PowerShell(python -m fva.polaris_mcp *)"
+    ]
+  }
+}
