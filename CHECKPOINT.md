@@ -69,8 +69,10 @@ Last updated: 2026-10-04. Update this file when status changes.
   The result: 84.8% routed automatically with 99.4% agreement, needs_review 84, overall agreement 0.865,
   0 incorrect demotions. `fva report` gives 73 open and 426 closed issues. The L4 passive receipts, rebuilt for
   that run (`20261004-js-merged-passive`), again change no verdict, and the whatif ceiling is 67.
-  L5: the pitch is `docs/demo-pitch.md`. Next: review S4 (`report.html` added to `fva report`, Codex), then
-  run the plan's "done means" check.
+  L5: the pitch is `docs/demo-pitch.md`. S4: `fva report` also writes a static `report.html`. The demo plan
+  is complete. CI is green on Linux and Windows, there are 0 incorrect demotions, measured counts replace the
+  whatif estimate, and every branch merged through a PR. Next, as a new plan: the paused T6 live run below, the
+  pilot collector plan, and DAST once the entitlement arrives.
 - Paused T6 live run (record-desk demo, 2026-10-03). Local paths, hashes and ports are in
   `data/LOCAL-NOTES.md`. The owner chose to reuse the `9ac5160` Polaris scan against a clone at the
   source-identity commit `0f17d90`. A run on that clone decided 3 findings automatically and left 3 open. The
