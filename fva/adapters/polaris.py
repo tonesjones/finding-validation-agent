@@ -268,9 +268,18 @@ def load_mcp(paths, *, source_commit: str | None = None):
     out = []
     for p in sorted(paths):
         digest = _sha(p)
-        for i, issue in enumerate(_unwrap(_json.loads(p.read_text(encoding="utf-8")))):
-            out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}",
-                                  types=(dast_types if dast_types is not None else types) if is_dast(issue) else types))
+        try:
+            issues = _unwrap(_json.loads(p.read_text(encoding="utf-8")))
+        except (ValueError, KeyError, IndexError, TypeError) as e:
+            raise ValueError(f"{p.name}: invalid MCP response: {e!r}") from e
+        for i, issue in enumerate(issues):
+            try:
+                if not isinstance(issue, dict):
+                    raise TypeError(f"expected an object, got {type(issue).__name__}")
+                out.append(from_issue(issue, run_id=run.run_id, raw_digest=digest, pointer=f"/issues/{i}",
+                                      types=(dast_types if dast_types is not None else types) if is_dast(issue) else types))
+            except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
+                raise ValueError(f"{p.name}/issues/{i}: malformed issue: {e!r}") from e
     return run, out
 
 
