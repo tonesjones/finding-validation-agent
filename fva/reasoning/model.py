@@ -124,7 +124,7 @@ class _CliClient:
     # complete() on the same thread. None until a call on this thread has set them.
     #   last_reported_model: str | None  parsed from the CLI's own `model: <name>` header line
     #   last_tokens: int | None          parsed from the CLI's `tokens used` footer, when it prints one
-#   last_usage: dict | None          int fields of the `turn.completed` usage in --json output, else None
+    #   last_usage: dict | None          int fields of the `turn.completed` usage in --json output, else None
     @property
     def last_reported_model(self) -> str | None:
         return getattr(self._local, "last_reported_model", None)

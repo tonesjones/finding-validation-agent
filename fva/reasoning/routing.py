@@ -117,7 +117,8 @@ class Router:
         t0 = time.time()
         res = assessor.assess(lead, idx, client, routing={"routing_tier": tier, "routing_reason": reason}, **kw)
         attempts.append({"tier": tier, "model": client.model_id, "agent_model": res.agent_model,
-                         "seconds": round(time.time() - t0, 1), "cached": res.cached, "tokens": res.tokens, "usage": res.usage,
+                         "seconds": round(time.time() - t0, 1), "cached": res.cached, "tokens": res.tokens,
+                         "usage": res.usage,
                          "stance": res.evidence.stance.value, "confidence": res.confidence,
                          "rejected": len(res.rejected)})
         return res

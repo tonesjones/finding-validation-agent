@@ -93,6 +93,13 @@ Last updated: 2026-10-04. Update this file when status changes.
   `skip` decides none. Overall auto share 84.8% vs 83.9%, auto agreement 99.4% in both, 0 incorrect demotions in
   both. Recommendation: keep `ask`; awaiting the owner's decision. API client: recommend not building it (saves
   about $0.12 per fresh run at list prices and moves spend off the subscription).
+- 2026-10-04: cost accounting (backlog item 8, `docs/plans/unblocked-backlog.md` item 2). Codex runs with
+  `--json`; each fresh call records input, cached-input and output tokens in its cache meta, the model comes from
+  the `model:` header or Codex's session file, and `summary.json` has a `cost` block from `fva/reasoning/pricing.py`
+  (`--prices` overrides). Cache keys are unchanged: a full Juice Shop assess on the branch came entirely from cache
+  with identical triage on all 573 findings. Answers cached before this change have no usage, so they cost $0 in a
+  run and add nothing to `usd_when_first_made`. One real Codex smoke call to confirm `--json` output still waits on
+  the owner's OK.
 - Routine triage does not require grading model responses; open findings stay open as
   "open, not auto-verified".
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.

@@ -91,6 +91,7 @@ These options change how `python -m fva assess` runs. Output goes to `data/runs/
 | `--astra <id>` | Send the group that holds this scanner finding id to the Astra tier. Repeatable. Needs routing. |
 | `--workers N` | Run N model calls in parallel. Default 1. About 4 is a sensible start. Results are the same as a sequential run. |
 | `--credential-model skip` | Don't send hard-coded-credential findings to a model. Only a runtime test can decide them. Default is `ask`. Compare both with `fva score` before you switch. |
+| `--prices <json>` | Per-1M-token prices by reported model name, as `{"gpt-6-sol": {"input": 2.0, "cached_input": 0.2, "output": 10.0}}`. Overrides the built-in table in `fva/reasoning/pricing.py`. `summary.json` gets a `cost` block per tier and in total; only fresh calls count toward `usd`. |
 | `--dry-run` | Write the prompts only. No model calls. |
 | `--limit N` | Assess only the first N groups (a smoke test). |
 | `--findings`, `--lockfile` | Where the Polaris export and the resolved lockfile are. The defaults point into `data/` (local only). |
