@@ -86,6 +86,14 @@ Acceptance: one test per rule above, including the two "never closes" cases.
 Run assess with the passive observations, then `worksheet`, `score` and `whatif`. Check every new closure
 against the PoC ledger. Any incorrect demotion blocks the demo until fixed.
 
+Done 2026-10-04. Exercise: `npm run test:server` and `npm run test:api` on Node 24.14, with the frontend dist
+stubbed (recipe in `docs/operations.md`). Receipts: 6 loaded packages (none absent) and 64 located SAST lines
+(59 ran). Every record re-verified. No verdict changed, so there are no new closures to check and no incorrect
+demotions. Agreement is 0.798 and the review queue is 123, against a whatif ceiling of 106. 13 `likely` SAST
+findings switched reason code to `EXECUTED_UNDER_TEST`: the ledger confirms 12, and calls 1 (a permissive CORS
+policy, `server.ts:183`) mitigated, which it already disagreed with before L4. Analysis: `CHECKPOINT.md`,
+decision 2026-10-04 (L4).
+
 ### L5. Pitch and checkpoint
 
 Write the narrative from the actual numbers. Update `CHECKPOINT.md` with results, decisions and next steps.
