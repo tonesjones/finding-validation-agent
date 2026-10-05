@@ -48,22 +48,43 @@ class FieldMap:
     severity_map: dict[str, Any] = field(default_factory=dict)  # vendor string -> Severity override
 
 
-def _rows(path: Path) -> Iterator[tuple[str, dict]]:
+def _rows(path: Path, id_col: str | None = None) -> Iterator[tuple[str, dict]]:
     """Yield (pointer, row). Pointer is 'L<n>' for JSONL/CSV lines, '/<i>' for JSON arrays."""
-    text = path.read_text(encoding="utf-8-sig")
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError as e:
+        raise ValueError(f"{path.name}: not valid UTF-8: {e}") from e
     suffix = path.suffix.lower()
     if suffix == ".csv":
-        for i, row in enumerate(csv.DictReader(io.StringIO(text)), start=2):
+        reader = csv.DictReader(io.StringIO(text))
+        if reader.fieldnames is not None and id_col is not None and id_col not in reader.fieldnames:
+            raise ValueError(f"{path.name}: missing required id column {id_col!r}")
+        for i, row in enumerate(reader, start=2):
+            if None in row or None in row.values():
+                raise ValueError(f"{path.name}L{i}: row has the wrong number of fields")
             yield f"L{i}", row
     elif suffix in (".jsonl", ".ndjson"):
         for i, line in enumerate(text.splitlines(), 1):
             if line.strip():
-                yield f"L{i}", json.loads(line)
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as e:
+                    raise ValueError(f"{path.name}L{i}: invalid JSON: {e}") from e
+                if not isinstance(row, dict):
+                    raise ValueError(f"{path.name}L{i}: expected a JSON object, got {type(row).__name__}")
+                yield f"L{i}", row
     else:
-        data = json.loads(text)
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"{path.name}: invalid JSON: {e}") from e
         if isinstance(data, dict):  # common wrappers: {"items": [...]} / {"_items": [...]}
-            data = next((v for v in data.values() if isinstance(v, list)), [])
+            data = next((v for v in data.values() if isinstance(v, list)), None)
+        if not isinstance(data, list):
+            raise ValueError(f"{path.name}: expected a JSON array of records or an object wrapping one")
         for i, row in enumerate(data):
+            if not isinstance(row, dict):
+                raise ValueError(f"{path.name}/{i}: expected a JSON object, got {type(row).__name__}")
             yield f"/{i}", row
 
 
@@ -76,7 +97,7 @@ def load(path: Path, fm: FieldMap, *, source_commit: str | None = None,
                        raw_artifact_sha256=digest, raw_artifact_name=path.name,
                        source_commit=source_commit, ingested_at=datetime.now(timezone.utc))
     out = []
-    for ptr, row in _rows(path):
+    for ptr, row in _rows(path, fm.id):
         def g(col):
             if col is None:
                 return None
@@ -89,31 +110,34 @@ def load(path: Path, fm: FieldMap, *, source_commit: str | None = None,
         if sid in (None, ""):
             raise ValueError(f"{path.name}{ptr}: missing required id column {fm.id!r}")
         sid = str(sid)  # preserved as-is; no stripping or case change
-        ftype = fm.finding_type(row) if callable(fm.finding_type) else FindingType(str(row[fm.finding_type]).lower())
-        raw_sev = str(g(fm.severity) or "info")
-        severity = fm.severity_map.get(raw_sev) or sev.from_vendor(raw_sev)
-        loc = None
-        if g(fm.path):
-            line = g(fm.line)
-            loc = FindingLocation(path=str(g(fm.path)), start_line=int(line) if line is not None else None,
-                                  function=g(fm.function))
-        pkg = None
-        if ftype is FindingType.sca and g(fm.package_name):
-            linked = g(fm.linked_advisory_id)
-            pkg = PackageRef(name=str(g(fm.package_name)), version=str(g(fm.package_version) or "unknown"),
-                             ecosystem=g(fm.ecosystem), advisory_id=g(fm.advisory_id),
-                             linked_advisory_ids=(str(linked),) if linked else ())
-            loc = None  # SCA "location" columns are usually "name version", not a file
-        cwe = g(fm.cwe)
-        out.append(Finding(
-            finding_id=str(uuid.uuid5(_NS, f"finding:{fm.source_tool}:{sid}")) if deterministic_ids else str(uuid.uuid4()),
-            run_id=run.run_id, source_tool=fm.source_tool, source_finding_id=sid,
-            rule_id=str(g(fm.rule_id) or g(fm.advisory_id) or "unknown"),
-            cwe=tuple(c.strip() for c in str(cwe).split(",") if c.strip()) if cwe else (),
-            title=str(g(fm.title) or ""), description=str(g(fm.description) or ""),
-            severity=severity, finding_type=ftype, location=loc, package=pkg,
-            fingerprint=g(fm.fingerprint),
-            scanner_metadata={c: row[c] for c in fm.metadata if g(c) is not None},
-            raw_evidence_ref=raw_ref(digest, ptr),
-        ))
+        try:
+            ftype = fm.finding_type(row) if callable(fm.finding_type) else FindingType(str(row[fm.finding_type]).lower())
+            raw_sev = str(g(fm.severity) or "info")
+            severity = fm.severity_map.get(raw_sev) or sev.from_vendor(raw_sev)
+            loc = None
+            if g(fm.path):
+                line = g(fm.line)
+                loc = FindingLocation(path=str(g(fm.path)), start_line=int(line) if line is not None else None,
+                                      function=g(fm.function))
+            pkg = None
+            if ftype is FindingType.sca and g(fm.package_name):
+                linked = g(fm.linked_advisory_id)
+                pkg = PackageRef(name=str(g(fm.package_name)), version=str(g(fm.package_version) or "unknown"),
+                                 ecosystem=g(fm.ecosystem), advisory_id=g(fm.advisory_id),
+                                 linked_advisory_ids=(str(linked),) if linked else ())
+                loc = None  # SCA "location" columns are usually "name version", not a file
+            cwe = g(fm.cwe)
+            out.append(Finding(
+                finding_id=str(uuid.uuid5(_NS, f"finding:{fm.source_tool}:{sid}")) if deterministic_ids else str(uuid.uuid4()),
+                run_id=run.run_id, source_tool=fm.source_tool, source_finding_id=sid,
+                rule_id=str(g(fm.rule_id) or g(fm.advisory_id) or "unknown"),
+                cwe=tuple(c.strip() for c in str(cwe).split(",") if c.strip()) if cwe else (),
+                title=str(g(fm.title) or ""), description=str(g(fm.description) or ""),
+                severity=severity, finding_type=ftype, location=loc, package=pkg,
+                fingerprint=g(fm.fingerprint),
+                scanner_metadata={c: row[c] for c in fm.metadata if g(c) is not None},
+                raw_evidence_ref=raw_ref(digest, ptr),
+            ))
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            raise ValueError(f"{path.name}{ptr}: malformed record: {e!r}") from e
     return run, out

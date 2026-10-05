@@ -100,6 +100,10 @@ Last updated: 2026-10-04. Update this file when status changes.
   with identical triage on all 573 findings. Answers cached before this change have no usage, so they cost $0 in a
   run and add nothing to `usd_when_first_made`. One real Codex smoke call to confirm `--json` output still waits on
   the owner's OK.
+- 2026-10-04: malformed-input audit (`docs/plans/unblocked-backlog.md` item 3). Every adapter loader (SARIF,
+  generic mapping, Polaris flat, MCP and DAST, PoC ledger) raises `ValueError` naming the file and record for
+  truncated, invalid or wrongly shaped input, before returning any findings, and leaves the input bytes unchanged.
+  Empty JSONL or CSV files still mean zero findings. The real Juice Shop export (573) and PoC ledger (570) load as before.
 - Routine triage does not require grading model responses; open findings stay open as
   "open, not auto-verified".
 - The pilot DAST scan still awaits entitlement. Its coverage is unknown.
@@ -361,7 +365,7 @@ Which Claude model each remaining [ROADMAP](ROADMAP.md) task likely needs to imp
 |---|---|---|---|
 | Pre-work | Move repo to company GitHub account | Haiku | Remote/URL updates only |
 | Pre-work | Confirm data-handling rules for real Polaris data | Sonnet | Draft checklist; humans decide |
-| v0.2 | Audit rejection of malformed inputs (raw exports untouched) | Sonnet | Tests against existing adapters |
+| v0.2 | Audit rejection of malformed inputs (raw exports untouched) ✅ | Sonnet | Tests against existing adapters |
 | v0.4 | Polaris DAST adapter (URL, method, parameter, CWE, redacted req/resp) ✅ | Sonnet | Mirrors `fva/adapters/polaris.py`; redaction via `fva/redact.py` |
 | v0.4 | SAST↔DAST linking by CWE, route/handler, parameter, with link confidence ✅ | Opus | Fuzzy route↔handler matching; false links mislead verdicts |
 | v0.4 | SCA↔SAST linking via vulnerable-function call sites ✅ | Opus | Advisory-to-function mapping, reachability semantics |

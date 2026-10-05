@@ -100,9 +100,22 @@ def _package(result: dict, loc: FindingLocation | None) -> PackageRef | None:
 def parse(path: Path, *, source_commit: str | None = None, source_repo: str | None = None,
           finding_type: FindingType | None = None) -> tuple[IngestionRun, list[Finding]]:
     digest = sha256_file(path)
-    doc: dict[str, Any] = json.loads(path.read_bytes())
+    try:
+        doc: dict[str, Any] = json.loads(path.read_bytes())
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise ValueError(f"{path.name}: invalid JSON: {e}") from e
+    if not isinstance(doc, dict):
+        raise ValueError(f"{path.name}: SARIF document must be a JSON object, got {type(doc).__name__}")
     if doc.get("version") != "2.1.0":
-        raise ValueError(f"unsupported SARIF version {doc.get('version')!r}")
+        raise ValueError(f"{path.name}: unsupported SARIF version {doc.get('version')!r}")
+    if not isinstance(doc.get("runs"), list):
+        raise ValueError(f"{path.name}/runs: missing or not an array")
+    for ri, run in enumerate(doc["runs"]):
+        if not isinstance(run, dict) or not isinstance(run.get("results", []), list):
+            raise ValueError(f"{path.name}/runs/{ri}: expected an object with a results array")
+        for xi, result in enumerate(run.get("results", [])):
+            if not isinstance(result, dict):
+                raise ValueError(f"{path.name}/runs/{ri}/results/{xi}: expected an object")
     run_rec = IngestionRun(
         run_id=str(uuid.uuid4()), source_tool="sarif", adapter=ADAPTER,
         raw_artifact_sha256=digest, raw_artifact_name=path.name,
