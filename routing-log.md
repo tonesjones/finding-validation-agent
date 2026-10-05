@@ -47,3 +47,7 @@
 2026-10-04 | merge T1-T8 (claude/triage-exceptions) | reasoning | opus | inline | pass | n/a | conflicts in verdicts/worksheet/reason codes; worksheet.load returns verified observation ids; excluded observation codes from MODEL_CODES so the assess-v2 cache holds; full re-assess all cached
 2026-10-04 | L5 pitch | write-heavy | opus | inline | pass | n/a | numbers from merged-main runs; S4 running on Codex meanwhile
 2026-10-04 | S4 demo report | write-heavy | codex gpt-6-sol | worktree | fix | 74k (codex) | Opus reordered sections, added ticket fields, dropped a second triage pass; codex exec needs < /dev/null in background
+2026-10-04 | T1 credential default runs + comparison | reasoning | Opus | inline | inline | n/a | all cached under a no-Codex stub; recommend ask
+2026-10-04 | T2 cost accounting | write-heavy | Sonnet | P1 (worktree) | fix | 61k total | Opus: comment indent, long line; full JS run cached, triage identical
+2026-10-04 | T3 malformed-input audit | read+write-heavy | Sonnet | P2 (worktree) | fix | 48k total | Opus: ledger check rewritten, long line; real export and ledger load unchanged
+2026-10-04 | T4 API-client costing | touch-up | Opus | inline | inline | n/a | corrected Sol per-call cost 1.22 -> 1.24 cents
