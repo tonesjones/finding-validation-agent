@@ -79,6 +79,12 @@ closures, fix tickets and review, closures by reason code with cited evidence me
 ID in its grouped issue. It uses inline CSS and makes no external requests. Evidence summaries, receipt details
 and run summary fields other than the profile id are excluded.
 
+**SARIF export.** `python -m fva sarif <run_dir>` writes `sast.sarif` and `sca.sarif`, plus `dast.sarif` only
+when the run has DAST findings (SARIF 2.1.0, one result per original finding, never merged). The scanner finding id
+is written to `guid`, so `fva.adapters.sarif` reads it back unchanged. `properties.fva` holds the verdict (a closure
+triage did not auto-route shows as `needs_review`), route, reason codes, issue id and evidence as id, type, stance
+and method; summaries and receipt content are excluded. Polaris import of these files is unverified.
+
 ## Assess options
 
 These options change how `python -m fva assess` runs. Output goes to `data/runs/<timestamp>-<client>/`.

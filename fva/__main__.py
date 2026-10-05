@@ -114,6 +114,8 @@ def main(argv=None):
     t.add_argument("run_dir")
     rp = sub.add_parser("report", help="write tickets.jsonl/report.md: ranked open issues, one ticket each")
     rp.add_argument("run_dir")
+    sa = sub.add_parser("sarif", help="write sast.sarif/sca.sarif (and dast.sarif if any): enriched SARIF export")
+    sa.add_argument("run_dir")
     r = sub.add_parser("import-review", help="turn a filled worksheet into human_review evidence and verdicts")
     r.add_argument("run_dir")
     r.add_argument("csv")
@@ -143,6 +145,11 @@ def main(argv=None):
     if args.cmd == "report":
         from fva.export import report
         print(report.write(Path(args.run_dir)))
+        return
+
+    if args.cmd == "sarif":
+        from fva.export import sarif_export
+        print(sarif_export.write(Path(args.run_dir)))
         return
 
     if args.cmd in ("worksheet", "import-review"):
