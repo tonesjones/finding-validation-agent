@@ -66,6 +66,18 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 - Preserve scanner ids byte-for-byte. Reason codes are a closed, append-only vocabulary (`fva/reason_codes.py`).
 - Polaris is the only SAST engine for this project (no Semgrep/CodeQL).
 
+## Gotchas
+
+- Pipe `< /dev/null` into a background `codex exec`, or it hangs waiting on stdin.
+- Adding reason codes changes the assess prompt and empties the model cache, unless the new codes
+  are left out of `MODEL_CODES` in `fva/reasoning/assessor.py`.
+- The pipeline writes run files in text mode, so their hashes differ between Windows and Linux.
+  Don't pin run-file hashes in tests.
+- Python `write_text` on Windows writes CRLF. Normalize touched files to LF before committing.
+- Stacked PRs: don't run `gh pr merge --delete-branch` on a PR that others are based on, because
+  deleting the base branch closes them. After squash-merging the base, rebase the stacked branch
+  onto `main` (`git rebase --onto origin/main <old-base> <branch>`) or it will conflict.
+
 ## Layout
 
 `fva/schemas.py` data model · `fva/adapters/` scanner input (SARIF, Polaris flat + MCP, mapping, PoC ledger) ·
