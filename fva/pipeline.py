@@ -165,7 +165,8 @@ def write_findings_index(out_dir: Path, findings: list[Finding], batch: Batch, i
                 "endpoint": f"{f.endpoint.method} {f.endpoint.path}" if getattr(f, "endpoint", None) else None,
                 "disposition": batch.disposition.get(f.finding_id, "runtime_only" if f.finding_type is FindingType.dast
                                                      else "assess"),
-                "issue_id": issue_of.get(f.finding_id), "primary": f.finding_id in primary}) + "\n")
+                "issue_id": issue_of.get(f.finding_id), "primary": f.finding_id in primary,
+                "triage_status": f.scanner_metadata.get("triage_status")}) + "\n")
 
 
 def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, client, out_dir: Path,
