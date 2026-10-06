@@ -2,18 +2,6 @@
 
 Last updated: 2026-10-05. Update this file when status changes.
 
-## Task F: missing evidence in reports (2026-10-05)
-
-- Open report tickets now describe the evidence needed to decide every open member,
-  using existing verdicts, exceptions, dispositions and cited evidence metadata.
-  Markdown and HTML render the text; HTML also renders exception codes. Confirmed
-  tickets explicitly say confirmation evidence is present and remediation remains open.
-- Verdicts, triage routing, scores, reason codes and model codes are unchanged.
-  No private run was read or regenerated; no network or runtime collection ran.
-- Focused formatter/report validation: 53 passed; full suite: 561 passed, 10 skipped
-  in 33.06s. Pytest uses a workspace-local temporary directory
-  because the default temporary directory is unavailable in this sandbox.
-
 ## Integration review and current findings (2026-10-05)
 
 - PR #38 (DAST plan) is merged. PR #39 combines the real-envelope implementation

@@ -63,7 +63,7 @@ def missing_evidence(verdict: str, reason_codes, exceptions, finding: dict,
         label = check.replace("_", " ") if check in {s.value for s in Surface} else "unclassified"
         gaps.append(f"deployment evidence confirming whether the file's {label} surface ships is missing")
     if verdict == "likely":
-        gaps.append("runtime, DAST, human-review or imported evidence is needed to confirm this issue because static and model evidence cannot confirm it")
+        gaps.append("runtime, DAST or imported evidence is needed to confirm this issue; static and model evidence cannot confirm it")
     if not gaps:
         if verdict == "confirmed":
             return "No evidence is missing for confirmation; this confirmed issue remains open for remediation."
