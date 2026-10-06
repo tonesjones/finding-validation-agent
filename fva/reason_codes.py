@@ -52,8 +52,7 @@ _CODES = [
     # likely (v1 append, 2026-10-01): static evidence only; a human or runtime record is needed to confirm
     ReasonCode("STATIC_REACHABLE_SINK", V.likely, "Shipped, reachable sink with a cited static argument; no runtime proof."),
     ReasonCode("VULNERABLE_VERSION_IMPORTED", V.likely, "Vulnerable version installed and imported by shipped, reachable code; not executed."),
-    # human review via the triage worksheet (v1 append, 2026-10-01); deprecated 2026-10-05
-    # No routine human review; retain these codes so older records still validate.
+    # human review via the triage worksheet (v1 append, 2026-10-01); deprecated 2026-10-05 with import-review
     ReasonCode("REVIEWER_CONFIRMED", V.confirmed, "A named reviewer confirmed the issue from the evidence packet."),
     ReasonCode("REVIEWER_NOT_APPLICABLE", V.not_applicable, "A named reviewer judged the issue not applicable to the shipped app."),
     # passive runtime observation (v1 append, 2026-10-04); deprecated 2026-10-05 when the collectors were removed

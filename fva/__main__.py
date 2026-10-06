@@ -32,12 +32,7 @@ def missing_sast_paths(findings, source_root: Path) -> list[str]:
         if finding.finding_type.value != "sast" or finding.location is None:
             continue
         candidate = (root / finding.location.path).resolve()
-        try:
-            candidate.relative_to(root)
-        except ValueError:
-            missing.append(finding.location.path)
-            continue
-        if not candidate.exists():
+        if not candidate.is_relative_to(root) or not candidate.exists():
             missing.append(finding.location.path)
     return missing
 
