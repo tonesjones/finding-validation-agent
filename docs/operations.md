@@ -1,8 +1,8 @@
 # Operations guide
 
-This guide is for people who run the Finding Validation Agent (fva) and tune its AI models. It holds the
-operator detail: what each step of a run does, how scoring works, how each finding is routed to a model tier, which
-command-line options change a run. For what the tool is and why it exists, start with the [README](../README.md).
+Use this guide to run FVA, inspect outputs and configure model routing.
+It explains the pipeline, scoring and command-line options.
+For what the tool is and why it exists, start with the [README](../README.md).
 
 ## Source pinning needs Git and never runs repository helpers
 
@@ -28,8 +28,8 @@ Don't change the checkout or its Git configuration while a pin runs.
 ## How a run works
 
 ```
-0 export -> 1 assess -> 2 worksheet -> 3 score -> report -> fixes
-read-only MCP  evidence  CSV + HTML  vs answer key  open issues
+Polaris export -> assess -> triage -> report
+                 evidence  decisions  ranked open issues
 ```
 
 **0. Export.** `python -m fva.polaris_mcp export --project <projectId> --branch <branchId>` saves the Polaris
@@ -37,57 +37,64 @@ findings to `data/polaris-export/`. It uses the read-only Polaris MCP server, so
 The access token comes from `POLARIS_ACCESS_TOKEN` or from `data/.polaris-token`.
 
 **1. Assess.** `python -m fva assess --client codex --source <checkout> --profile-file <profile.json>` writes to `data/runs/<timestamp>-<client>/`.
-See [Assess options](#assess-options). The steps:
+See [Assess options](#assess-options). The steps follow.
 
-1. Load the Polaris findings (SAST, SCA, and DAST when the customer has it) and record the scanner mix.
-   No DAST (for example a non-web app) means runtime mode `none`: static evidence only.
-2. Pin the source: a content hash of the exact files that were scanned.
-3. Deployment boundary: findings in test code, sample files, unused deploy config or docs are set aside
+1. Load Polaris SAST and SCA findings and record the scanner mix.
+   `load_findings` accepts saved Polaris MCP JSON pages or one flat Polaris `.jsonl` or `.csv` file.
+   Flat records use the mapping in `fva/adapters/polaris.py`. `assess` does not load SARIF or other scanner formats.
+   DAST is parked as optional evidence. Without DAST, runtime mode is `none` for static evidence only.
+2. Pin the supplied source checkout and record its content hash. You must supply the source that matches the scan.
+3. Check the deployment boundary. Findings in test code, sample files, unused deploy config or docs are set aside
    with a rule-based reason. No model is called for them. Each one keeps a `deployment_boundary` evidence record
    that names the rule, so every closure can be checked.
 4. Locate each remaining finding at its file and line. For SCA, compare the scanned package version with the
    installed one in the lockfile. A version that isn't installed is set aside too, with a `dependency_resolution`
    evidence record.
-5. Static reachability: is the file reachable from the app's entrypoints, and is the package imported by shipped code.
-6. Link and group: an SCA package imported in a SAST finding's file, and a DAST hit on a SAST sink's route,
-   are merged into one issue. Every original finding is kept.
-7. Model assessment: one call per cluster (findings on the same sink or advisory), routed to a model tier (see
-   [Which AI model handles each finding](#which-ai-model-handles-each-finding)). Only redacted code is sent. The
+5. Check static reachability from the app's entrypoints and package imports in shipped code.
+6. Link and group related findings using package imports at SAST sites.
+   Optional DAST evidence can link to SAST routes. Every original finding is kept.
+7. Assess remaining clusters with a model. Findings at the same sink or advisory share a cluster.
+   Routing can escalate a cluster to another tier. See [model routing](#which-ai-model-handles-each-finding).
+   Only redacted code is sent. The
    tool checks every quoted line against the real source and drops it if it doesn't match.
 
 Files: `findings.jsonl` (every finding, its disposition and issue), `evidence.jsonl`, `assessments.jsonl`,
 `groups.jsonl`, `links.jsonl`, `summary.json`.
 
-**2. Worksheet.** `python -m fva worksheet <run_dir>` writes one suggested verdict per Polaris issue id to
+**Optional worksheet.** `python -m fva worksheet <run_dir>` writes one suggested verdict per Polaris issue id to
 `worksheet.csv` (Excel) and `worksheet.html` (grouped by issue). Every suggestion passes the verdict rules in
 `fva/invariants.py`, rule closures included, because each one cites its rule record. A model argument alone never
-clears or promotes a finding: "doesn't apply" from the model alone stays needs review, and likely also needs rule
-evidence. Nothing is written to Polaris.
+clears or promotes a finding. A model refutation alone stays `needs_review`.
+A `likely` verdict also needs rule evidence. Nothing is written to Polaris.
 
-A run made before 2026-10-02 has no rule records. The worksheet warns about this and leaves those findings as needs
-review until you run `assess` again. That costs nothing, because the model answers come from the cache.
+**2. Triage.** `python -m fva triage <run_dir>` writes `triage.jsonl` and `triage.md`.
+`auto` means the verdict passes the evidence and confidence checks.
+`review` means the finding stays open. It does not require routine human review or worksheet re-import.
+The report keeps a closure open if triage cannot accept it automatically.
 
-**3. Score.** `python -m fva score <run_dir>`. See [Automatic scoring](#automatic-scoring).
+**Optional scoring.** `python -m fva score <run_dir>` compares the run with an answer key.
+You do not need an answer key to assess an app or produce its report.
+See [Automatic scoring](#automatic-scoring).
 
 **Report.** `python -m fva report <run_dir>` writes ranked open issues to `tickets.jsonl`, a text summary to
 `report.md`, and a self-contained `report.html`. The HTML page shows the raw finding count, issue counts for
-closures, fix tickets and review, closures by reason code with cited evidence metadata, and every original Polaris
-ID in its grouped issue. It uses inline CSS and makes no external requests. Evidence summaries, receipt details
+closures, fix tickets and findings that stay open, closures by reason code with cited evidence metadata, and every original Polaris
+ID in its grouped issue. Every open ticket has `missing_evidence`. It uses inline CSS and makes no external requests. Evidence summaries, receipt details
 and run summary fields other than the profile id are excluded.
 
 **SARIF export.** `python -m fva sarif <run_dir>` writes `sast.sarif` and `sca.sarif`, plus `dast.sarif` only
 when the run has DAST findings (SARIF 2.1.0, one result per original finding, never merged). The scanner finding id
-is written to `guid`, so `fva.adapters.sarif` reads it back unchanged. `properties.fva` holds the verdict (a closure
-triage did not auto-route shows as `needs_review`), route, reason codes, issue id and evidence as id, type, stance
-and method; summaries and receipt content are excluded. Polaris import of these files is unverified.
+is written to `guid`, so `fva.adapters.sarif` reads it back unchanged. `properties.fva` holds the verdict, route, reason codes, issue id and evidence metadata.
+A closure triage did not auto-route shows as `needs_review`.
+Evidence metadata includes id, type, stance and method. Summaries and receipt content are excluded. Polaris import of these files is unverified.
 
-**Polaris preview.** `python -m fva preview <run_dir>` writes `preview.jsonl` and `preview.md`: one row per
+**Polaris preview.** `python -m fva preview <run_dir>` writes `preview.jsonl` and `preview.md`. Each row covers one
 original finding with the current Polaris triage status and severity (when the run recorded them), the suggested
 values from `fva/export/polaris_triage_map.py`, an `action` and `approved: false`. Only auto-routed rows can
-propose a change; review rows stay open. Change rows carry the comment a future writer would post (verdict, reason
-codes, issue id, evidence id/type/stance/method; never summaries or receipt content). The label map is ASSUMED. This
-is a dry run: nothing is written to Polaris and every row needs approval. Runs made before `triage_status` was
-recorded in `findings.jsonl` show the current status as null.
+propose a change. Review rows stay open. Change rows carry the comment a future writer would post (verdict, reason
+codes, issue id and evidence id/type/stance/method). It excludes summaries and receipt content. The label map is ASSUMED. This
+is a dry run. Nothing is written to Polaris. `approved` stays false.
+Polaris write-back is later work, not a routine review step.
 
 ## Assess options
 
@@ -100,19 +107,23 @@ These options change how `python -m fva assess` runs. Output goes to `data/runs/
 | `--model <name>` | One model for every cluster. Turns routing off. |
 | `--no-route` | `codex` only: the senior tier for every cluster. |
 | `--astra <id>` | Send the group that holds this scanner finding id to the Astra tier. Repeatable. Needs routing. |
-| `--workers N` | Run N model calls in parallel. Default 1. About 4 is a sensible start. Results are the same as a sequential run. |
+| `--workers N` | Run N model calls in parallel. Default 1. About 4 is a sensible start. Results are written in cluster order. |
 | `--credential-model skip` | Don't send hard-coded-credential findings to a model. Only a runtime test can decide them. Default is `ask`. Compare both with `fva score` before you switch. |
-| `--prices <json>` | Per-1M-token prices by reported model name, as `{"gpt-6-sol": {"input": 2.0, "cached_input": 0.2, "output": 10.0}}`. Overrides the built-in table in `fva/reasoning/pricing.py`. `summary.json` gets a `cost` block per tier and in total; only fresh calls count toward `usd`. |
+| `--prices <json>` | Per-1M-token prices by reported model name, as `{"gpt-6-sol": {"input": 2.0, "cached_input": 0.2, "output": 10.0}}`. Overrides the built-in table in `fva/reasoning/pricing.py`. `summary.json` gets a `cost` block per tier and in total. Only fresh calls count toward `usd`. |
 | `--dry-run` | Write the prompts only. No model calls. |
 | `--limit N` | Assess only the first N groups (a smoke test). |
-| `--findings` | Where the Polaris export is. Its default points into `data/` (local only). |
-| `--lockfile` | Optional resolved lockfile for dependency version checks. |
+| `--findings` | Polaris MCP JSON glob or one flat Polaris `.jsonl` or `.csv` file. Default `data/polaris-export/page-*.json`. |
+| `--source` | Required matching source checkout. Missing SAST paths produce a warning. |
+| `--out` | Output directory. Default `data/runs/<timestamp>-<client>`. |
+| `--cache` | Model-answer cache. Default `data/cache/model`. |
+| `--lockfile` | Optional resolved lockfile for dependency version checks. No default. A missing supplied path produces a warning. |
 
 ## Automatic scoring
 
 `python -m fva score <run_dir> [--key <answer key>]` measures a run without hand review. The default key is the
-Juice Shop proof-of-concept ledger (`data/poc-report/final-validation-ledger.jsonl`, 570 findings validated by hand
-and at runtime). Code: `fva/export/score.py`.
+Juice Shop proof-of-concept ledger (`data/poc-report/final-validation-ledger.jsonl`, 570 findings).
+The key is LLM-driven and includes reported runtime evidence. It needs independent adjudication.
+The scoring code is `fva/export/score.py`.
 
 **How it works.**
 1. Build the worksheet rows for the run (same logic as `fva worksheet`).
@@ -125,10 +136,10 @@ and at runtime). Code: `fva/export/score.py`.
 | Outcome | Meaning |
 |---|---|
 | `agree` | Same verdict as the key. |
-| `agree_static` | Key says confirmed (proven at runtime), fva says likely. The best fva can do without runtime tests, so it counts as agreement. |
-| `unresolved` | fva says needs review. Not wrong, but a person still has to look. |
-| `incorrect_demotion` | Key says real or open, fva cleared it (not applicable or not security). **The dangerous error; the target is 0.** |
-| `over_flag` | Key cleared it, fva says likely or confirmed. Costs review time, not safety. |
+| `agree_static` | Key says confirmed (proven at runtime), fva says likely. The best fva can do without supporting runtime evidence, so it counts as agreement. |
+| `unresolved` | fva says `needs_review`. The finding stays open until evidence can decide it. |
+| `incorrect_demotion` | Key says real or open, fva cleared it (not applicable or not security). **The safety target is 0.** |
+| `over_flag` | Key cleared it, fva says likely or confirmed. Keeps a cleared finding open. |
 | `wrong_clearance_kind` | Both cleared it, but one says not applicable and the other not security. |
 | `other_mismatch` | Any other disagreement. |
 
@@ -136,7 +147,7 @@ and at runtime). Code: `fva/export/score.py`.
    - **Agreement**: (agree + agree_static) / scored rows. **Strict agreement**: agree only.
    - **Incorrect demotions**: count, each listed in the report.
    - **Unresolved rate**: needs review / scored rows.
-   - **Queue reduction**: share of all findings a person no longer has to triage (not needs review, likely or confirmed).
+   - **Queue reduction**: share of all findings cleared by the suggested verdict (not needs review, likely or confirmed).
    - **Reason code match**: of agreeing rows, how many also have the key's reason (e.g. both say `TEST_ONLY`).
    - Breakdowns by answer-key verdict (confusion table), scanner (SAST/SCA/DAST) and tier (`rules` when no model
      was called, `junior`, `senior`, `astra`), so Luna and Sol can be compared.
@@ -145,15 +156,15 @@ and at runtime). Code: `fva/export/score.py`.
 `score.json` (all numbers, for comparing runs), `score_rows.csv` (every row with key verdict, fva verdict, tier and
 outcome, sorted by outcome).
 
-**Limits.** The key is one app (Juice Shop) validated by one PoC. Runtime-only verdicts (an active credential, an
-exploited advisory) can only reach `agree_static` or `unresolved` until runtime probes exist. A different app needs
+**Limits.** The key covers one app (Juice Shop) and is not independently adjudicated.
+Without supporting runtime evidence, runtime-only verdicts can only reach `agree_static` or `unresolved`. A different app needs
 its own key in the same format (`candidate_id`, `classification`).
 
 ## Which AI model handles each finding
 
 The tool sends each group of findings (findings on the same code line or advisory) to one of
 three model tiers. Fixed rules in code pick the tier, not a model (`fva/reasoning/routing.py`, `route()`).
-The first matching rule wins, and if any finding in a group needs the senior tier, the whole group goes there.
+The first matching rule wins. Except for an explicit Astra selection, any senior-tier finding sends the whole group to senior.
 
 | # | Rule | Tier |
 |---|---|---|
@@ -180,42 +191,11 @@ variable, no code change needed:
 | Senior | Security judgment, escalations | GPT-6 Sol (`gpt-6-sol`) | `FVA_MODEL_SENIOR` |
 | Astra | Hard cases, manual flag only | GPT-6 Astra (`gpt-6-astra`) | `FVA_MODEL_ASTRA` |
 
-`--no-route` sends everything to the senior tier; `--model <name>` uses one model for everything. To keep
+`--no-route` sends everything to the senior tier. `--model <name>` uses one model for everything. To keep
 hard-coded-credential findings away from every model, use `--credential-model skip` (see "Assess options").
 
-**Remapping for the company LiteLLM gateway (planned, not built).** The gateway client will use the same tiers
-and variables, set to the gateway's model aliases. Known on the gateway: GPT-5.6 Luna and GPT-5.6 Sol
-(GPT-6 not confirmed yet); Claude Opus / Sonnet / Haiku are alternatives. Re-run the routed comparison against
-the PoC answer key after remapping, because results for one model family don't carry over to another.
+A company LiteLLM client is later work. It is not built.
 The current client decision is recorded in [STATUS.md](../STATUS.md).
-
-### Verified DAST envelope
-
-The FVA export verifies the MCP `content[].text` JSON
-envelope, with `data._items` for list results and `data` for issue details. The
-listed issue fields include `id`, `weaknessId`, `context`, `occurrenceProperties`,
-`triageProperties` and `_links`. Context includes `toolType`, `toolId`, `date` and
-`tenantId`; the adapter drops `tenantId` and internal links.
-
-Observed occurrence property names are `location`, `method`, `cwe`, `severity`,
-`original-severity`, `attack-scope`, `attack-segment`, `attack-target`, `evidence`,
-`base-risk-score`, `family-hash`, `matched-strings`, `overall-score`, `scores` and
-`version`. `location` identifies the URL; `method` can be empty. The adapter retains
-only the application path and never infers a missing request method. Dedicated
-`parameter-name` and `parameter-location` fields are absent in this export;
-`attack-target` stays a raw reference rather than an inferred parameter.
-
-Structured `evidence[]` includes `label`, `attack.scope`, `attack.segment`,
-`attack.target` and `_links[]`. Evidence links have `rel`, `href` and `method`;
-their method describes artifact retrieval, not the observed application request.
-The adapter keeps content-addressed references and relations, dropping artifact
-URLs and raw attack targets. Inline `request` and `response-snippet` properties
-are absent in this export; the older compatibility path still redacts them.
-
-`get_issue` supplies `type.id`, `type.altName`, `type._localized.name` and
-`type._localized.otherDetails`. The sidecar `dast-types.json` is keyed by original
-issue ID because `weaknessId` does not identify each DAST type uniquely. Missing
-type details or endpoint fields remain explicit metadata, without new reason codes.
 
 ## Decisions from validation evidence
 
@@ -240,10 +220,14 @@ applicability for a hosted target.
 
 ## Approved localhost runtime collection
 
-`python -m fva runtime` collects and imports a small approved GET plan. This first
-version supports a code-execution marker oracle for assessable SAST CWE-94 findings.
-It does not generate exploits or establish SCA advisory applicability. Other cases
-remain unresolved.
+This collector exists but is parked. It is separate from the normal SAST and SCA pipeline.
+
+`python -m fva runtime` collects and imports a small approved GET plan.
+`execution_marker` supports assessable SAST CWE-94 findings.
+`header_disclosure` supports assessable SAST CWE-200 and CWE-201 findings.
+`sca_marker` needs an assessable SCA finding and a cited advisory call site.
+The latter two also need a pinned `source_root`. See `ProbePair` and `Plan` in `fva/runtime.py`.
+The collector does not generate exploits. Other cases remain unresolved.
 
 An operator approves the entire plan once, including the mapping from each finding
 to its probe, control and expected marker. The plan's rationale must explain why

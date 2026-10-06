@@ -1,7 +1,8 @@
 # Finding Validation Agent
 
-Validates SAST/SCA scanner findings (Polaris today) against source code, dependency
-inventory, and a live runtime, and records evidence-backed verdicts. Start every session by reading STATUS.md.
+FVA checks a Polaris SAST and SCA export against the matching source checkout. It closes findings it can
+prove don't apply, with a cited reason, and ranks the rest in a report that says what evidence is missing.
+There is no routine human review, and DAST is parked. Start every session by reading STATUS.md, then PLAN.md.
 
 ## Run
 
@@ -44,8 +45,8 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
   under `tests/fixtures/`, and check them for real ids before committing.
 - **Never print or log tokens.** Polaris access is read-only; only the tools in `READ_ONLY_TOOLS`.
 - **`likely` is not `confirmed`.** It needs rule-derived static evidence, never model output alone.
-- **The model never confirms.** `confirmed` needs runtime, DAST, human-review or imported
-  evidence (enforced in `fva/invariants.py`). Model and static evidence can only argue, cite, or refute.
+- **The model never confirms.** `confirmed` needs runtime, DAST or imported evidence (enforced in
+  `fva/invariants.py`; `human_review` records from older runs still validate). Model and static evidence can only argue, cite, or refute.
 - **Only redacted code goes to a model** (`fva/redact.py`), and every model citation is verified against the
   pinned source before it is kept (`fva/reasoning/assessor.py`).
 - **Runtime probing:** `runtime` accepts only an approved exact localhost GET plan.
@@ -54,7 +55,7 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
   through an agent-created TTY. Raw receipts must never go to models or tickets.
   No destructive or DoS tests. Hosted probing is not supported.
 - Preserve scanner ids byte-for-byte. Reason codes are a closed, append-only vocabulary (`fva/reason_codes.py`).
-- Polaris is the only SAST engine for this project (no Semgrep/CodeQL).
+- Polaris is the only scanner input for this project (no Semgrep/CodeQL).
 
 ## Gotchas
 
@@ -80,6 +81,9 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 - PoC answer key: `data/poc-report/final-validation-ledger.jsonl` (570 rows) + `runtime-validation-summary.json`
 - Live Polaris export: `data/polaris-export/` (573 issues + `types.json`)
 - Resolved npm lockfile: `data/resolved/juiceshop-20.2.0-package-lock-resolved-2026-09-27.json`
+- Record Desk (untuned second app): source `C:\TestCode\fva-eval-demo`, findings
+  `data/ingestion/record-desk-static-20261003/s[ac][as]*/page-*.json`, profile
+  `data/runs/record-desk-0f17d90-profile/profile.json`
 - Black Duck product docs corpus: `C:\TestCode\Product Docs`
 
 ## Git
