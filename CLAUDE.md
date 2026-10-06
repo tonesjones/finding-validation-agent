@@ -1,24 +1,22 @@
 # Finding Validation Agent
 
 Validates SAST/SCA scanner findings (Polaris today) against source code, dependency
-inventory, and a live runtime, and records evidence-backed verdicts. Start every session by
-reading `CHECKPOINT.md` (status, decisions, next steps) and update it when status changes.
+inventory, and a live runtime, and records evidence-backed verdicts. Start every session by reading STATUS.md.
 
 ## Run
 
 ```powershell
 pip install -e .                      # once (needs pydantic)
 python -m pytest                      # all tests; private-data tests skip when data/ is absent
-$env:FVA_JUICESHOP_SRC = "C:\TestCode\Juiceshop 20.2.0"   # enables the Juice Shop source tests
+$env:FVA_JUICESHOP_SRC = "<juice-shop-checkout>"   # enables the Juice Shop source tests
 
 # Evidence + model assessment for the Juice Shop reference case
-python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0" --limit 1   # smoke test
-python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0"             # full run (Luna/Sol routing)
-python -m fva assess --client codex --no-route --source "C:\TestCode\Juiceshop 20.2.0"  # GPT-6 Sol for every cluster
-python -m fva assess --dry-run --source "C:\TestCode\Juiceshop 20.2.0"                  # prompts only
-python -m fva assess --client codex --workers 4 --source "C:\TestCode\Juiceshop 20.2.0"   # parallel model calls
+python -m fva assess --client codex --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json --limit 1   # smoke test
+python -m fva assess --client codex --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json             # full run (Luna/Sol routing)
+python -m fva assess --client codex --no-route --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json  # GPT-6 Sol for every cluster
+python -m fva assess --dry-run --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json                  # prompts only
+python -m fva assess --client codex --workers 4 --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json   # parallel model calls
 python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
-python -m fva import-review data\runs\<run> filled.csv      # reviewer decisions -> human_review evidence
 python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
 python -m fva triage data\runs\<run>                        # auto vs review routing -> triage.jsonl, triage.md
 python -m fva report data\runs\<run>                        # ranked issues -> tickets.jsonl, report.md, report.html
@@ -29,7 +27,7 @@ python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # i
 
 Roles: you (Claude) act as VP of engineering and own final review; Codex does the assessment work with
 GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment), routed per cluster by
-default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `CHECKPOINT.md`.
+default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `STATUS.md`.
 
 Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
 Operator detail (routing rules, scoring internals, assess options): `docs/operations.md`.
@@ -86,5 +84,5 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 
 ## Git
 
-Work on a branch, open a PR into `main`, keep `CHECKPOINT.md` current. Line endings are normalized by
+Work on a branch, open a PR into `main`, keep `STATUS.md` current. Line endings are normalized by
 `.gitattributes` (`* text=auto`). CI (`.github/workflows/tests.yml`) runs pytest on Linux and Windows.

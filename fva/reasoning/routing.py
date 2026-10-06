@@ -1,4 +1,4 @@
-"""Luna/Sol model routing for assessment calls (policy: CHECKPOINT.md, "Operating model and model routing").
+"""Luna/Sol model routing for assessment calls (policy: STATUS.md, "Standing decisions").
 
 `codex exec` fixes its model at launch, so routing happens here, per model call:
 * junior (Luna) first for clear, bounded, low-ambiguity findings;

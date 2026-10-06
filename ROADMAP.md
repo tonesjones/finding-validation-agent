@@ -54,7 +54,7 @@ status.
 ## v0.5 — Optional live validation (test targets only)
 
 Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `none` and rely on
-`likely` plus human review instead.
+`likely`; undecided findings stay open as "open, not auto-verified".
 
 - [ ] Per-application runtime profile: start, health check, base URL, stop. Not built: the operator starts the app.
 - [ ] Safe HTTP/browser probes restricted to localhost, intentionally vulnerable apps. Partial: approved
@@ -70,8 +70,6 @@ Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `
 - [x] Any scanner mix: SAST+SCA without DAST is a first-class run (scanner mix and runtime mode in `summary.json`).
 - [x] `likely` verdict for strong static evidence; never confirmed without runtime or human evidence.
 - [x] Triage worksheet (CSV + HTML), one row per Polaris issue id, with suggested triage status and severity.
-- [x] Re-import a filled worksheet: reviewer decisions become `human_review` evidence and superseding verdicts,
-      plus an agreement score per suggested verdict.
 - [x] Every rule closure cites its evidence (deployment boundary, dependency resolution).
 
 - [ ] Evidence-backed verdicts with confidence and reason codes per grouped issue. Partial: per finding

@@ -62,13 +62,16 @@ For the security team, that means:
 
 ## The five verdicts
 
+FVA has no routine human review step. Findings it cannot decide from evidence stay open
+as "open, not auto-verified" in the report.
+
 | Verdict | Meaning |
 | --- | --- |
 | **Confirmed** | There is evidence the problem is real in this app, such as a DAST attack that worked. |
-| **Likely** | Strong static evidence (shipped, reachable, cited) but no runtime proof. This is normal for apps without DAST, such as non-web apps scanned with SAST and SCA only. A reviewer's sign-off turns it into Confirmed. |
+| **Likely** | Strong static evidence (shipped, reachable, cited) but no runtime proof. This is normal for apps without DAST, such as non-web apps scanned with SAST and SCA only. |
 | **Not applicable** | The finding doesn't affect the shipped app, for example because it is in test code. |
 | **Real, but not security** | The code issue is real, but it is a quality or reliability problem, not a security hole. |
-| **Needs review** | Not enough evidence either way. The tool says what is missing so a person can finish the job. |
+| **Needs review** | Not enough evidence either way. The tool records what evidence is missing, and the finding stays open. |
 
 "Not applicable" doesn't mean the scanner was wrong. The scanner may have correctly
 flagged code that never ships.
@@ -88,8 +91,8 @@ lot more.
 pip install -e ".[dev]"                                                      # install, with the test tools
 python -m pytest                                                             # run the tests
 python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # needs a Polaris token
-python -m fva assess --dry-run --source <checkout>                           # write the AI prompts without sending them
-python -m fva assess --client codex --source <checkout> --workers 4
+python -m fva assess --dry-run --source <juice-shop-checkout> --profile-file examples/profiles/juiceshop.json
+python -m fva assess --client codex --source <juice-shop-checkout> --profile-file examples/profiles/juiceshop.json --workers 4
 python -m fva worksheet data/runs/<run>                                      # suggested verdicts, CSV and HTML
 python -m fva triage data/runs/<run>                                         # decided automatically or left open
 python -m fva report data/runs/<run>                                         # ranked tickets, report.md and report.html
@@ -98,14 +101,30 @@ python -m fva sarif data/runs/<run>                                          # e
 python -m fva preview data/runs/<run>                                        # Polaris triage changes, dry run only
 ```
 
-`--findings` and `--lockfile` default to files under `data/`, which stays local. The other model
-clients are `--client claude-code`, `--client anthropic`, and `--client local`. Runs write to
+`--profile-file` is required. `--findings` defaults to a file under `data/`, which stays local.
+`--lockfile` is optional. The other model clients are `--client claude-code`, `--client anthropic`, and
+`--client local`. Runs write to
 `data/runs/<timestamp>-<client>/`. Scanner data never goes into the repository. The options are in
 [docs/operations.md](docs/operations.md#assess-options).
 
+## Describe your app with a deployment profile
+
+`assess` needs a deployment profile: a JSON file that says what ships and how the app starts. To run FVA on a
+new app, copy [examples/profiles/juiceshop.json](examples/profiles/juiceshop.json) and change these fields:
+
+- `profile_id` and `name`: an id and a readable label for this deployment.
+- `source_commit`: the commit that was scanned.
+- `language_packs`: the language rules to apply. Only `node` exists today.
+- `deployed_surfaces`: which kinds of code ship, such as `production_candidate` and `dependency`.
+- `extra_path_rules`: paths in your app that belong to a surface, such as `["test/data/*", "fixture"]`.
+- `entrypoints`: the repository-relative files where the app starts.
+- `base_url`: the local URL of a running copy. Only runtime tests use it.
+
+The field definitions are in `DeploymentProfile` in [fva/schemas.py](fva/schemas.py).
+
 ## How the pieces fit together
 
-A run goes from a Polaris export to an assessment, a worksheet, a score, and an optional human review. The
+A run goes from a Polaris export to an assessment, a worksheet, a triage, and a report. The
 `assess` command pins the source, sets aside findings that rules can close, locates and groups the rest, and asks
 a model about each cluster. Fixed rules in code route each cluster to a model tier, and the model never picks its
 own tier. GPT-6 Luna answers bounded findings such as dead code. GPT-6 Sol answers security-sensitive findings.
@@ -126,7 +145,7 @@ automatically. 99.4% of those decisions agree with the answer key from the first
 clears a real problem. The other 90 stay open as "Needs review". Rules set aside 470 findings before any model
 call, and the rest go to the model in 93 clusters. A run with no cached answers cost $0.83 at list prices on
 2026-10-04, and a rerun with cached answers costs nothing. These numbers come from `python -m fva triage` and
-`python -m fva score` on the run in [CHECKPOINT.md](CHECKPOINT.md).
+`python -m fva score` on the run in [STATUS.md](STATUS.md).
 
 Built and tested:
 
@@ -137,7 +156,7 @@ Built and tested:
 - The `assess` batch command with Luna and Sol routing, a model-answer cache, and a cost estimate per run
 - Triage that decides findings automatically only when the evidence allows, a ranked report, and one ticket per
   open merged issue
-- The triage worksheet, review import, and automatic scoring
+- The triage worksheet and automatic scoring
 - Enriched SARIF export and a dry-run preview of Polaris triage changes
 - Runtime tests on a copy of the app on this machine: a person approves one exact plan of GET requests, and each
   test has a control request
@@ -155,7 +174,7 @@ Not done:
 - A client for the company LiteLLM gateway
 - Moving this repository to the company GitHub account, before any real customer data is used
 
-The task list is in [ROADMAP.md](ROADMAP.md). Detailed status is in [CHECKPOINT.md](CHECKPOINT.md).
+The task list is in [ROADMAP.md](ROADMAP.md). Detailed status is in [STATUS.md](STATUS.md).
 
 ## First case study
 

@@ -28,15 +28,15 @@ Don't change the checkout or its Git configuration while a pin runs.
 ## How a run works
 
 ```
-0 export ──────► 1 assess ──► 2 worksheet ──► 3 score ──► 4 review (optional) ──► fixes
-read-only MCP    evidence     CSV + HTML      vs answer key   human decisions
+0 export -> 1 assess -> 2 worksheet -> 3 score -> report -> fixes
+read-only MCP  evidence  CSV + HTML  vs answer key  open issues
 ```
 
 **0. Export.** `python -m fva.polaris_mcp export --project <projectId> --branch <branchId>` saves the Polaris
 findings to `data/polaris-export/`. It uses the read-only Polaris MCP server, so it can't change anything in Polaris.
 The access token comes from `POLARIS_ACCESS_TOKEN` or from `data/.polaris-token`.
 
-**1. Assess.** `python -m fva assess --client codex --source <checkout>` writes to `data/runs/<timestamp>-<client>/`.
+**1. Assess.** `python -m fva assess --client codex --source <checkout> --profile-file <profile.json>` writes to `data/runs/<timestamp>-<client>/`.
 See [Assess options](#assess-options). The steps:
 
 1. Load the Polaris findings (SAST, SCA, and DAST when the customer has it) and record the scanner mix.
@@ -69,10 +69,6 @@ review until you run `assess` again. That costs nothing, because the model answe
 
 **3. Score.** `python -m fva score <run_dir>`. See [Automatic scoring](#automatic-scoring).
 
-**4. Review (optional).** Fill `reviewer_decision` and `reviewer` in the CSV, then run
-`python -m fva import-review <run_dir> <csv>`. Decisions become human-review evidence, and a reviewer's `confirmed`
-turns likely into confirmed. `review_summary.json` gives agreement per verdict.
-
 **Report.** `python -m fva report <run_dir>` writes ranked open issues to `tickets.jsonl`, a text summary to
 `report.md`, and a self-contained `report.html`. The HTML page shows the raw finding count, issue counts for
 closures, fix tickets and review, closures by reason code with cited evidence metadata, and every original Polaris
@@ -100,6 +96,7 @@ These options change how `python -m fva assess` runs. Output goes to `data/runs/
 | Option | What it does |
 |---|---|
 | `--client codex \| claude-code \| anthropic \| local` | Which model client to use. Routing between tiers is on for `codex` only. |
+| `--profile-file <json>` | Required deployment profile. See [Deployment profile](../README.md#deployment-profile) and the Juice Shop example. |
 | `--model <name>` | One model for every cluster. Turns routing off. |
 | `--no-route` | `codex` only: the senior tier for every cluster. |
 | `--astra <id>` | Send the group that holds this scanner finding id to the Astra tier. Repeatable. Needs routing. |
@@ -108,7 +105,8 @@ These options change how `python -m fva assess` runs. Output goes to `data/runs/
 | `--prices <json>` | Per-1M-token prices by reported model name, as `{"gpt-6-sol": {"input": 2.0, "cached_input": 0.2, "output": 10.0}}`. Overrides the built-in table in `fva/reasoning/pricing.py`. `summary.json` gets a `cost` block per tier and in total; only fresh calls count toward `usd`. |
 | `--dry-run` | Write the prompts only. No model calls. |
 | `--limit N` | Assess only the first N groups (a smoke test). |
-| `--findings`, `--lockfile` | Where the Polaris export and the resolved lockfile are. The defaults point into `data/` (local only). |
+| `--findings` | Where the Polaris export is. Its default points into `data/` (local only). |
+| `--lockfile` | Optional resolved lockfile for dependency version checks. |
 
 ## Automatic scoring
 
@@ -189,7 +187,7 @@ hard-coded-credential findings away from every model, use `--credential-model sk
 and variables, set to the gateway's model aliases. Known on the gateway: GPT-5.6 Luna and GPT-5.6 Sol
 (GPT-6 not confirmed yet); Claude Opus / Sonnet / Haiku are alternatives. Re-run the routed comparison against
 the PoC answer key after remapping, because results for one model family don't carry over to another.
-See [CHECKPOINT.md](../CHECKPOINT.md), "Work laptop: LiteLLM gateway".
+The current client decision is recorded in [STATUS.md](../STATUS.md).
 
 ### Verified DAST envelope
 
