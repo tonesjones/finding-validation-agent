@@ -1,93 +1,69 @@
 # Minimal architecture
 
-The project should remain a small pipeline with replaceable edges, not a large agent
-platform.
+FVA is a small pipeline for Polaris SAST and SCA exports and the matching source checkout.
+It closes findings only with cited evidence and leaves the rest open in a ranked report.
 
 ```text
-scanner export  ->  intake adapter  ->  canonical finding ledger
-                                             |
-source checkout ->  source evidence ---------+
-dependency data ->  SCA reconciliation ------+-> decision engine
-safe runtime    ->  runtime evidence --------+       |
-                                                     +-> report / JSONL
-                                                     +-> enriched SARIF
-                                                     +-> review preview
+Polaris export  -> intake -> findings
+source checkout -> source and deployment evidence
+lockfile        -> dependency evidence
+                       |
+                 rules and model assessment
+                       |
+                    triage
+                       |
+              ranked report / JSONL / SARIF
 ```
 
 ## Core records
 
-### Finding
+`Finding` keeps the original scanner id, rule, title, severity, location and package data.
+`raw_evidence_ref` points to the hashed input record. Extra scanner fields stay in `scanner_metadata`.
 
-The canonical finding keeps the original tool, identifier, rule, message, severity,
-location, component/advisory data, and a hash of the raw source record. Tool-specific
-fields remain available as namespaced metadata.
+`EvidenceRecord` records its type, method, stance, summary and covered finding ids.
+Runtime evidence must name its deployment profile.
 
-### Evidence
+`Verdict` records the decision, confidence, reason codes, evidence ids and deployment profile.
+It keeps the original finding. A later decision can name the verdict it supersedes.
 
-Each evidence item records what was observed, how it was obtained, the source or
-runtime target, timestamp, redaction state, and whether it supports, contradicts,
-or merely contextualizes the finding.
+`FindingLink` records why two findings describe the same issue.
+`GroupedIssue` keeps every member id and names a primary finding.
+A link shows identity, not exploitability.
 
-### Decision
+## Input boundary
 
-A decision contains the verdict, confidence, reason codes, evidence references,
-deployment scope, remaining uncertainty, and recommended next action. It must never
-overwrite the original finding.
+`fva.pipeline.load_findings` accepts saved Polaris MCP JSON exports.
+For a single `.jsonl` or `.csv` path, it uses the flat Polaris mapping in `fva/adapters/polaris.py`.
+It does not select the SARIF or generic mapping adapters for `assess`.
+Polaris is the only scanner input.
 
-## Adapter boundary
+## Assessment and output
 
-Adapters translate data; they do not decide whether a finding is valid. Start with:
+1. Pin source content and record the checkout state.
+2. Classify deployment surfaces and record evidence for rule closures.
+3. Locate source, reconcile dependencies when a lockfile is supplied and check static reachability.
+4. Link related findings and assess remaining clusters with redacted source.
+5. Verify model citations against the pinned source.
+6. Apply verdict invariants and triage checks.
+7. Rank open issues and record `missing_evidence` for each open ticket.
 
-- Generic SARIF input
-- Observed Polaris SAST/SCA export formats
-- Declarative CSV/JSON field mapping
-
-Polaris MCP is useful as a read-only retrieval adapter. The documented Issue
-Management MCP tools cannot update Polaris, so comments or triage changes require a
-separate supported write path and explicit approval.
+The model never confirms. Model output alone cannot close a finding.
+`likely` needs static rule evidence. `confirmed` needs supporting runtime, DAST or imported evidence.
+The schema still retains `human_review` as a historical evidence type.
+There is no review importer or routine human review step.
+The internal `review` route means the finding stays open.
+`HIGH_IMPACT_CLOSURE` keeps a high or critical closure open without high-confidence evidence.
 
 ## Runtime boundary
 
-Every target supplies a small runtime profile describing how to start, stop, and
-health-check the disposable application. Probes are scoped to its approved base URL
-and use test accounts or synthetic data. Runtime evidence proves only what was
-exercised in that particular deployment.
+DAST is parked as optional evidence. It is not required for the normal SAST and SCA pipeline.
+`assess` uses runtime mode `none` without DAST and `dast-evidence` when DAST findings are present.
+It never starts live probes.
 
-A run uses one of three runtime modes. No command-line flag sets the mode. It follows the scanner mix.
-
-| Mode | Where the proof comes from | When it is used |
-| --- | --- | --- |
-| `none` | The code only | The scan has no DAST results |
-| `dast-evidence` | A DAST scan the customer already approved | The scan includes DAST results |
-| `live-localhost` | Safe tests against a copy running on this machine | Not built. Meant for practice apps only |
-
-## Agent loop
-
-For each finding, the controller asks for the least costly evidence that can change
-the verdict:
-
-1. Verify the source and dependency snapshot.
-2. Check whether the file/component belongs to the deployed boundary.
-3. Trace the relevant source path and security control.
-4. Run a safe runtime probe when it can materially reduce uncertainty.
-5. Stop with `Needs review` when the remaining test is unsafe or unauthorized.
-
-The model proposes and interprets evidence. Deterministic code handles parsing,
-hashing, schema checks, redaction rules, deduplication, and output generation.
-
-## Cross-scanner grouping and DAST evidence (v0.4)
-
-- `Finding.endpoint` (`EndpointRef`) holds a DAST target as an app-relative path,
-  method and parameter. The host is dropped on import.
-- `FindingLink` records a claim that two findings are the same flaw (`sast_dast`
-  or `sca_sast`) with a `confidence` and its `basis`. A link is evidence of
-  identity, not of exploitability.
-- `GroupedIssue` is a connected set of linked findings. It keeps every original
-  finding id and names the `primary_finding_id` a developer fixes.
-- `EvidenceType.dast_observation` is runtime evidence from a DAST scan the
-  application owner already authorized. Like a probe, it must name its deployment
-  profile. Only a high-confidence link produces a `supports` stance. Lower-confidence
-  links are `neutral` context. A missing DAST hit produces no evidence at all.
-- `RuntimeMode` selects the runtime evidence source: `none`, `dast-evidence` or
-  `live-localhost`. A run takes it from the scanner mix, as the runtime boundary
-  table shows.
+The separate `runtime` command supports an approved exact localhost GET plan.
+It does not start, stop or health-check the app.
+The operator must approve the plan in an interactive terminal before collection.
+Probe confirmation needs verified receipts and a linked negative control for the same deployment.
+Raw responses stay local and never go to models or tickets.
+A failed probe or missing DAST result never proves a finding is safe.
+See the [operations guide](operations.md#approved-localhost-runtime-collection) for the parked collector.

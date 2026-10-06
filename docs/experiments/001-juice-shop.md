@@ -1,4 +1,6 @@
-# Experiment 001: OWASP Juice Shop 20.2.0
+# Experiment 001 with OWASP Juice Shop 20.2.0
+
+As of 2026-10-05. This records the original LLM-driven experiment, not the current pipeline run.
 
 ## Question
 
@@ -28,8 +30,8 @@ a verdict.
 | Valid non-security quality | 42 | 7.4% |
 | Not relevant to the tested runtime | 460 | 80.7% |
 
-The result measures actionable-security precision for this deployment. It does not
-mean 460 scanner records were necessarily technically incorrect.
+These are LLM-driven classifications for one deployment. They are not independently adjudicated precision.
+They do not mean 460 scanner records were necessarily technically incorrect.
 
 Live evidence confirmed examples including SQL injection, NoSQL injection, SSRF,
 JWT authorization bypass, stored XSS, active hard-coded credentials, session reuse,
@@ -45,7 +47,7 @@ configuration demoted findings whose prerequisites were absent.
 - SCA decisions require the resolved dependency snapshot; this target had no usable
   lockfile and fresh installation introduced version drift.
 - A live negative result does not prove every untested path is unreachable.
-- Scanner-gap discovery must be measured separately from validation of scanner input.
+- FVA now validates Polaris input only. Scanner-gap discovery is outside its scope.
 
 ## Output lesson
 
@@ -59,4 +61,6 @@ render useful issue types and Contributing Code Events.
 - Juice Shop is intentionally vulnerable and may exist in model training data.
 - One local runtime does not represent every deployment configuration.
 - Twelve SCA records remained unresolved because safe evidence was insufficient.
-- Independent human adjudication is required before claiming general accuracy.
+- The answer key is LLM-driven. It needs independent adjudication before any claim of general accuracy.
+- The current prototype focuses on SAST and SCA. DAST and active runtime work are parked.
+- Independent adjudication of this experiment is not a routine human review step in FVA.
