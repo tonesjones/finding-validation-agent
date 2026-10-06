@@ -53,8 +53,8 @@ def load(run_dir: Path, *, warnings: list[str] | None = None
             by_finding.setdefault(fid, []).append(e)
     from fva.runtime import verify_runtime
     trusted_runtime, runtime_warning = verify_runtime(run_dir, all_evidence)
-    if warnings is not None:
-        warnings.extend(w for w in (runtime_warning,) if w)
+    if warnings is not None and runtime_warning:
+        warnings.append(runtime_warning)
     return findings, by_finding, profile, trusted_runtime
 
 

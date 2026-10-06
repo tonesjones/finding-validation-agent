@@ -57,6 +57,7 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
                     ) -> tuple[V, tuple[str, ...], str, list[EvidenceRecord]]:
     """(verdict, reason codes, confidence, cited evidence) for one finding."""
     disp = row["disposition"]
+    # passive observations from older runs carry no weight since the collectors were removed
     evs = [e for e in evs if e.evidence_type is not EvidenceType.runtime_observation]
     profile = row.get("deployment_profile_id")
     bound = [e for e in evs if e.evidence_type in

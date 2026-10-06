@@ -55,7 +55,7 @@ _CODES = [
     # human review via the triage worksheet (v1 append, 2026-10-01)
     ReasonCode("REVIEWER_CONFIRMED", V.confirmed, "A named reviewer confirmed the issue from the evidence packet."),
     ReasonCode("REVIEWER_NOT_APPLICABLE", V.not_applicable, "A named reviewer judged the issue not applicable to the shipped app."),
-    # Deprecated passive runtime observation codes; retained for append-only vocabulary compatibility.
+    # passive runtime observation (v1 append, 2026-10-04); deprecated 2026-10-05 when the collectors were removed
     ReasonCode("PACKAGE_NOT_LOADED", V.not_applicable,
                "Package was not loaded by the running app under the recorded exercise, and no shipped code imports it."),
     ReasonCode("EXECUTED_UNDER_TEST", V.likely,
