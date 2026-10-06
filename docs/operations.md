@@ -189,7 +189,7 @@ hard-coded-credential findings away from every model, use `--credential-model sk
 and variables, set to the gateway's model aliases. Known on the gateway: GPT-5.6 Luna and GPT-5.6 Sol
 (GPT-6 not confirmed yet); Claude Opus / Sonnet / Haiku are alternatives. Re-run the routed comparison against
 the PoC answer key after remapping, because results for one model family don't carry over to another.
-See [CHECKPOINT.md](../CHECKPOINT.md), "Work laptop: LiteLLM gateway".
+The current client decision is recorded in [STATUS.md](../STATUS.md).
 
 ### Verified DAST envelope
 

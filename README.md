@@ -126,7 +126,7 @@ automatically. 99.4% of those decisions agree with the answer key from the first
 clears a real problem. The other 90 stay open as "Needs review". Rules set aside 470 findings before any model
 call, and the rest go to the model in 93 clusters. A run with no cached answers cost $0.83 at list prices on
 2026-10-04, and a rerun with cached answers costs nothing. These numbers come from `python -m fva triage` and
-`python -m fva score` on the run in [CHECKPOINT.md](CHECKPOINT.md).
+`python -m fva score` on the run in [STATUS.md](STATUS.md).
 
 Built and tested:
 
@@ -155,7 +155,7 @@ Not done:
 - A client for the company LiteLLM gateway
 - Moving this repository to the company GitHub account, before any real customer data is used
 
-The task list is in [ROADMAP.md](ROADMAP.md). Detailed status is in [CHECKPOINT.md](CHECKPOINT.md).
+The task list is in [ROADMAP.md](ROADMAP.md). Detailed status is in [STATUS.md](STATUS.md).
 
 ## First case study
 

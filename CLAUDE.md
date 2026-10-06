@@ -1,8 +1,7 @@
 # Finding Validation Agent
 
 Validates SAST/SCA scanner findings (Polaris today) against source code, dependency
-inventory, and a live runtime, and records evidence-backed verdicts. Start every session by
-reading `CHECKPOINT.md` (status, decisions, next steps) and update it when status changes.
+inventory, and a live runtime, and records evidence-backed verdicts. Start every session by reading STATUS.md.
 
 ## Run
 
@@ -29,7 +28,7 @@ python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # i
 
 Roles: you (Claude) act as VP of engineering and own final review; Codex does the assessment work with
 GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment), routed per cluster by
-default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `CHECKPOINT.md`.
+default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `STATUS.md`.
 
 Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
 Operator detail (routing rules, scoring internals, assess options): `docs/operations.md`.
@@ -86,5 +85,5 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 
 ## Git
 
-Work on a branch, open a PR into `main`, keep `CHECKPOINT.md` current. Line endings are normalized by
+Work on a branch, open a PR into `main`, keep `STATUS.md` current. Line endings are normalized by
 `.gitattributes` (`* text=auto`). CI (`.github/workflows/tests.yml`) runs pytest on Linux and Windows.
