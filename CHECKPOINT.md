@@ -2,6 +2,16 @@
 
 Last updated: 2026-10-05. Update this file when status changes.
 
+## Worksheet decision import removed (2026-10-05)
+
+- Owner decision: no routine human review. Undecided findings stay open as
+  "open, not auto-verified". Worksheet export remains; its decision importer and
+  reviewer input columns are removed. Legacy human-review evidence and reason
+  codes remain loadable; verdict rules, triage routing and scoring are unchanged.
+- Validation: 514 passed, 10 skipped; CLI help lists no worksheet decision importer,
+  and repository search finds no references to its removed CLI/API. Sanitized legacy
+  human-review records still load, pass invariants and triage; private data untouched.
+
 ## Integration review and current findings (2026-10-05)
 
 - PR #38 (DAST plan) is merged. PR #39 combines the real-envelope implementation
@@ -221,7 +231,7 @@ they are not instructions to rerun or replace the frozen pilot.
 | Automatic scoring | `fva/export/score.py` | `python -m fva score <run>` vs PoC ledger: agreement, incorrect demotions, unresolved, queue reduction, by tier/scanner -> `score.md/json`, `score_rows.csv` |
 | Passive observations | `fva/observations.py` | receipt format `fva.runtime_observation/1` -> `runtime_observation` evidence bound to run profile, source and findings; neutral, or `refutes` for a package not loaded; `import_receipt` writes a new run after the collector rebuilds the receipt from raw output |
 | Passive collectors | `fva/loaded_packages.py` + `fva/node/loaded_modules.cjs`, `fva/coverage.py` | Node preload records loaded module paths (append as loaded, ESM via `registerHooks`); "not loaded" only with complete records; V8 or c8 coverage -> `line_executed`; verdict rules in `docs/operations.md` |
-| Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; `import-review` -> `human_review` evidence, superseding verdicts, agreement score |
+| Triage worksheet | `fva/export/` | `worksheet.csv/.html` per Polaris issue id; suggestions pass invariants; export only, no routine human review |
 | Suggested verdicts | `fva/verdicts.py` | rules over a run's evidence; every closure, rule closures included, must pass `check_verdict`; observations count only after the worksheet re-verifies their receipts |
 | Rule evidence | `fva/surface.py` (`to_evidence`), `fva/pipeline.py` | skipped findings keep `deployment_boundary` / `dependency_resolution` / reachability records; never sent to a model |
 | Polaris data tools | `fva/polaris_mcp.py` (`inventory`), `fva/analysis/` | read-only MCP survey; sanitized field census with adapter-dropped keys; correlation value (coverage, fan-out, coherence, lift) of candidate join keys vs the PoC ledger |
@@ -275,7 +285,7 @@ they are not instructions to rerun or replace the frozen pilot.
   (correlation-value) before building more linking.
 - 2026-10-02: A rule closure must cite a recorded rule result like any other verdict; no evidence, no closure.
 - 2026-10-01: Not every customer has DAST (non-web apps: SAST+SCA only). Added verdict `likely` (static evidence,
-  never confirmed); a reviewer's sign-off in the worksheet confirms it.
+  never confirmed). The worksheet sign-off path was removed 2026-10-05.
 - 2026-10-01: Polaris MCP is read-only, so results cannot go back through it. Now: triage worksheet (mainly the
   record for testing fva). Later (v0.8): separate, approval-gated Polaris REST writer with its own token.
   Triage status labels in `fva/export/polaris_triage_map.py` are ASSUMED until checked against Polaris docs.

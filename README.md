@@ -62,13 +62,16 @@ For the security team, that means:
 
 ## The five verdicts
 
+FVA has no routine human review step. Findings it cannot decide from evidence stay open
+as "open, not auto-verified" in the report.
+
 | Verdict | Meaning |
 | --- | --- |
 | **Confirmed** | There is evidence the problem is real in this app, such as a DAST attack that worked. |
-| **Likely** | Strong static evidence (shipped, reachable, cited) but no runtime proof. This is normal for apps without DAST, such as non-web apps scanned with SAST and SCA only. A reviewer's sign-off turns it into Confirmed. |
+| **Likely** | Strong static evidence (shipped, reachable, cited) but no runtime proof. This is normal for apps without DAST, such as non-web apps scanned with SAST and SCA only. |
 | **Not applicable** | The finding doesn't affect the shipped app, for example because it is in test code. |
 | **Real, but not security** | The code issue is real, but it is a quality or reliability problem, not a security hole. |
-| **Needs review** | Not enough evidence either way. The tool says what is missing so a person can finish the job. |
+| **Needs review** | Not enough evidence either way. The tool records what evidence is missing; the finding stays open. |
 
 "Not applicable" doesn't mean the scanner was wrong. The scanner may have correctly
 flagged code that never ships.
@@ -137,7 +140,7 @@ Built and tested:
 - The `assess` batch command with Luna and Sol routing, a model-answer cache, and a cost estimate per run
 - Triage that decides findings automatically only when the evidence allows, a ranked report, and one ticket per
   open merged issue
-- The triage worksheet, review import, and automatic scoring
+- The triage worksheet and automatic scoring
 - Enriched SARIF export and a dry-run preview of Polaris triage changes
 - Runtime tests on a copy of the app on this machine: a person approves one exact plan of GET requests, and each
   test has a control request

@@ -5,7 +5,6 @@
   python -m fva assess --dry-run ...        # write prompts only, no model calls
   python -m fva worksheet data/runs/<run>   # triage worksheet (CSV + HTML) for review
   python -m fva triage data/runs/<run>      # auto vs review routing (triage.jsonl, triage.md)
-  python -m fva import-review data/runs/<run> filled.csv   # reviewer decisions -> human_review evidence
   python -m fva score data/runs/<run>       # automatic scoring against the PoC answer key
 """
 from __future__ import annotations
@@ -108,9 +107,6 @@ def main(argv=None):
     sa.add_argument("run_dir")
     pv = sub.add_parser("preview", help="write preview.jsonl/preview.md: proposed Polaris triage (dry run)")
     pv.add_argument("run_dir")
-    r = sub.add_parser("import-review", help="turn a filled worksheet into human_review evidence and verdicts")
-    r.add_argument("run_dir")
-    r.add_argument("csv")
     sc = sub.add_parser("score", help="score a run against an answer key (default: the Juice Shop PoC ledger)")
     sc.add_argument("run_dir")
     sc.add_argument("--key", default="data/poc-report/final-validation-ledger.jsonl")
@@ -141,11 +137,9 @@ def main(argv=None):
         print(preview.write(Path(args.run_dir)))
         return
 
-    if args.cmd in ("worksheet", "import-review"):
+    if args.cmd == "worksheet":
         from fva.export import worksheet
-        res = worksheet.write(Path(args.run_dir)) if args.cmd == "worksheet" else \
-            worksheet.import_reviews(Path(args.run_dir), Path(args.csv))
-        print(res)
+        print(worksheet.write(Path(args.run_dir)))
         return
 
     from fva import pipeline

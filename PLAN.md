@@ -17,9 +17,9 @@ Five items, in this order. Do the deletion first so the rest happens in a smalle
 
 ### Must fix
 
-- [ ] **Decide the human question.** Either "no routine human review: open findings simply stay
-  open" (then remove `import-review`) or "a reviewer signs off" (then update the project
-  description). Write the answer in the README.
+- [x] **Decide the human question.** Owner decision, 2026-10-05: no routine human review.
+  Open findings stay "open, not auto-verified"; the worksheet decision importer is removed
+  and the README states this policy.
 - [ ] **Make a second app possible from the README.** Require `--profile-file` (no Juice Shop
   default), drop the Juice Shop lockfile default, warn when finding paths don't exist in the
   source, and document the profile in ten lines. Default the client to what a new user can run.
