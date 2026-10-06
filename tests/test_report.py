@@ -1,4 +1,5 @@
 import json
+from html import escape
 
 import pytest
 
@@ -72,6 +73,31 @@ def test_byte_identical(run):
     first = [(run / n).read_bytes() for n in ("tickets.jsonl", "report.md", "report.html")]
     report.write(run)
     assert first == [(run / n).read_bytes() for n in ("tickets.jsonl", "report.md", "report.html")]
+
+
+def test_every_open_ticket_shows_missing_evidence(run):
+    report.write(run)
+    md = (run / "report.md").read_text(encoding="utf-8")
+    page = (run / "report.html").read_text(encoding="utf-8")
+    assert "| Missing evidence |" in md
+    for ticket in _tickets(run):
+        assert ticket["missing_evidence"].strip()
+        assert report._cell(ticket["missing_evidence"]) in md
+        assert escape(ticket["missing_evidence"], quote=True) in page
+        assert all(code in page for code in ticket["exceptions"])
+    assert all("missing_evidence" not in issue for issue in report.build(run)[1])
+
+
+def test_group_retains_nonprimary_open_members_gap(run):
+    path = run / "findings.jsonl"
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    for row in rows:
+        if row["finding_id"] == "m":
+            row.update(issue_id="i-l", primary=False, disposition="dependency:unresolved_name", package="example@1")
+    path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
+    ticket = next(t for t in report.build(run)[0] if t["issue_id"] == "i-l")
+    assert "static and model evidence cannot confirm" in ticket["missing_evidence"]
+    assert "package-name resolution" in ticket["missing_evidence"] and "example" in ticket["missing_evidence"]
 
 
 def test_cli_report(run, capsys):

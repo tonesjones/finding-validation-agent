@@ -15,6 +15,7 @@ from pathlib import Path
 
 from fva import triage
 from fva.export import worksheet
+from fva.missing import missing_evidence
 from fva.schemas import EvidenceType, Stance
 
 # score = verdict_w * severity_w * reach_w * runtime_w, rounded to 3 decimals.
@@ -98,11 +99,17 @@ def build(run_dir: Path) -> tuple[list[dict], list[dict]]:
                     for m in members)
         f = frow.get(prim["finding_id"], {})
         loc = f.get("endpoint") or f.get("package") or (f"{f['path']}:{f['line']}" if f.get("path") else "")
+        # Keep every open member's gap, even when the grouped primary is already decided.
+        gaps = [missing_evidence(_effective(m), m["reason_codes"], m["exceptions"],
+                                 frow.get(m["finding_id"], {}),
+                                 [ev_by_id[i] for i in m["evidence_ids"] if i in ev_by_id])
+                for m in members if _effective(m) in OPEN_VERDICTS]
         tickets.append({
             "issue_id": iid, "score": score, "verdict": _effective(prim),
             "severity": _sev_max([m["severity"] for m in members]), "title": prim["title"], "location": loc,
             "route": triage.REVIEW if any(m["route"] == triage.REVIEW for m in members) else triage.AUTO,
             "exceptions": sorted({e for m in members for e in m["exceptions"]}),
+            "missing_evidence": " ".join(dict.fromkeys(gaps)),
             "reason_codes": codes, "members": srcs, "evidence": evidence})
     tickets.sort(key=lambda t: (-t["score"], t["issue_id"]))
     for n, t in enumerate(tickets, 1):
@@ -162,6 +169,8 @@ def _html(tickets: list[dict], closed: list[dict]) -> str:
             lines.extend((f"<article><h4>#{h(issue['rank'])} · {h(issue['severity'])} · {h(issue['title'])}</h4>",
                           f"<p>{h(issue['location'])} · issue {h(issue['issue_id'])} · "
                           f"verdict {h(issue['verdict'])}</p>",
+                          f"<p>Missing evidence: {h(issue['missing_evidence'])}</p>",
+                          f"<p>Exceptions: {h(' '.join(issue['exceptions']) or 'None')}</p>",
                           f"<p>Original Polaris IDs</p><ul>{members(issue)}</ul>", "</article>"))
         lines.append("</section>")
     lines.append(f"<section><h2>Closed by reason code ({len(closed)})</h2>")
@@ -188,12 +197,12 @@ def _report(tickets, closed, by_verdict) -> str:
     L += [f"| {v} | {n} |" for v, n in sorted(by_verdict.items())]
     L += ["", "## Open issues (ranked)", "",
           "Open issues stay open until evidence decides them; nobody needs to grade them.", "",
-          "| Rank | Score | Issue | Severity | Verdict | Status | Title | Location | Exceptions |",
-          "|---|---|---|---|---|---|---|---|---|"]
+          "| Rank | Score | Issue | Severity | Verdict | Status | Title | Location | Exceptions | Missing evidence |",
+          "|---|---|---|---|---|---|---|---|---|---|"]
     for t in tickets:
         L.append("| " + " | ".join(_cell(x) for x in (
             t["rank"], f"{t['score']:.3f}", t["issue_id"], t["severity"], t["verdict"], STATUS[t["route"]], t["title"],
-            t["location"], " ".join(t["exceptions"]))) + " |")
+            t["location"], " ".join(t["exceptions"]), t["missing_evidence"])) + " |")
     L += ["", "## Closed", "", "| Issue | Verdict | Members | Reason codes | Evidence |", "|---|---|---|---|---|"]
     for c in closed:
         L.append("| " + " | ".join(_cell(x) for x in (
