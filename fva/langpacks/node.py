@@ -226,14 +226,19 @@ class NodePack:
         return sorted(set(sites)), sorted(set(unresolved))
 
     def option_calls(self, text: str, package: str) -> tuple[list[tuple[int, dict[str, str]]], list[int]]:
-        """([(line, {option: value source})] direct calls of a package whose default export is a function
-        `fn(input, {options})`, [lines whose use can't be resolved]).
+        """([(line, {option: value source})] direct `fn(input, {options})` or lodash.template calls,
+        [lines whose use can't be resolved]).
 
         Conservative: options that are not an object literal of plain keys (a variable, spread, computed key), any
         other use of the binding (`fn.defaults`, passing `fn` as a value) and any other import form are unresolved.
         """
         calls, unresolved, spans, names = [], [], [], set()
         line_of = lambda pos: text.count("\n", 0, pos) + 1  # noqa: E731
+        if package == "lodash":
+            names.update({"_", "lodash"})  # browser globals, including files with no local import
+            # Defaults can be assigned, mutated, aliased or passed to a mutator in another shipped file.
+            # Any reference is conservatively opaque; do not attempt to prove it read-only.
+            unresolved.extend(line_of(m.start()) for m in re.finditer(r"\btemplateSettings\b", text))
         spec = rf"""(?P<q>['"`]){re.escape(package)}(?P=q)"""
         for pattern in (rf"""\bimport\s+([\w$]+)\s*(?:,\s*\{{[^}}]*\}}\s*)?from\s*{spec}""",
                         rf"""\bimport\s+\*\s*as\s+([\w$]+)\s+from\s*{spec}""",
@@ -244,6 +249,8 @@ class NodePack:
                     names.add(m.group(1))
                     spans.append(m.span())
         for m in _IMPORT_RE.finditer(text):
+            if package == "lodash" and m.group(2).startswith(package + "/"):
+                unresolved.append(line_of(m.start()))  # per-method/fp imports cannot be followed here
             if m.group(2) == package and not any(a <= m.start(2) < b for a, b in spans):
                 unresolved.append(line_of(m.start()))
             elif m.group(2) == package and re.search(r"\{[^}]*\}", text[m.start():m.start(2)]):
@@ -252,7 +259,19 @@ class NodePack:
             for m in re.finditer(rf"(?<![\w$.]){re.escape(name)}(?![\w$])", text):
                 if any(a <= m.start() < b for a, b in spans):
                     continue
-                args = _call_args(text, m.end())
+                pos = m.end()
+                if package == "lodash":
+                    member = re.match(r"\s*\??\.\s*([\w$]+)", text[pos:])
+                    if member and member.group(1) == "template":
+                        pos += member.end()
+                    elif member and member.group(1) not in _INDIRECT:
+                        continue
+                    else:
+                        unresolved.append(line_of(m.start()))
+                        continue
+                args = _call_args(text, pos)
+                if package == "lodash" and args is not None and any(arg.startswith("...") for arg in args):
+                    args = None  # spread arguments can change the options position
                 options = None
                 if args is not None and len(args) == 1:
                     options = {}

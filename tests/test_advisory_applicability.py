@@ -245,3 +245,98 @@ def test_pipeline_closes_absent_option_precondition_at_medium_confidence(tmp_pat
     row = {"finding_id": "a", "disposition": batch.disposition["a"], "deployment_profile_id": "p"}
     verdict, codes, conf, _ = suggest_verdict(row, batch.pre_evidence["a"])
     assert (verdict.value, codes, conf) == ("not_applicable", ("ADVISORY_PRECONDITION_ABSENT",), "medium")
+
+
+@pytest.mark.parametrize("options,settings,expected", [
+    ("", "", "precondition_absent"),
+    (", { variable }", "", "precondition_absent"),
+    (", { variable: 'data' }", "", "precondition_absent"),
+    (", { imports: { helper } }", "", "precondition_possible"),
+    (", { imports: undefined }", "", "precondition_possible"),
+    (", { imports: {} }", "", "precondition_possible"),
+    (", options", "", "unresolved_use"),
+    (", getOptions()", "", "unresolved_use"),
+    (", { ...base, variable }", "", "unresolved_use"),
+    (", { variable }", "_.templateSettings.imports = { helper }", "unresolved_use"),
+    (", { variable }", "lodash.templateSettings.imports.x = helper", "unresolved_use"),
+    ("", "_.templateSettings = { imports: { helper } }", "unresolved_use"),
+    ("", "Object.assign(_.templateSettings.imports, { helper })", "unresolved_use"),
+    (", { variable }", "_.templateSettings['imports'].x = helper", "unresolved_use"),
+    (", { variable }", "test-only", "precondition_absent"),
+])
+def test_lodash_imports_precondition_preserves_variable_advisory(tmp_path, options, settings, expected):
+    import json
+    from fva import pipeline
+    from fva.correlation import locate, reachability
+    from fva.verdicts import suggest_verdict
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "server.js").write_text(
+        "import lodash from 'lodash'\n"
+        f"lodash.template('Hello <%= data.name %>'{options})\n")
+    if settings:
+        if settings == "test-only":
+            (source / "tests").mkdir()
+            (source / "tests/settings.js").write_text("_.templateSettings.imports.x = helper\n")
+        else:
+            # No import or 'lodash' token: global defaults in any shipped file must block closure.
+            (source / "settings.js").write_text(settings + "\n")
+    lock = tmp_path / "package-lock.json"
+    lock.write_text(json.dumps({"lockfileVersion": 3, "packages": {
+        "": {"dependencies": {"lodash": "4.17.20"}}, "node_modules/lodash": {"version": "4.17.20"}}}))
+    profile = DeploymentProfile(profile_id="p", name="test", language_packs=("node",), entrypoints=("server.js",))
+    index = locate.SourceIndex.build(source)
+    graph = reachability.build_graph(source, sorted(index.files), profile)
+    imports = finding("CVE-2026-4800")
+    variable = finding().model_copy(update={"finding_id": "g"})
+    batch = pipeline.prepare([imports, variable], source, profile, lock, "a" * 64, index, graph)
+    evidence = batch.pre_evidence["f"]
+    option = next(e for e in evidence if e.method.startswith("advisory_option:"))
+    assert option.method == "advisory_option:" + expected
+    assert option.tool_versions == {"advisory_option": "imports"}
+    assert option.stance.value == ("refutes" if expected == "precondition_absent" else "neutral")
+    row = {"finding_id": "f", "disposition": batch.disposition["f"],
+           "finding_type": "sca", "deployment_profile_id": "p"}
+    verdict, codes, _, _ = suggest_verdict(row, evidence)
+    if expected == "precondition_absent":
+        assert batch.disposition["f"] == "dependency:advisory_precondition_absent"
+        assert (verdict.value, codes) == ("not_applicable", ("ADVISORY_PRECONDITION_ABSENT",))
+    else:
+        assert batch.disposition["f"] == "assess"
+        assert verdict.value in ("likely", "needs_review")
+    row_g = {**row, "finding_id": "g", "disposition": batch.disposition["g"]}
+    verdict_g, codes_g, _, _ = suggest_verdict(row_g, batch.pre_evidence["g"])
+    assert (verdict_g.value, codes_g) == ("likely", ("VULNERABLE_FUNCTION_CALLED",))
+
+
+@pytest.mark.parametrize("text", [
+    "_.template('x', { variable: 'data'",  # unbalanced call
+    "_.template(`Hello ${name}`, { variable })",  # opaque template expression
+    "const t = _.template; t('x', options)",  # alias cannot be followed
+    "import t from 'lodash/template'; t('x', options)",
+    "import { template as t } from 'lodash'; t('x', options)",
+    "_.template(...args)",
+    "_.template('x', { [option]: value })",
+])
+def test_lodash_unparsed_template_call_fails_closed(tmp_path, text):
+    from fva.correlation import advisory_applicability as aa
+    (tmp_path / "server.js").write_text(text + "\n")
+    profile = DeploymentProfile(profile_id="p", name="test", language_packs=("node",), entrypoints=("server.js",))
+    scan = aa.scan(tmp_path, ["server.js"], profile, "lodash")
+    evidence, disposition = aa.use_evidence(finding("CVE-2026-4800"), scan, [], "p")
+    assert evidence.method == "advisory_option:unresolved_use"
+    assert disposition is None
+
+
+@pytest.mark.parametrize("binding,name", [
+    ("", "_"),
+    ("", "lodash"),
+    ("import * as lo from 'lodash'\n", "lo"),
+    ("const lo = require('lodash')\n", "lo"),
+])
+def test_lodash_template_options_with_globals_and_namespace_aliases(binding, name):
+    from fva.langpacks.node import NodePack
+    calls, unresolved = NodePack().option_calls(binding + f"{name}.template('x', {{ variable }})\n", "lodash")
+    assert calls == [(binding.count("\n") + 1, {"variable": "variable"})]
+    assert unresolved == []
