@@ -120,6 +120,7 @@ Last updated: 2026-10-05. Update this file when status changes.
 
 ## Next
 
+- Scope cut in progress, see PLAN.md.
 - 2026-10-04: Building passive runtime evidence per `docs/plans/passive-evidence-demo.md`
   (no attack traffic, never `confirmed`). Step 0 done: on `20261003-js-assess-v2`, score
   gives 0.798 agreement, 0 incorrect demotions, 0.756 queue reduction. Whatif review

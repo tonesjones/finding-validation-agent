@@ -22,16 +22,9 @@ python -m fva import-review data\runs\<run> filled.csv      # reviewer decisions
 python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
 python -m fva triage data\runs\<run>                        # auto vs review routing -> triage.jsonl, triage.md
 python -m fva report data\runs\<run>                        # ranked issues -> tickets.jsonl, report.md, report.html
-python -m fva whatif data\runs\<run>                        # review-queue ceiling under passive runtime evidence
-python -m fva loaded-packages preload                       # passive Node loaded-package collection; then receipt, import
-python -m fva coverage receipt data\runs\<run> --coverage <cov> --source <checkout> --exercise "npm test" --out <receipt>
-                                                            # see docs/operations.md "Passive collectors"
 
 # Polaris (read-only MCP). Token: $env:POLARIS_ACCESS_TOKEN or data\.polaris-token
 python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # ids: data/LOCAL-NOTES.md
-python -m fva.polaris_mcp inventory          # read-only survey: tool schemas, tool types, max-detail samples
-python -m fva census data\polaris-export     # sanitized field census -> data\analysis\census.md
-python -m fva correlation-value --source "C:\TestCode\Juiceshop 20.2.0"   # join-key value vs the PoC ledger
 ```
 
 Roles: you (Claude) act as VP of engineering and own final review; Codex does the assessment work with
@@ -53,9 +46,6 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
   under `tests/fixtures/`, and check them for real ids before committing.
 - **Never print or log tokens.** Polaris access is read-only; only the tools in `READ_ONLY_TOOLS`.
 - **`likely` is not `confirmed`.** It needs rule-derived static evidence, never model output alone.
-- **Evaluation baseline exception:** `eval` stores `llm_only` as an experimental
-  stance mapping, including `supports` to `likely`. It is never an FVA verdict or
-  confirmation evidence. Rules-only and hybrid still enforce the evidence invariants.
 - **The model never confirms.** `confirmed` needs runtime, DAST, human-review or imported
   evidence (enforced in `fva/invariants.py`). Model and static evidence can only argue, cite, or refute.
 - **Only redacted code goes to a model** (`fva/redact.py`), and every model citation is verified against the
@@ -84,8 +74,7 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 
 `fva/schemas.py` data model · `fva/adapters/` scanner input (SARIF, Polaris flat + MCP, mapping, PoC ledger) ·
 `fva/correlation/` source pin, locate, dependency, reachability · `fva/reasoning/` model clients + assessor ·
-`fva/verdicts.py` suggested verdicts (rules) · `fva/export/` worksheet, scoring · `fva/analysis/` Polaris census and
-correlation value · `fva/pipeline.py` batch run · `fva/langpacks/` per-language rules (Node today) · `fva/polaris_mcp.py` Polaris client.
+`fva/verdicts.py` suggested verdicts (rules) · `fva/export/` worksheet, scoring · `fva/pipeline.py` batch run · `fva/langpacks/` per-language rules (Node today) · `fva/polaris_mcp.py` Polaris client.
 
 ## Reference data (local only)
 

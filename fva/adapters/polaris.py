@@ -177,7 +177,7 @@ def from_dast_issue(issue: dict, *, run_id: str, raw_digest: str, pointer: str, 
     )
 
 
-# kept in sync by hand; fva census reports keys the adapter drops
+# kept in sync by hand
 USED_OCCURRENCE_KEYS: frozenset[str] = frozenset({
     "location", "line-number", "function-name", "cwe", "severity", "title", "description", "checker", "language",
     "component-origin-external-id", "component-name", "component-version-name",

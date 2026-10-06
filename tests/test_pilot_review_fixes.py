@@ -165,25 +165,3 @@ def test_mixed_export_round_trip_keeps_dast_types_separate(tmp_path):
     assert [f.title for f in findings] == ["Server Error", "Deprecated TLS Protocol Version"]
     assert all("type_details_missing" not in f.scanner_metadata for f in findings)
     assert json.loads((tmp_path / "types.json").read_text()) == {}
-
-
-def test_discovery_cwe_normalization():
-    from fva.discovery import Candidate
-    row = {"title": "example", "rationale": "example", "cwe": ["79", "cwe-079", "CWE-89"],
-           "severity": "low", "citations": [{"path": "app.js", "line": 1, "quote": "code"}],
-           "uncertainty": "pending validation"}
-    assert Candidate.model_validate(row).cwe == ["CWE-79", "CWE-89"]
-    with pytest.raises(ValueError, match="CWE must"):
-        Candidate.model_validate({**row, "cwe": ["CWE-79-extra"]})
-
-
-@pytest.mark.parametrize("marker", ["// planted issue", "const x = 1; // VULN", "/* answer key */"])
-def test_source_freezing_refuses_obvious_plant_comments(tmp_path, marker):
-    from fva.discovery import freeze_source
-    from fva.schemas import DeploymentProfile
-    source = tmp_path / "source"
-    source.mkdir()
-    (source / "app.js").write_text(marker + "\n")
-    profile = DeploymentProfile(profile_id="test", name="test", language_packs=("node",))
-    with pytest.raises(ValueError, match="possible plant hint"):
-        freeze_source(source, profile, tmp_path / "out")

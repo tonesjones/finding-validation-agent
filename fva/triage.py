@@ -67,13 +67,12 @@ def route(finding_id: str, severity: str, verdict: V, codes: tuple[str, ...], co
 def build(run_dir: Path, *, warnings: list[str] | None = None) -> list[dict]:
     """One triage row per original finding in a run, sorted like the worksheet."""
     from fva.export import worksheet
-    findings, by_finding, profile, trusted, observed = worksheet.load(run_dir, warnings=warnings)
+    findings, by_finding, profile, trusted = worksheet.load(run_dir, warnings=warnings)
     rows = []
     for f in findings:
         evs = by_finding.get(f["finding_id"], [])
         verdict, codes, conf, cited = suggest_verdict({**f, "deployment_profile_id": profile}, evs,
-                                                      verified_runtime_ids=trusted,
-                                                      verified_observation_ids=observed)
+                                                      verified_runtime_ids=trusted)
         r, exceptions = route(f["finding_id"], f["severity"], verdict, codes, conf, cited, profile=profile,
                               verified_runtime_ids=trusted)
         rows.append({"finding_id": f["finding_id"], "source_finding_id": f["source_finding_id"],

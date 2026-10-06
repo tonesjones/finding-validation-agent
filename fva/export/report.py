@@ -70,7 +70,7 @@ def build(run_dir: Path) -> tuple[list[dict], list[dict]]:
     """(open tickets ranked, closed issues) for one run."""
     run_dir = Path(run_dir)
     rows = triage.build(run_dir)
-    findings, by_finding, _profile, trusted, _observed = worksheet.load(run_dir)
+    findings, by_finding, _profile, trusted = worksheet.load(run_dir)
     frow = {f["finding_id"]: f for f in findings}
     ev_by_id = {e.evidence_id: e for evs in by_finding.values() for e in evs}
     primary_of = {g["issue_id"]: g["primary_finding_id"] for g in _read_jsonl(run_dir / "groups.jsonl")}

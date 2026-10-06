@@ -2,11 +2,11 @@
 
 This guide is for people who run the Finding Validation Agent (fva) and tune its AI models. It holds the
 operator detail: what each step of a run does, how scoring works, how each finding is routed to a model tier, which
-command-line options change a run, and what the Polaris data tools report. For what the tool is and why it exists, start with the [README](../README.md).
+command-line options change a run. For what the tool is and why it exists, start with the [README](../README.md).
 
 ## Source pinning needs Git and never runs repository helpers
 
-`assess`, `discover` and `eval` pin the source checkout before they read it.
+`assess` pins the source checkout before it reads it.
 `fva/correlation/source_pin.py` hashes the tracked files and records `HEAD` and a
 dirty flag.
 
@@ -151,175 +151,6 @@ outcome, sorted by outcome).
 exploited advisory) can only reach `agree_static` or `unresolved` until runtime probes exist. A different app needs
 its own key in the same format (`candidate_id`, `classification`).
 
-## What-if: review queue under passive runtime evidence
-
-`python -m fva whatif <run_dir> [--key <answer key>]` estimates how much human review a passive runtime design
-would leave, before any of it is built. Code: `fva/export/whatif.py`.
-
-Passive evidence observes the app under ordinary traffic and sends no attack requests: loaded package versions,
-executed lines (coverage), calls to an advisory's named function, deployed routes and files, and enabled options.
-It can close findings and send likely issues straight to fix tickets. It never produces `confirmed`.
-
-Each finding lands in `auto_close`, `fix_ticket` or `review`. Rows the run already decided keep their bucket. For
-rows left in `needs_review`, the key's reason code picks the passive signal that could decide them:
-
-| Key reason | Signal | Optimistic | Conservative |
-|---|---|---|---|
-| Deployment boundary codes | deployed files and routes | auto_close | auto_close |
-| `VERSION_DRIFT`, `ADVISORY_VERSION_MISMATCH` | loaded package version | auto_close | auto_close |
-| `ADVISORY_PRECONDITION_ABSENT` | config state or function calls | auto_close | review |
-| Real SAST issue | line coverage | fix_ticket | fix_ticket only with a cited `supports` argument |
-| Real SCA issue | loaded package and function calls | fix_ticket | fix_ticket |
-| Mitigation, trusted source, attacker control, credentials, quality | none | review | review |
-
-**Output** in the run folder: `whatif.md` (now / conservative / optimistic table and the reasons findings still need
-a person), `whatif.json`, `whatif_rows.csv`.
-
-**Limits.** The key acts as an oracle for what each signal would show, so this is a ceiling for the policy, not a
-measurement. Incorrect demotions already in the run carry into every scenario. Real numbers need real passive
-observations from the app.
-
-## Passive runtime observation receipts
-
-A collector or importer writes one receipt per collection. `fva/observations.py` validates it, binds it to a run
-and turns each observation into a `runtime_observation` evidence record. Receipts stay in ignored `data/`, and so
-does the raw file they summarize (for example a coverage report). Never send either to a model or attach them to a
-ticket.
-
-```json
-{
-  "format": "fva.runtime_observation/1",
-  "profile_id": "<summary.json profile>",
-  "source_content_sha256": "<summary.json source_content_sha256>",
-  "findings_sha256": "<SHA-256 of the exact findings.jsonl bytes>",
-  "collector": {"name": "c8-coverage-import", "version": "1"},
-  "exercise": "npm test",
-  "raw_file": {"name": "coverage-final.json", "sha256": "<SHA-256 of the raw file bytes>"},
-  "collected_at": "2026-10-04T12:00:00+00:00",
-  "observations": [
-    {"kind": "line_executed", "finding_ids": ["<SAST finding_id>"], "observed": true,
-     "subject": {"path": "routes/search.ts", "line": 23}},
-    {"kind": "loaded_package", "finding_ids": ["<SCA finding_id>"], "observed": false,
-     "subject": {"name": "left-pad", "version": "1.0.0"}}
-  ]
-}
-```
-
-- `exercise` says how the app ran, such as `npm test` or `startup only`. It goes into every evidence record.
-- `collected_at` must include a timezone.
-- Each `kind` takes exactly these `subject` keys and describes only these finding types:
-
-| `kind` | `subject` keys | Finding types |
-|---|---|---|
-| `loaded_package` | `name`, `version` | sca |
-| `line_executed` | `path` (repo-relative), `line` | sast |
-| `route_registered` | `method`, `path` | sast, dast |
-| `config_state` | `key`, `value` | any |
-
-- `observed: false` records a negative result, such as a line that did not run or a package that was not loaded.
-  Leave out observations the collector could not make at all.
-- Binding fails unless profile, source hash and findings hash match the run, and every `finding_id` exists in it
-  with an allowed type.
-
-Evidence records get the id `observation:<receipt hash>:<n>` and the detail ref
-`raw:sha256:<receipt hash>#/observations/<n>`. Their `tool_versions` hold the kind, observed flag, collector, exercise,
-receipt hash, raw file hash and source hash. Summaries name the package, line, route or config key. They never
-include a config value.
-
-Stance is fixed by the contract, not by the collector. A package that was not loaded `refutes`. Every other
-observation is `neutral`, whether it was observed or not. A passive observation never confirms and never provides the
-`supports` that a `likely` verdict needs. Code that ran is not proof that it is vulnerable, and a line that did not
-run never closes a finding.
-
-Verdict rules (`fva/verdicts.py`, checked again in `fva/invariants.py`):
-
-| Observation | Other evidence | Suggestion |
-|---|---|---|
-| SCA package loaded | cited `supports` and rule evidence | `likely`, `VULNERABLE_VERSION_IMPORTED` |
-| SCA package loaded | no `supports` | unchanged: loading alone promotes nothing |
-| SCA package not loaded | reachability finds no shipped import, exercise is more than startup | `not_applicable`, `PACKAGE_NOT_LOADED` |
-| SCA package not loaded | shipped code imports it, or no reachability record | `needs_review` |
-| SAST line executed | cited static or model `supports` and rule evidence | `likely`, `EXECUTED_UNDER_TEST` |
-| SAST line not executed | anything | unchanged |
-
-An exercise of `startup`, `startup only` or `npm start` (case and spacing ignored) cannot close a finding, because
-startup runs no request handlers or lazy `require` calls. Name the exercise by the command you ran. A not-loaded
-record next to a `supports` record is still `CONFLICTING_EVIDENCE`. So is a not-loaded record next to another
-receipt that saw the package load, which blocks the closure.
-
-The worksheet re-verifies observations before it uses them (`observations.verify_observations`). Each receipt in
-the run's `observations/` folder must be named by its content hash, match its bytes and still bind to the run, and
-the stored evidence must equal what the receipt produces. Records that fail are ignored, not cited, and the
-worksheet shows a warning with their count. The raw collector output is checked only at import, so keep it with
-the receipt in `data/`.
-
-## Passive collectors: loaded packages and coverage
-
-Both collectors watch the app run normally and FVA sends no traffic. The operator runs the app's own tests or a
-startup check. Keep raw output, receipts and derived runs in ignored `data/`.
-
-Each collector has two steps. `receipt` reads the raw output and writes a canonical receipt. It refuses to
-overwrite an existing receipt and checks the checkout against the run's source hash. `import` rebuilds the receipt
-from the same raw output and source, accepts it only on an exact match, and writes a new run with the evidence
-appended. The base run is left unchanged. Importing the same receipt into a run twice is rejected.
-
-**Loaded packages (SCA).** `python -m fva loaded-packages preload` prints the command line. Point
-`FVA_LOADED_MODULES_DIR` at a new directory and add `NODE_OPTIONS="--require <preload>"`, so child processes and
-test workers are recorded too. Each process appends the paths of the module files it loads, and only the paths.
-It records no request data, arguments, environment values or memory contents.
-
-```powershell
-python -m fva loaded-packages receipt data\runs\<run> --raw data\loaded\<dir> --source <checkout> --exercise "npm test" --out data\loaded\receipt.json
-python -m fva loaded-packages import data\runs\<run> data\loaded\receipt.json --raw data\loaded\<dir> --source <checkout> --out data\runs\<run>-loaded
-```
-
-Loaded files map to `name@version` through the `package.json` at their `node_modules/<name>` root. Only files
-under the checkout count. An SCA finding whose exact `name@version` was loaded gets `observed: true`. It gets
-`observed: false` only if three things hold: the package is installed under the checkout's `node_modules`, every
-process ran with load hooks (Node 22.15 or later, so ESM imports were seen), and every record file is intact.
-Otherwise the receipt leaves that package out. Packages bundled for the browser never load in Node. A `false` for
-them is expected. It closes nothing while shipped code imports the package. The npm layout is supported; pnpm
-stores are not.
-
-**Line coverage (SAST).** Pass a `NODE_V8_COVERAGE` directory or a c8/Istanbul `coverage-final.json`. A
-TypeScript app needs c8's source-mapped report, because V8 output names the compiled `.js` files.
-
-```powershell
-python -m fva coverage receipt data\runs\<run> --coverage data\coverage\coverage-final.json --source <checkout> --exercise "npm test" --out data\coverage\receipt.json
-python -m fva coverage import data\runs\<run> data\coverage\receipt.json --coverage data\coverage\coverage-final.json --source <checkout> --out data\runs\<run>-coverage
-```
-
-The importer writes one `line_executed` observation per located SAST finding in an instrumented file. It is
-`observed: true` when the flagged line ran. Findings in files without coverage are left out, and so are files
-outside the checkout. For a single file, `raw_file.sha256` hashes its bytes. For a directory, it hashes the
-`coverage-*.json` files sorted by name. For each file it feeds SHA-256 the UTF-8 name length as an 8-byte
-big-endian integer, the name, the byte length in the same form, and then the bytes. V8 offsets count characters,
-so lines with characters outside the Basic Multilingual Plane can shift by one.
-
-**Juice Shop 20.2.0 recipe.** Collect in a `git clone` of the reference checkout. Tracked files hash the same,
-and the reference copy stays free of `node_modules`. Copy the resolved lockfile in as `package-lock.json`, so
-installed versions match the run. The root `postinstall` builds the frontend, so skip scripts and rebuild only
-the native modules. Importing `server.ts` exits unless `build/server.js` and the frontend dist files exist. For
-server-side collection, placeholder files in `frontend/dist/frontend/` are enough (`index.html`, `styles.css`,
-`main.js`, `polyfills.js`, `hacking-instructor-stub.js`). Name them in the exercise, because tests that fetch
-frontend assets then fail. The API tests call the app in-process through supertest. The app's own startup check
-still contacts `https://www.alchemy.com/`. The tests run TypeScript through `tsx`, which embeds source maps.
-`c8 report` over the `NODE_V8_COVERAGE` directory therefore writes `.ts` paths.
-
-```powershell
-git clone "C:\TestCode\Juiceshop 20.2.0" C:\TestCode\juiceshop-l4; cd C:\TestCode\juiceshop-l4
-copy <fva>\data\resolved\juiceshop-20.2.0-package-lock-resolved-2026-09-27.json package-lock.json
-$env:CYPRESS_INSTALL_BINARY = "0"; $env:SCARF_ANALYTICS = "false"
-npm ci --ignore-scripts; npm rebuild sqlite3 libxmljs2 esbuild; npm run build:server
-$env:FVA_LOADED_MODULES_DIR = "<fva>\data\loaded\<dir>"; $env:NODE_V8_COVERAGE = "<fva>\data\coverage\<v8dir>"
-$env:NODE_OPTIONS = "--require <fva>\fva\node\loaded_modules.cjs"
-npm run test:server; npm run test:api
-Remove-Item Env:NODE_OPTIONS, Env:NODE_V8_COVERAGE
-npx c8@12.0.0 report --temp-directory <fva>\data\coverage\<v8dir> --reporter=json --report-dir <fva>\data\coverage\<c8dir> --src .
-```
-
-Import the loaded-package receipt into the base run, then the coverage receipt into that result.
-
 ## Which AI model handles each finding
 
 The tool sends each group of findings (findings on the same code line or advisory) to one of
@@ -360,31 +191,9 @@ and variables, set to the gateway's model aliases. Known on the gateway: GPT-5.6
 the PoC answer key after remapping, because results for one model family don't carry over to another.
 See [CHECKPOINT.md](../CHECKPOINT.md), "Work laptop: LiteLLM gateway".
 
-## Polaris data tools
-
-These tools show what Polaris returns and whether its fields can link findings that belong together. They are
-read-only and write only summaries that are safe to share.
-
-- `python -m fva.polaris_mcp inventory` surveys the Polaris MCP server. It lists the tools and their inputs, the
-  scanner types in each project, and a few sample issues with full detail. The raw output stays in `data/`. The
-  summary has no names, ids, or URLs. Its triage table reports, from the listed issues, whether triage status,
-  set-by, set-at and status history are present and how many issues have a value. It never shows the values.
-- `python -m fva census <paths>` counts, for each scanner type, which fields Polaris fills in and which ones fva
-  ignores today. It shows values only for a few category fields, such as severity. A triage table per scanner type
-  reports the same four fields, without values. Output goes to `data/analysis/`.
-- `python -m fva correlation-value [--source <checkout>]` scores candidate ways of linking findings against the
-  hand-validated answer key. The candidates are the same CWE (weakness type), the same code line, the same
-  code-fragment hash, a package imported in the flagged file, advisory symbols near the flagged line, and CVE and
-  BDSA aliases. Each candidate is scored on coverage (how many findings it links), ambiguity (how many other findings
-  each link points at), and lift (how much knowing one finding is real raises the odds that its linked finding is
-  real). The output is totals only.
-
-The census and correlation check ran on the saved FVA export. This scan produced
-no SAST-to-DAST links; precision is undefined without linked findings to review.
-
 ### Verified DAST envelope
 
-The FVA export and maximal-detail inventory verify the MCP `content[].text` JSON
+The FVA export verifies the MCP `content[].text` JSON
 envelope, with `data._items` for list results and `data` for issue details. The
 listed issue fields include `id`, `weaknessId`, `context`, `occurrenceProperties`,
 `triageProperties` and `_links`. Context includes `toolType`, `toolId`, `date` and
@@ -418,8 +227,7 @@ establishes their provenance. Changing an agent's source interpretation to a rul
 evidence type does not make it independent rule evidence.
 
 Worksheet runtime evidence must match the profile in the run's `summary.json`.
-Missing or mismatched profiles keep the finding unresolved. Frozen evaluations
-take the expected profile from their sealed preflight. Evidence cannot select its
+Missing or mismatched profiles keep the finding unresolved. Evidence cannot select its
 own expected deployment. A directly constructed `RUNTIME_CONFIRMED` verdict must
 cite a supporting runtime probe and a neutral `negative_control` whose
 `tool_versions.control_for` names that probe's evidence ID. Both must cover the
@@ -429,8 +237,7 @@ prove that FVA ran a new probe with a control.
 
 Keep evidence for different deployments in separate runs with distinct profiles.
 A reproduction on local Node does not confirm a hosted deployment. A failed
-probe does not establish non-applicability. Prototype observations are investigation
-evidence, not current automatic closures. Verify deployment identity before deciding
+probe does not establish non-applicability. Verify deployment identity before deciding
 applicability for a hosted target.
 
 ## Approved localhost runtime collection
@@ -438,7 +245,7 @@ applicability for a hosted target.
 `python -m fva runtime` collects and imports a small approved GET plan. This first
 version supports a code-execution marker oracle for assessable SAST CWE-94 findings.
 It does not generate exploits or establish SCA advisory applicability. Other cases
-remain unresolved. Frozen evaluation packets are not changed by this workflow.
+remain unresolved.
 
 An operator approves the entire plan once, including the mapping from each finding
 to its probe, control and expected marker. The plan's rationale must explain why

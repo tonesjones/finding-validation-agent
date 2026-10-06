@@ -71,7 +71,7 @@ def escalation_reason(res: assessor.AssessmentResult, group: list[Finding]) -> s
     if res.evidence.stance is Stance.refutes and max(_RANK[f.severity] for f in group) >= _RANK[Severity.high]:
         return "refutes high/critical"
     # a model `supports` can make a finding `likely` and route it automatically; on fresh answers Luna's
-    # supports over-flagged 4 rows, 2 of them inactive credentials (docs/plans/remaining-unblocked.md)
+    # supports over-flagged 4 rows, 2 of them inactive credentials
     if res.evidence.stance is Stance.supports:
         return "supports"
     return None

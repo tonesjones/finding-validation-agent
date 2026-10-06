@@ -90,7 +90,7 @@ class EvidenceType(str, Enum):
     imported_assessment = "imported_assessment"  # carried over from a prior tool/PoC, unverified here
     model_assessment = "model_assessment"  # LLM claim with verified citations; never sufficient to confirm
     human_review = "human_review"
-    runtime_observation = "runtime_observation"  # passive: no attack traffic; never confirms (fva.observations)
+    runtime_observation = "runtime_observation"  # passive: no attack traffic; never confirms (historical evidence type)
 
 
 class ObservationKind(str, Enum):
