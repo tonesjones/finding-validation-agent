@@ -51,36 +51,6 @@ def test_suggestions(run):
     assert (run / "worksheet.html").read_text().startswith("<!doctype html>")
 
 
-def _fill(run, decisions):
-    worksheet.write(run)
-    with open(run / "worksheet.csv", encoding="utf-8-sig") as fh:
-        rows = list(csv.DictReader(fh))
-    for r in rows:
-        if r["source_finding_id"] in decisions:
-            r["reviewer_decision"], r["reviewer"] = decisions[r["source_finding_id"]], "Ana"
-    out = run / "filled.csv"
-    with open(out, "w", encoding="utf-8", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=worksheet.COLUMNS)
-        w.writeheader()
-        w.writerows(rows)
-    return out
-
-
-def test_review_confirms_likely_and_scores_agreement(run):
-    s = worksheet.import_reviews(run, _fill(run, {"POL-l": "confirmed", "POL-t": "agree"}))
-    assert s["reviewed"] == 2 and s["agreement"] == {"likely": "0/1", "not_applicable": "1/1"}
-    rev = {json.loads(l)["source_finding_id"]: json.loads(l) for l in (run / "reviews.jsonl").read_text().splitlines()}
-    v = rev["POL-l"]["verdict"]
-    assert v["verdict"] == "confirmed" and v["reason_codes"] == ["REVIEWER_CONFIRMED"]
-    assert v["supersedes"] == "suggestion:l" and rev["POL-l"]["evidence"]["evidence_type"] == "human_review"
-
-
-def test_review_needs_reviewer_and_valid_decision(run):
-    p = _fill(run, {"POL-l": "maybe"})
-    with pytest.raises(ValueError, match="reviewer_decision"):
-        worksheet.import_reviews(run, p)
-
-
 def test_rule_skip_without_evidence_stays_open(run):
     """A run made before rule evidence existed: the closure has nothing to cite, so it is not closed."""
     ev = run / "evidence.jsonl"

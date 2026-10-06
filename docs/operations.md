@@ -28,8 +28,8 @@ Don't change the checkout or its Git configuration while a pin runs.
 ## How a run works
 
 ```
-0 export ──────► 1 assess ──► 2 worksheet ──► 3 score ──► 4 review (optional) ──► fixes
-read-only MCP    evidence     CSV + HTML      vs answer key   human decisions
+0 export -> 1 assess -> 2 worksheet -> 3 score -> report -> fixes
+read-only MCP  evidence  CSV + HTML  vs answer key  open issues
 ```
 
 **0. Export.** `python -m fva.polaris_mcp export --project <projectId> --branch <branchId>` saves the Polaris
@@ -68,10 +68,6 @@ A run made before 2026-10-02 has no rule records. The worksheet warns about this
 review until you run `assess` again. That costs nothing, because the model answers come from the cache.
 
 **3. Score.** `python -m fva score <run_dir>`. See [Automatic scoring](#automatic-scoring).
-
-**4. Review (optional).** Fill `reviewer_decision` and `reviewer` in the CSV, then run
-`python -m fva import-review <run_dir> <csv>`. Decisions become human-review evidence, and a reviewer's `confirmed`
-turns likely into confirmed. `review_summary.json` gives agreement per verdict.
 
 **Report.** `python -m fva report <run_dir>` writes ranked open issues to `tickets.jsonl`, a text summary to
 `report.md`, and a self-contained `report.html`. The HTML page shows the raw finding count, issue counts for

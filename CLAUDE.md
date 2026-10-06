@@ -17,7 +17,6 @@ python -m fva assess --client codex --no-route --source "C:\TestCode\Juiceshop 2
 python -m fva assess --dry-run --source "C:\TestCode\Juiceshop 20.2.0"                  # prompts only
 python -m fva assess --client codex --workers 4 --source "C:\TestCode\Juiceshop 20.2.0"   # parallel model calls
 python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
-python -m fva import-review data\runs\<run> filled.csv      # reviewer decisions -> human_review evidence
 python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
 python -m fva triage data\runs\<run>                        # auto vs review routing -> triage.jsonl, triage.md
 python -m fva report data\runs\<run>                        # ranked issues -> tickets.jsonl, report.md, report.html

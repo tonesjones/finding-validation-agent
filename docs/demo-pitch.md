@@ -17,7 +17,7 @@ issues are `not-dismissed` with dismissal reason `unset`. So nobody has triaged 
 | Decided automatically | 486 | 84.8% |
 | of which closed | 469 | 81.8% |
 | of which fix tickets (`likely`) | 17 | 3.0% |
-| Left for a person | 87 | 15.2% |
+| Open, not auto-verified | 87 | 15.2% |
 
 The automatic decisions agree with the answer key 99.4% of the time. None of them closes or demotes a finding
 the key calls real (0 incorrect demotions). Across all 573 findings, agreement with the key is 86.5%. The
@@ -46,13 +46,13 @@ lists every original Polaris finding id it covers and the evidence ids behind it
 - A model never confirms and never closes. Its only automated effect is to argue a finding up to `likely`, and
   even that needs a rule-derived record and a citation verified against the pinned source. Only redacted code
   goes to a model.
-- A closure that would demote a high or critical finding without high-confidence rule evidence goes to a person
+- A closure that would demote a high or critical finding without high-confidence rule evidence stays open
   (`HIGH_IMPACT_CLOSURE`).
 
 ## What would move the remaining 87
 
 | Open findings | Blocker | What would help |
 |---|---|---|
-| Stance questions, such as whether attacker input reaches the sink | Reasoning the rules cannot settle | Reviewer decisions fed back through `fva import-review` |
+| Stance questions, such as whether attacker input reaches the sink | Reasoning the rules cannot settle | Additional evidence; otherwise the finding stays open, not auto-verified |
 | Exploitability | No dynamic evidence in this tenant | A Polaris DAST scan of the same deployment, or an operator-approved localhost probe |
 | A queue without labels | No dismissals or triage history in Polaris | Triage history in the Polaris API, so past decisions become labels |

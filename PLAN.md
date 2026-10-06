@@ -15,7 +15,7 @@ Five items, in this order. Do the deletion first so the rest happens in a smalle
 
 ### Must fix
 
-- [ ] **Decide the human question.** Decision: no routine human review; open findings stay open; `import-review` is being removed. Update the README to state this policy.
+- [x] **Decide the human question.** Decision: no routine human review; open findings stay open; `import-review` is removed. Update the README to state this policy.
   - Acceptance criteria: README states the policy, and the `import-review` command is removed from the CLI and documentation.
 - [ ] **Make a second app possible from the README.** Require `--profile-file` (no Juice Shop default), drop the Juice Shop lockfile default, warn when finding paths don't exist in the source, and document the profile in ten lines. The default client stays `codex` (owner decision 2026-10-05; may switch to `anthropic` later).
   - Acceptance criteria: README setup uses a profile on a non-Juice-Shop app, the CLI requires `--profile-file`, and missing source paths produce a warning.
