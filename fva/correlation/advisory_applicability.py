@@ -98,6 +98,7 @@ def _raw_text_tags(value: str | None) -> bool:
 
 
 _PRECONDITIONS = {
+    ("lodash", "CVE-2026-4800"): OptionPrecondition("imports", _passed, "options.imports key names"),
     # Each advisory names a non-default option; the defaults allow no style attribute, no iframe hostname list, no
     # transformTags and no textarea/xmp tags. "{}" allows no attributes; `false` allows all.
     ("sanitize-html", "CVE-2024-21501"): OptionPrecondition(
@@ -117,6 +118,7 @@ _MARKUP = (".html", ".htm", ".vue", ".svelte", ".ejs", ".hbs", ".pug")
 class CallScan:
     sites: tuple[tuple[str, str], ...]  # (function, "file:line") in shipped code
     unresolved: tuple[str, ...]  # "file:line" uses the scan could not name
+    options: OptionScan | None = None  # lodash retains function evidence for its other advisories
 
 
 @dataclass(frozen=True)
@@ -161,13 +163,14 @@ def scan_calls(root: Path, files: list[str], profile: DeploymentProfile,
 
 
 def scan_options(root: Path, files: list[str], profile: DeploymentProfile, package: str) -> OptionScan:
-    """Direct calls of `package`'s default export across shipped code with their literal options."""
+    """Direct default-export or lodash.template calls across shipped code with their literal options."""
     calls, unresolved = [], set()
     for rel, text in _shipped(root, files, profile, unresolved):
-        if package not in text:
+        if package != "lodash" and package not in text:
             continue
         if rel.endswith(_MARKUP):  # a bundled browser copy cannot be followed
-            unresolved.add(f"{rel}:{text.count(chr(10), 0, text.index(package)) + 1}")
+            if package in text or (package == "lodash" and re.search(r"\b(?:template|templateSettings)\b", text)):
+                unresolved.add(f"{rel}:1")
             continue
         found, lines = REGISTRY["node"].option_calls(text, package)
         calls.extend((f"{rel}:{ln}", tuple(sorted(options.items()))) for ln, options in found)
@@ -176,6 +179,9 @@ def scan_options(root: Path, files: list[str], profile: DeploymentProfile, packa
 
 
 def scan(root: Path, files: list[str], profile: DeploymentProfile, package: str) -> CallScan | OptionScan:
+    if package == "lodash":
+        calls = scan_calls(root, files, profile)
+        return CallScan(calls.sites, calls.unresolved, scan_options(root, files, profile, package))
     return scan_options(root, files, profile, package) if package in OPTION_PACKAGES else scan_calls(root, files, profile)
 
 
@@ -263,10 +269,14 @@ def precondition_evidence(finding: Finding, status: str, detail: str, profile_id
 def use_evidence(finding: Finding, scan: CallScan | OptionScan, dependents: list[str] | None,
                  profile_id: str | None = None) -> tuple[EvidenceRecord, str | None] | None:
     """(record, pipeline skip disposition when it refutes) from the package's call-site or option rule."""
+    options = scan.options if isinstance(scan, CallScan) else scan
+    if options is not None:
+        status = precondition_status(finding, options, dependents)
+        if status is not None:
+            return (precondition_evidence(finding, *status, profile_id),
+                    "dependency:advisory_precondition_absent" if status[0] == "precondition_absent" else None)
     if isinstance(scan, OptionScan):
-        status = precondition_status(finding, scan, dependents)
-        return status and (precondition_evidence(finding, *status, profile_id),
-                           "dependency:advisory_precondition_absent" if status[0] == "precondition_absent" else None)
+        return None
     status = call_site_status(finding, scan, dependents)
     return status and (call_site_evidence(finding, *status, profile_id),
                        "dependency:vulnerable_function_not_called" if status[0] == "not_called" else None)
