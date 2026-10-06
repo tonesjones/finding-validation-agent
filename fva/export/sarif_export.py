@@ -55,7 +55,7 @@ def build(run_dir: Path) -> dict[str, dict]:
     """{finding type: SARIF document} for sast and sca, plus dast when the run has DAST findings."""
     run_dir = Path(run_dir)
     rows = triage.build(run_dir)
-    findings, by_finding, _profile, _trusted, _observed = worksheet.load(run_dir)
+    findings, by_finding, _profile, _trusted = worksheet.load(run_dir)
     frow = {f["finding_id"]: f for f in findings}
     ev_by_id = {e.evidence_id: e for evs in by_finding.values() for e in evs}
     out: dict[str, list[dict]] = {}

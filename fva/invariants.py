@@ -15,14 +15,6 @@ CONFIRMING_TYPES = {EvidenceType.runtime_probe, EvidenceType.human_review,
 RULE_TYPES = {EvidenceType.static_source, EvidenceType.deployment_boundary, EvidenceType.dependency_resolution,
               EvidenceType.reachability, EvidenceType.advisory_precondition}
 
-# Exercises too narrow for a package's absence to mean anything: startup runs no request handlers or
-# lazy requires. Matched after lowercasing and collapsing whitespace.
-STARTUP_ONLY = {"startup", "startup only", "npm start"}
-
-# Static reachability results (`fva.correlation.reachability`) meaning no shipped code imports the package.
-NO_SHIPPED_IMPORT = {"static_import_graph:imported_only_outside_deployment",
-                     "static_import_graph:declared_not_imported", "static_import_graph:not_imported_directly"}
-
 _REQUIRED_STANCE = {
     VerdictValue.likely: Stance.supports,
     VerdictValue.confirmed: Stance.supports,
@@ -33,11 +25,6 @@ _REQUIRED_STANCE = {
 
 class InvariantError(ValueError):
     pass
-
-
-def _observations(cited: list[EvidenceRecord], kind: str) -> list[EvidenceRecord]:
-    return [r for r in cited if r.evidence_type is EvidenceType.runtime_observation
-            and r.tool_versions.get("kind") == kind]
 
 
 def check_verdict(v: Verdict, evidence: Mapping[str, EvidenceRecord]) -> None:
@@ -72,23 +59,6 @@ def check_verdict(v: Verdict, evidence: Mapping[str, EvidenceRecord]) -> None:
         controls = [r for r in cited if r.evidence_type is EvidenceType.negative_control and r.stance is Stance.neutral]
         if not any(c.tool_versions.get("control_for") == p.evidence_id for p in probes for c in controls):
             raise InvariantError("RUNTIME_CONFIRMED requires a neutral negative control linked to its probe")
-    if "PACKAGE_NOT_LOADED" in v.reason_codes:
-        loaded = _observations(cited, "loaded_package")
-        reach = [r.method for r in cited if r.evidence_type is EvidenceType.reachability]
-        if not any(r.tool_versions.get("observed") == "false"
-                   and " ".join(r.tool_versions.get("exercise", "").lower().split()) not in STARTUP_ONLY
-                   for r in loaded):
-            raise InvariantError("PACKAGE_NOT_LOADED requires a not-loaded observation under more than startup")
-        if any(r.tool_versions.get("observed") != "false" for r in loaded):
-            raise InvariantError("PACKAGE_NOT_LOADED cannot cite an observation that the package loaded")
-        if not reach or any(m not in NO_SHIPPED_IMPORT for m in reach):
-            raise InvariantError("PACKAGE_NOT_LOADED requires static reachability showing no shipped import")
-    if "EXECUTED_UNDER_TEST" in v.reason_codes:
-        if not any(r.tool_versions.get("observed") == "true" for r in _observations(cited, "line_executed")):
-            raise InvariantError("EXECUTED_UNDER_TEST requires an observation that the flagged line executed")
-        if not any(r.stance is Stance.supports and r.evidence_type in RULE_TYPES | {EvidenceType.model_assessment}
-                   for r in cited):
-            raise InvariantError("EXECUTED_UNDER_TEST requires a cited static or model 'supports' argument")
     if v.verdict is VerdictValue.likely and not any(
             r.evidence_type in RULE_TYPES and r.stance in (Stance.supports, Stance.neutral) for r in cited):
         raise InvariantError("likely requires rule-derived static evidence, not model output alone")

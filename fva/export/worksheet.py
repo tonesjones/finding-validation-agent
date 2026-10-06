@@ -36,8 +36,8 @@ def _read_jsonl(p: Path) -> list[dict]:
 DECISIONS = {"agree", V.confirmed.value, V.not_applicable.value, V.valid_non_security.value, V.needs_review.value}
 
 def load(run_dir: Path, *, warnings: list[str] | None = None
-         ) -> tuple[list[dict], dict[str, list[EvidenceRecord]], str | None, frozenset[str], frozenset[str]]:
-    """(findings, evidence by finding id, run profile id, verified runtime and observation ids) for one run."""
+         ) -> tuple[list[dict], dict[str, list[EvidenceRecord]], str | None, frozenset[str]]:
+    """(findings, evidence by finding id, run profile id, verified runtime ids) for one run."""
     run_dir = Path(run_dir)
     findings = _read_jsonl(run_dir / "findings.jsonl")
     if not findings:
@@ -53,21 +53,18 @@ def load(run_dir: Path, *, warnings: list[str] | None = None
             by_finding.setdefault(fid, []).append(e)
     from fva.runtime import verify_runtime
     trusted_runtime, runtime_warning = verify_runtime(run_dir, all_evidence)
-    from fva.observations import verify_observations
-    trusted_observations, observation_warning = verify_observations(run_dir, all_evidence)
     if warnings is not None:
-        warnings.extend(w for w in (runtime_warning, observation_warning) if w)
-    return findings, by_finding, profile, trusted_runtime, trusted_observations
+        warnings.extend(w for w in (runtime_warning,) if w)
+    return findings, by_finding, profile, trusted_runtime
 
 
 def build(run_dir: Path, *, warnings: list[str] | None = None) -> list[dict]:
-    findings, by_finding, profile, trusted_runtime, trusted_observations = load(run_dir, warnings=warnings)
+    findings, by_finding, profile, trusted_runtime = load(run_dir, warnings=warnings)
     rows = []
     for r in findings:
         evs = by_finding.get(r["finding_id"], [])
         verdict, codes, conf, cited = suggest_verdict({**r, "deployment_profile_id": profile}, evs,
-                                                    verified_runtime_ids=trusted_runtime,
-                                                    verified_observation_ids=trusted_observations)
+                                                    verified_runtime_ids=trusted_runtime)
         status, sev = suggest(verdict, r["severity"])
         loc = r.get("endpoint") or r.get("package") or (f"{r['path']}:{r['line']}" if r.get("path") else "")
         rows.append({

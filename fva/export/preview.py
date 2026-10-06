@@ -31,7 +31,7 @@ def _comment(row: dict, evidence: list[dict]) -> str:
 def build(run_dir: Path) -> list[dict]:
     run_dir = Path(run_dir)
     rows = triage.build(run_dir)
-    findings, by_finding, _profile, _trusted, _observed = worksheet.load(run_dir)
+    findings, by_finding, _profile, _trusted = worksheet.load(run_dir)
     frow = {f["finding_id"]: f for f in findings}
     out = []
     for r in rows:

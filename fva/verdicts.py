@@ -2,8 +2,6 @@
 
 Every suggestion that closes or promotes a finding, rule-decided closures included, passes
 `fva.invariants.check_verdict` on the evidence it cites; anything that would not falls back to needs_review.
-Passive runtime observations count only when their receipt was re-verified (`verified_observation_ids`);
-they never close a SAST finding and close an SCA finding only as PACKAGE_NOT_LOADED.
 Used by the worksheet and by scoring.
 """
 from __future__ import annotations
@@ -54,20 +52,12 @@ def check_suggestion(fid: str, verdict: V, codes: tuple[str, ...], evs: list[Evi
         return False
 
 
-def _observed(evs: list[EvidenceRecord], kind: str, observed: bool) -> bool:
-    return any(e.evidence_type is EvidenceType.runtime_observation and e.tool_versions.get("kind") == kind
-               and e.tool_versions.get("observed") == str(observed).lower() for e in evs)
-
-
 def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
                     verified_runtime_ids: frozenset[str] = frozenset(),
-                    verified_observation_ids: frozenset[str] = frozenset(),
                     ) -> tuple[V, tuple[str, ...], str, list[EvidenceRecord]]:
     """(verdict, reason codes, confidence, cited evidence) for one finding."""
     disp = row["disposition"]
-    # An observation whose receipt did not re-verify carries no weight and is not cited.
-    evs = [e for e in evs if e.evidence_type is not EvidenceType.runtime_observation
-           or e.evidence_id in verified_observation_ids]
+    evs = [e for e in evs if e.evidence_type is not EvidenceType.runtime_observation]
     profile = row.get("deployment_profile_id")
     bound = [e for e in evs if e.evidence_type in
              {EvidenceType.runtime_probe, EvidenceType.negative_control, EvidenceType.dast_observation}]
@@ -81,12 +71,6 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
         if check_suggestion(row["finding_id"], verdict, code, evs, conf, profile):
             return verdict, code, conf, evs
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs  # e.g. a run made before rule evidence
-    # Not loaded closes only when no shipped code imports the package (checked by the invariant). Otherwise the
-    # exercise may simply not have reached it, so the finding goes on through the rules below.
-    if (row["finding_type"] == "sca" and disp in ("assess", "reachability:outside_deployment")
-            and _observed(evs, "loaded_package", False)
-            and check_suggestion(row["finding_id"], V.not_applicable, ("PACKAGE_NOT_LOADED",), evs, "medium", profile)):
-        return V.not_applicable, ("PACKAGE_NOT_LOADED",), "medium", evs
     if disp.startswith(("surface:", "dependency:", "reachability:")):
         return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
     stances = {e.stance for e in evs}
@@ -113,8 +97,7 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
         elif row["finding_type"] == "sca":
             codes = ["VULNERABLE_VERSION_IMPORTED"]
         else:
-            executed = _observed(evs, "line_executed", True)
-            codes = (["EXECUTED_UNDER_TEST"] if executed else []) + ["STATIC_REACHABLE_SINK"]
+            codes = ["STATIC_REACHABLE_SINK"]
         for code in codes:
             if check_suggestion(row["finding_id"], V.likely, (code,), evs, "medium", profile):
                 return V.likely, (code,), "medium", evs

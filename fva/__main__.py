@@ -7,9 +7,6 @@
   python -m fva triage data/runs/<run>      # auto vs review routing (triage.jsonl, triage.md)
   python -m fva import-review data/runs/<run> filled.csv   # reviewer decisions -> human_review evidence
   python -m fva score data/runs/<run>       # automatic scoring against the PoC answer key
-  python -m fva whatif data/runs/<run>      # review-queue ceiling under passive runtime evidence
-  python -m fva census data/polaris-export  # field census of saved Polaris responses (sanitized)
-  python -m fva correlation-value [--source <checkout>]   # do candidate join keys predict the answer key?
 """
 from __future__ import annotations
 
@@ -21,14 +18,7 @@ from pathlib import Path
 
 PROFILES = {"juiceshop": "fva.adapters.poc_ledger:JUICESHOP_PROFILE"}
 # sub-commands whose module parses its own arguments
-DELEGATED = {"runtime": ("fva.runtime", "approved localhost probe collection and verified import"),
-             "loaded-packages": ("fva.loaded_packages", "passive Node loaded-package receipt and verified import"),
-             "coverage": ("fva.coverage", "passive line coverage receipt from the app's own tests and verified import"),
-             "eval": ("fva.evaluation", "blind evaluation preparation, run and score"),
-             "discover": ("fva.discovery", "bounded source-only candidate discovery"),
-             "census": ("fva.analysis.census", "field census of saved Polaris responses (sanitized output)"),
-             "correlation-value": ("fva.analysis.correlation_value",
-                                   "measure whether candidate join keys between findings predict the answer key")}
+DELEGATED = {"runtime": ("fva.runtime", "approved localhost probe collection and verified import")}
 
 
 def _profile(name: str):
@@ -124,19 +114,11 @@ def main(argv=None):
     sc = sub.add_parser("score", help="score a run against an answer key (default: the Juice Shop PoC ledger)")
     sc.add_argument("run_dir")
     sc.add_argument("--key", default="data/poc-report/final-validation-ledger.jsonl")
-    wi = sub.add_parser("whatif", help="estimate the review queue under passive runtime evidence (ceiling, vs a key)")
-    wi.add_argument("run_dir")
-    wi.add_argument("--key", default="data/poc-report/final-validation-ledger.jsonl")
     args = ap.parse_args(argv)
 
     if args.cmd == "score":
         from fva.export import score
         print(score.score(Path(args.run_dir), Path(args.key)))
-        return
-
-    if args.cmd == "whatif":
-        from fva.export import whatif
-        print(whatif.whatif(Path(args.run_dir), Path(args.key)))
         return
 
     if args.cmd == "triage":

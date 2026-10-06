@@ -91,9 +91,6 @@ Web apps only. SAST+SCA-only scans (non-web apps, no DAST) run in runtime mode `
       `fva score` has all but precision.
 - [ ] Measure SAST↔DAST link accuracy.
 - [ ] Measure scanner-gap discoveries separately.
-- [x] Polaris data tools: MCP inventory, field census, correlation value of candidate join keys (built 2026-10-02).
-- [ ] Complete live Polaris correlation checks. Static export census and six-record
-      sample DAST compatibility are checked; pilot DAST links remain unverified.
 - [x] Document model, prompt, tool, source, and runtime versions for reproducibility (`summary.json`
       `versions` block, plus model and prompt version).
 - [ ] Evaluate TypeSafe AI's Jev (typed decisions with calibrated confidence, no text) as a triage and routing

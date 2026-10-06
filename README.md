@@ -103,11 +103,6 @@ clients are `--client claude-code`, `--client anthropic`, and `--client local`. 
 `data/runs/<timestamp>-<client>/`. Scanner data never goes into the repository. The options are in
 [docs/operations.md](docs/operations.md#assess-options).
 
-The blind evaluation pilot has its own commands. `python -m fva discover` asks a fixed model to look for
-candidate flaws in the source without seeing scanner results. `python -m fva eval prepare` freezes the cases,
-`python -m fva eval run` collects one fresh model response per case, and `python -m fva eval score` compares the
-responses with private labels. The procedure is in [docs/blind-pilot.md](docs/blind-pilot.md).
-
 ## How the pieces fit together
 
 A run goes from a Polaris export to an assessment, a worksheet, a score, and an optional human review. The
@@ -122,7 +117,6 @@ problem the tool cleared. The target is 0.
 - [Operations guide, how a run works](docs/operations.md#how-a-run-works): the steps, output files, worksheet, and review commands.
 - [Operations guide, model routing](docs/operations.md#which-ai-model-handles-each-finding): the routing rules and the model for each tier.
 - [Operations guide, scoring](docs/operations.md#automatic-scoring): the outcomes, metrics, and limits.
-- [Operations guide, Polaris data tools](docs/operations.md#polaris-data-tools): the read-only survey commands.
 - [Architecture](docs/architecture.md): the records, adapters, and runtime boundary.
 
 ## Where things stand
@@ -147,8 +141,6 @@ Built and tested:
 - Enriched SARIF export and a dry-run preview of Polaris triage changes
 - Runtime tests on a copy of the app on this machine: a person approves one exact plan of GET requests, and each
   test has a control request
-- Passive runtime evidence from the packages a running app loads and from test coverage
-- The Polaris data tools, and the blind evaluation pilot tooling, `discover` and `eval`
 
 Not done:
 
@@ -158,7 +150,7 @@ Not done:
 - Call-site checks for advisories beyond lodash and sanitize-html, and links between SCA and SAST findings by call
   site
 - An HTTP route, a DAST request, and a confidence for the whole issue on each ticket
-- A precision metric, a benchmark across several applications, and grading of the blind pilot by an expert
+- A precision metric and a benchmark across several applications
 - Writing triage decisions back to Polaris. The preview's Polaris labels are not checked against Polaris.
 - A client for the company LiteLLM gateway
 - Moving this repository to the company GitHub account, before any real customer data is used

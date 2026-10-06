@@ -49,22 +49,6 @@ lists every original Polaris finding id it covers and the evidence ids behind it
 - A closure that would demote a high or critical finding without high-confidence rule evidence goes to a person
   (`HIGH_IMPACT_CLOSURE`).
 
-## What passive runtime evidence added
-
-We ran Juice Shop's own server and API tests with two passive collectors. FVA sent no traffic of its own.
-
-- All 6 packages behind the 29 open SCA findings loaded during the tests.
-- 59 of the 64 flagged SAST lines in instrumented files ran.
-
-That changed no verdict. 13 fix tickets now say their flagged line ran under the tests
-(`EXECUTED_UNDER_TEST`), and the ledger confirms 12 of them. The open queue did not shrink, because "it ran"
-does not separate real findings from false ones here. Of the 24 open SAST findings whose line ran, the ledger calls
-10 real, 9 not applicable and 5 code quality. Promoting those 24 to fix tickets because their line ran would have
-been wrong for 14 of them. Loading is no better a signal. 7 of the 29 SCA findings whose package loaded are
-closed anyway, because shipped code never sets the option their advisory needs. FVA records the observations and keeps them out of verdicts. An earlier
-estimate that used the answer key to choose signals put the queue at 67 instead of 84. That was a ceiling, and the
-measurement replaces it.
-
 ## What would move the remaining 87
 
 | Open findings | Blocker | What would help |
