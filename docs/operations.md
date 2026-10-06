@@ -36,7 +36,7 @@ read-only MCP  evidence  CSV + HTML  vs answer key  open issues
 findings to `data/polaris-export/`. It uses the read-only Polaris MCP server, so it can't change anything in Polaris.
 The access token comes from `POLARIS_ACCESS_TOKEN` or from `data/.polaris-token`.
 
-**1. Assess.** `python -m fva assess --client codex --source <checkout>` writes to `data/runs/<timestamp>-<client>/`.
+**1. Assess.** `python -m fva assess --client codex --source <checkout> --profile-file <profile.json>` writes to `data/runs/<timestamp>-<client>/`.
 See [Assess options](#assess-options). The steps:
 
 1. Load the Polaris findings (SAST, SCA, and DAST when the customer has it) and record the scanner mix.
@@ -96,6 +96,7 @@ These options change how `python -m fva assess` runs. Output goes to `data/runs/
 | Option | What it does |
 |---|---|
 | `--client codex \| claude-code \| anthropic \| local` | Which model client to use. Routing between tiers is on for `codex` only. |
+| `--profile-file <json>` | Required deployment profile. See [Deployment profile](../README.md#deployment-profile) and the Juice Shop example. |
 | `--model <name>` | One model for every cluster. Turns routing off. |
 | `--no-route` | `codex` only: the senior tier for every cluster. |
 | `--astra <id>` | Send the group that holds this scanner finding id to the Astra tier. Repeatable. Needs routing. |
@@ -104,7 +105,8 @@ These options change how `python -m fva assess` runs. Output goes to `data/runs/
 | `--prices <json>` | Per-1M-token prices by reported model name, as `{"gpt-6-sol": {"input": 2.0, "cached_input": 0.2, "output": 10.0}}`. Overrides the built-in table in `fva/reasoning/pricing.py`. `summary.json` gets a `cost` block per tier and in total; only fresh calls count toward `usd`. |
 | `--dry-run` | Write the prompts only. No model calls. |
 | `--limit N` | Assess only the first N groups (a smoke test). |
-| `--findings`, `--lockfile` | Where the Polaris export and the resolved lockfile are. The defaults point into `data/` (local only). |
+| `--findings` | Where the Polaris export is. Its default points into `data/` (local only). |
+| `--lockfile` | Optional resolved lockfile for dependency version checks. |
 
 ## Automatic scoring
 

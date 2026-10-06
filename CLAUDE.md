@@ -8,14 +8,14 @@ inventory, and a live runtime, and records evidence-backed verdicts. Start every
 ```powershell
 pip install -e .                      # once (needs pydantic)
 python -m pytest                      # all tests; private-data tests skip when data/ is absent
-$env:FVA_JUICESHOP_SRC = "C:\TestCode\Juiceshop 20.2.0"   # enables the Juice Shop source tests
+$env:FVA_JUICESHOP_SRC = "<juice-shop-checkout>"   # enables the Juice Shop source tests
 
 # Evidence + model assessment for the Juice Shop reference case
-python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0" --limit 1   # smoke test
-python -m fva assess --client codex --source "C:\TestCode\Juiceshop 20.2.0"             # full run (Luna/Sol routing)
-python -m fva assess --client codex --no-route --source "C:\TestCode\Juiceshop 20.2.0"  # GPT-6 Sol for every cluster
-python -m fva assess --dry-run --source "C:\TestCode\Juiceshop 20.2.0"                  # prompts only
-python -m fva assess --client codex --workers 4 --source "C:\TestCode\Juiceshop 20.2.0"   # parallel model calls
+python -m fva assess --client codex --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json --limit 1   # smoke test
+python -m fva assess --client codex --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json             # full run (Luna/Sol routing)
+python -m fva assess --client codex --no-route --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json  # GPT-6 Sol for every cluster
+python -m fva assess --dry-run --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json                  # prompts only
+python -m fva assess --client codex --workers 4 --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json   # parallel model calls
 python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
 python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
 python -m fva triage data\runs\<run>                        # auto vs review routing -> triage.jsonl, triage.md
