@@ -1,39 +1,52 @@
 # Finding Validation Agent
 
-FVA checks a Polaris SAST and SCA export against the matching source checkout.
-It closes findings it can prove do not apply, with a cited reason.
-It ranks the rest in an open report that says what evidence is missing.
-This is a working prototype. Start every session by reading STATUS.md.
-There is no routine human review. DAST is parked as optional evidence.
+FVA checks a Polaris SAST and SCA export against the matching source checkout. It closes findings it can
+prove don't apply, with a cited reason, and ranks the rest in a report that says what evidence is missing.
+There is no routine human review, and DAST is parked. Start every session by reading STATUS.md, then PLAN.md.
 
 ## Run
 
-Follow the [README quick start](README.md#quick-start) for setup and a deployment profile.
+```powershell
+pip install -e .                      # once (needs pydantic)
+python -m pytest                      # all tests; private-data tests skip when data/ is absent
+$env:FVA_JUICESHOP_SRC = "<juice-shop-checkout>"   # enables the Juice Shop source tests
 
-```bash
-python -m fva assess --findings "<export>/page-*.json" --source "<checkout>" --profile-file "<profile.json>" --out runs/app --cache runs/cache
-python -m fva triage runs/app
-python -m fva report runs/app
+# Evidence + model assessment for the Juice Shop reference case
+python -m fva assess --client codex --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json --limit 1   # smoke test
+python -m fva assess --client codex --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json             # full run (Luna/Sol routing)
+python -m fva assess --client codex --no-route --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json  # GPT-6 Sol for every cluster
+python -m fva assess --dry-run --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json                  # prompts only
+python -m fva assess --client codex --workers 4 --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json   # parallel model calls
+python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
+python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
+python -m fva triage data\runs\<run>                        # auto vs review routing -> triage.jsonl, triage.md
+python -m fva report data\runs\<run>                        # ranked issues -> tickets.jsonl, report.md, report.html
+
+# Polaris (read-only MCP). Token: $env:POLARIS_ACCESS_TOKEN or data\.polaris-token
+python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # ids: data/LOCAL-NOTES.md
 ```
 
-`--profile-file` is required. `--lockfile` is optional and has no default.
-`assess` accepts Polaris MCP exports or one flat Polaris `.jsonl` or `.csv` file.
-The default `codex` client routes model calls between GPT-6 Luna and GPT-6 Sol.
-`--model` or `--no-route` disables tier routing.
-See [docs/operations.md](docs/operations.md) for commands, outputs and scoring.
+Roles: you (Claude) act as VP of engineering and own final review; Codex does the assessment work with
+GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment), routed per cluster by
+default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `STATUS.md`.
+
+Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
+Operator detail (routing rules, scoring internals, assess options): `docs/operations.md`.
+Runs write to `data/runs/<timestamp>-<client>/` (`summary.json`, `assessments.jsonl`, `evidence.jsonl`,
+`findings.jsonl`, `groups.jsonl`, `links.jsonl`). DAST is optional: SAST+SCA-only runs use runtime mode `none`.
+Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/`.
 
 ## Rules (non-negotiable)
 
-- **This repo is public on GitHub.** Commit only this repo's own work. Never commit Polaris data, secrets,
-  tenant ids, internal URLs or content copied from other repos or local folders.
+- **This repo is public on GitHub.** Commit only this repo's own work: never Polaris data, secrets,
+  or content copied from other repos or local folders.
 - **Never commit `data/`.** It holds real Polaris exports, the PoC ledger, lockfiles, tokens, run output.
   Raw Polaris responses contain internal service URLs and the tenant id. Commit only sanitized fixtures
   under `tests/fixtures/`, and check them for real ids before committing.
-- **Never print or log tokens.** Polaris access is read-only. Use only the tools in `READ_ONLY_TOOLS`.
-- **`likely` is not `confirmed`.** It needs rule-derived static evidence. Model output alone is insufficient.
-- **The model never confirms.** `confirmed` needs supporting runtime, DAST or imported
-  evidence. `fva/invariants.py` also retains the historical `human_review` evidence type.
-  There is no routine review step or review importer. Model and static evidence cannot confirm.
+- **Never print or log tokens.** Polaris access is read-only; only the tools in `READ_ONLY_TOOLS`.
+- **`likely` is not `confirmed`.** It needs rule-derived static evidence, never model output alone.
+- **The model never confirms.** `confirmed` needs runtime, DAST or imported evidence (enforced in
+  `fva/invariants.py`; `human_review` records from older runs still validate). Model and static evidence can only argue, cite, or refute.
 - **Only redacted code goes to a model** (`fva/redact.py`), and every model citation is verified against the
   pinned source before it is kept (`fva/reasoning/assessor.py`).
 - **Runtime probing:** `runtime` accepts only an approved exact localhost GET plan.
@@ -42,7 +55,7 @@ See [docs/operations.md](docs/operations.md) for commands, outputs and scoring.
   through an agent-created TTY. Raw receipts must never go to models or tickets.
   No destructive or DoS tests. Hosted probing is not supported.
 - Preserve scanner ids byte-for-byte. Reason codes are a closed, append-only vocabulary (`fva/reason_codes.py`).
-- Polaris is the only scanner input for this project.
+- Polaris is the only scanner input for this project (no Semgrep/CodeQL).
 
 ## Gotchas
 
@@ -58,16 +71,20 @@ See [docs/operations.md](docs/operations.md) for commands, outputs and scoring.
 
 ## Layout
 
-- `fva/schemas.py` defines records and deployment profiles.
-- `fva/adapters/polaris.py` loads Polaris exports and flat records.
-- `fva/correlation/` pins source and collects static evidence.
-- `fva/reasoning/` runs model clients and verifies citations.
-- `fva/verdicts.py` suggests verdicts from evidence.
-- `fva/triage.py` decides which verdicts stand automatically.
-- `fva/export/` writes worksheets, scores, reports, SARIF and previews.
-- `fva/pipeline.py` runs batch assessment.
-- `fva/langpacks/` contains Node rules.
-- `fva/polaris_mcp.py` retrieves Polaris data through read-only tools.
+`fva/schemas.py` data model · `fva/adapters/` scanner input (SARIF, Polaris flat + MCP, mapping, PoC ledger) ·
+`fva/correlation/` source pin, locate, dependency, reachability · `fva/reasoning/` model clients + assessor ·
+`fva/verdicts.py` suggested verdicts (rules) · `fva/export/` worksheet, scoring · `fva/pipeline.py` batch run · `fva/langpacks/` per-language rules (Node today) · `fva/polaris_mcp.py` Polaris client.
+
+## Reference data (local only)
+
+- Juice Shop 20.2.0 source: `C:\TestCode\Juiceshop 20.2.0` (local import commit `15b4641`; upstream `1618a611`)
+- PoC answer key: `data/poc-report/final-validation-ledger.jsonl` (570 rows) + `runtime-validation-summary.json`
+- Live Polaris export: `data/polaris-export/` (573 issues + `types.json`)
+- Resolved npm lockfile: `data/resolved/juiceshop-20.2.0-package-lock-resolved-2026-09-27.json`
+- Record Desk (untuned second app): source `C:\TestCode\fva-eval-demo`, findings
+  `data/ingestion/record-desk-static-20261003/s[ac][as]*/page-*.json`, profile
+  `data/runs/record-desk-0f17d90-profile/profile.json`
+- Black Duck product docs corpus: `C:\TestCode\Product Docs`
 
 ## Git
 

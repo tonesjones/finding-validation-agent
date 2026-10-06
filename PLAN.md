@@ -2,6 +2,7 @@
 
 FVA closes Polaris SAST and SCA findings only when cited evidence proves they do not apply.
 The rest stay open in a ranked report with missing evidence. DAST is parked.
+Source: the [FVA scope audit](https://claude.ai/code/artifact/cb497855-cb26-4915-bcfb-5d4b72b6b8ab) (2026-10-05).
 
 ## Shortest path to done
 
@@ -54,7 +55,7 @@ After that, only bug fixes. Any new feature needs a failing check to justify it.
 
 1. **Setup.** From the README alone, `pip install -e .` plus one command runs the full pipeline on a new app in under 15 minutes.
    No Windows paths or Juice Shop defaults. No private `data/` is needed beyond the scan export.
-   - Status is open. The clean-machine test remains.
+   - Open. The clean-machine test remains.
 2. **Regression.** On Juice Shop, `fva score` shows auto share of at least 80% and 0 incorrect demotions on fresh model answers.
    - Passed 2026-10-05 on `20261005-js-fresh`. Auto share 0.841, auto agreement 0.996, 0 incorrect demotions, 101 calls, $0.86.
 3. **Generalization.** On a Node app the rules were never tuned on, auto-decide at least half the findings and check 30 random auto-closed findings against source with 0 real problems closed.
@@ -62,8 +63,8 @@ After that, only bug fixes. Any new feature needs a failing check to justify it.
 4. **Honest leftovers.** Every open finding in the report says what evidence is missing.
    - Passed in PR #45. Every open ticket has `missing_evidence`. Of 73 Juice Shop tickets, 50 get a generic SAST sentence.
 5. **Delivery.** Someone other than you opens SARIF in Polaris or `report.html` and acts on it without explanation.
-   - Status is open. The owner handles delivery.
+   - Open. The owner handles delivery.
 6. **Repeatable.** A second run on the same inputs gives the same verdicts and costs $0.
    - Passed. The cached rerun cost $0 with identical verdicts on all 573 findings.
 
-The validation results above are supplied run records. The Juice Shop key is LLM-driven and needs independent adjudication.
+The Juice Shop answer key came from an LLM-driven experiment and has not been independently adjudicated.

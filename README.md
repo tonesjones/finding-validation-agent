@@ -52,7 +52,7 @@ See [assess options](docs/operations.md#assess-options) for other clients and fl
 
 The model never confirms. Model output alone cannot close a finding.
 `review` is an internal route name for findings that remain open, not a request for routine sign-off.
-A closure that fails the triage checks stays open as `needs_review` in the report.
+A closure that fails the triage checks stays open in the report.
 The safety target is zero real problems closed.
 
 ## How the pieces fit
@@ -77,11 +77,11 @@ The cached rerun cost $0 and gave identical verdicts on all 573 findings.
 These are comparisons with an LLM-driven answer key that needs independent adjudication.
 They do not establish general accuracy.
 
-Record Desk supplied 6 findings, with 1 SAST and 5 SCA, on a fresh cache.
-Before the rule fix, FVA auto-decided 4 of 6.
+Record Desk is a small Node app the rules were never tuned on. Its Polaris scan has 6 findings, 1 SAST and 5 SCA.
+On a fresh cache and before the rule fix, FVA auto-decided 4 of the 6.
 GPT-6.1 Sol checked those 4 verdicts against redacted source and agreed on 3.
-Both auto-closures held. The disagreement was an over-flag on lodash CVE-2026-4800 involving template imports.
-PR #44 added an option precondition.
+Both auto-closures held. Sol disagreed with one `likely`: lodash CVE-2026-4800 needs an `imports` option at a
+`_.template` call, and the app passes none. PR #44 added that precondition.
 After the fix, 3 of 6 are auto-decided. The imports closure stays open with `HIGH_IMPACT_CLOSURE`.
 Six findings are thin evidence. A larger real app is the stronger test.
 
