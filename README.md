@@ -88,8 +88,8 @@ lot more.
 pip install -e ".[dev]"                                                      # install, with the test tools
 python -m pytest                                                             # run the tests
 python -m fva.polaris_mcp export --project <projectId> --branch <branchId>   # needs a Polaris token
-python -m fva assess --dry-run --source <checkout>                           # write the AI prompts without sending them
-python -m fva assess --client codex --source <checkout> --workers 4
+python -m fva assess --dry-run --source <juice-shop-checkout> --profile-file examples/profiles/juiceshop.json
+python -m fva assess --client codex --source <juice-shop-checkout> --profile-file examples/profiles/juiceshop.json --workers 4
 python -m fva worksheet data/runs/<run>                                      # suggested verdicts, CSV and HTML
 python -m fva triage data/runs/<run>                                         # decided automatically or left open
 python -m fva report data/runs/<run>                                         # ranked tickets, report.md and report.html
@@ -98,10 +98,23 @@ python -m fva sarif data/runs/<run>                                          # e
 python -m fva preview data/runs/<run>                                        # Polaris triage changes, dry run only
 ```
 
-`--findings` and `--lockfile` default to files under `data/`, which stays local. The other model
-clients are `--client claude-code`, `--client anthropic`, and `--client local`. Runs write to
+`--profile-file` is required. `--findings` defaults to a file under `data/`, which stays local;
+`--lockfile` is optional. The other model clients are `--client claude-code`, `--client anthropic`, and `--client local`. Runs write to
 `data/runs/<timestamp>-<client>/`. Scanner data never goes into the repository. The options are in
 [docs/operations.md](docs/operations.md#assess-options).
+
+## Deployment profile
+
+A deployment profile describes the application deployment that findings are assessed against.
+Pass it to `assess` as JSON with `--profile-file`.
+The `profile_id` identifies the deployment, and `name` gives it a readable label.
+`source_commit` can pin the profile to the scanned source revision.
+`language_packs` selects language-specific analysis rules.
+`deployed_surfaces` defines which code surfaces are part of the deployment.
+`extra_path_rules` assigns app-specific paths to surfaces such as fixtures.
+`base_url` identifies the deployment URL when runtime evidence is used.
+`entrypoints` lists repository-relative files where execution starts.
+See [examples/profiles/juiceshop.json](examples/profiles/juiceshop.json) as a starting point.
 
 ## How the pieces fit together
 

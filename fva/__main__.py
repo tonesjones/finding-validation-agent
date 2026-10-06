@@ -16,22 +16,40 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-PROFILES = {"juiceshop": "fva.adapters.poc_ledger:JUICESHOP_PROFILE"}
 # sub-commands whose module parses its own arguments
 DELEGATED = {"runtime": ("fva.runtime", "approved localhost probe collection and verified import")}
 
 
-def _profile(name: str):
-    mod, attr = PROFILES[name].split(":")
-    return getattr(importlib.import_module(mod), attr)
-
-
-def load_profile(name: str | None = None, profile_file: str | None = None):
+def load_profile(profile_file: str):
     from fva.schemas import DeploymentProfile
-    if name and profile_file:
-        raise ValueError("--profile and --profile-file are mutually exclusive")
-    return DeploymentProfile.model_validate_json(Path(profile_file).read_text(encoding="utf-8")) \
-        if profile_file else _profile(name or "juiceshop")
+    return DeploymentProfile.model_validate_json(Path(profile_file).read_text(encoding="utf-8"))
+
+
+def missing_sast_paths(findings, source_root: Path) -> list[str]:
+    """Return SAST paths that are absent from the source checkout."""
+    root = source_root.resolve()
+    missing = []
+    for finding in findings:
+        if finding.finding_type.value != "sast" or finding.location is None:
+            continue
+        candidate = (root / finding.location.path).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            missing.append(finding.location.path)
+            continue
+        if not candidate.exists():
+            missing.append(finding.location.path)
+    return missing
+
+
+def warn_missing_sast_paths(findings, source_root: Path) -> None:
+    total = sum(f.finding_type.value == "sast" and f.location is not None for f in findings)
+    missing = missing_sast_paths(findings, source_root)
+    if missing:
+        print(f"warning: {len(missing)} of {total} SAST finding paths not found under {source_root}",
+              file=sys.stderr)
+        print("  examples: " + ", ".join(missing[:5]), file=sys.stderr)
 
 
 def _client(name: str, model: str | None):
@@ -79,13 +97,11 @@ def main(argv=None):
     a = sub.add_parser("assess", help="collect evidence and model assessments for findings")
     a.add_argument("--client", default="codex", choices=["codex", "claude-code", "anthropic", "local", "none"])
     a.add_argument("--model", help="model to use (passed to the codex/claude CLI, or the API/local client)")
-    profiles = a.add_mutually_exclusive_group()
-    profiles.add_argument("--profile", choices=sorted(PROFILES))
-    profiles.add_argument("--profile-file", help="external DeploymentProfile JSON")
+    a.add_argument("--profile-file", required=True, help="DeploymentProfile JSON")
     a.add_argument("--source", required=True, help="path to the pinned source checkout")
     a.add_argument("--findings", default="data/polaris-export/page-*.json",
                    help="glob of Polaris MCP pages, or a flat .jsonl/.csv")
-    a.add_argument("--lockfile", default="data/resolved/juiceshop-20.2.0-package-lock-resolved-2026-09-27.json")
+    a.add_argument("--lockfile")
     a.add_argument("--out", help="output dir (default data/runs/<timestamp>-<client>)")
     a.add_argument("--cache", default="data/cache/model")
     a.add_argument("--limit", type=int, help="assess only the first N clusters (smoke test)")
@@ -152,11 +168,13 @@ def main(argv=None):
     from fva.reasoning import pricing
     out = Path(args.out or f"data/runs/{datetime.now():%Y%m%d-%H%M%S}-{args.client}")
     client = _router(args)
+    source_root = Path(args.source)
+    warn_missing_sast_paths(pipeline.load_findings(args.findings), source_root)
     lock = Path(args.lockfile) if args.lockfile and Path(args.lockfile).exists() else None
     if args.lockfile and lock is None:
         print(f"warning: lockfile not found: {args.lockfile} (version-drift checks disabled)", file=sys.stderr)
-    summary = pipeline.run(findings_spec=args.findings, source_root=Path(args.source),
-                           profile=load_profile(args.profile, args.profile_file),
+    summary = pipeline.run(findings_spec=args.findings, source_root=source_root,
+                           profile=load_profile(args.profile_file),
                            client=client, out_dir=out, lockfile=lock, cache_dir=Path(args.cache),
                            limit=args.limit, dry_run=args.dry_run, workers=args.workers,
                            credential_model=args.credential_model,

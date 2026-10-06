@@ -1,0 +1,24 @@
+{
+  "profile_id": "juiceshop-20.2.0-local-npm-start",
+  "name": "Juice Shop 20.2.0, local `npm start`, fresh install",
+  "source_commit": "1618a611b173b4bf114028e6e02549950606e29d",
+  "language_packs": [
+    "node"
+  ],
+  "deployed_surfaces": [
+    "production_candidate",
+    "dependency"
+  ],
+  "extra_path_rules": [
+    [
+      "data/static/codefixes/*",
+      "fixture"
+    ]
+  ],
+  "base_url": "http://127.0.0.1:3000",
+  "entrypoints": [
+    "server.ts",
+    "app.ts",
+    "frontend/src/main.ts"
+  ]
+}
