@@ -71,7 +71,7 @@ as "open, not auto-verified" in the report.
 | **Likely** | Strong static evidence (shipped, reachable, cited) but no runtime proof. This is normal for apps without DAST, such as non-web apps scanned with SAST and SCA only. |
 | **Not applicable** | The finding doesn't affect the shipped app, for example because it is in test code. |
 | **Real, but not security** | The code issue is real, but it is a quality or reliability problem, not a security hole. |
-| **Needs review** | Not enough evidence either way. The tool records what evidence is missing; the finding stays open. |
+| **Needs review** | Not enough evidence either way. The tool records what evidence is missing, and the finding stays open. |
 
 "Not applicable" doesn't mean the scanner was wrong. The scanner may have correctly
 flagged code that never ships.
@@ -101,27 +101,30 @@ python -m fva sarif data/runs/<run>                                          # e
 python -m fva preview data/runs/<run>                                        # Polaris triage changes, dry run only
 ```
 
-`--profile-file` is required. `--findings` defaults to a file under `data/`, which stays local;
-`--lockfile` is optional. The other model clients are `--client claude-code`, `--client anthropic`, and `--client local`. Runs write to
+`--profile-file` is required. `--findings` defaults to a file under `data/`, which stays local.
+`--lockfile` is optional. The other model clients are `--client claude-code`, `--client anthropic`, and
+`--client local`. Runs write to
 `data/runs/<timestamp>-<client>/`. Scanner data never goes into the repository. The options are in
 [docs/operations.md](docs/operations.md#assess-options).
 
-## Deployment profile
+## Describe your app with a deployment profile
 
-A deployment profile describes the application deployment that findings are assessed against.
-Pass it to `assess` as JSON with `--profile-file`.
-The `profile_id` identifies the deployment, and `name` gives it a readable label.
-`source_commit` can pin the profile to the scanned source revision.
-`language_packs` selects language-specific analysis rules.
-`deployed_surfaces` defines which code surfaces are part of the deployment.
-`extra_path_rules` assigns app-specific paths to surfaces such as fixtures.
-`base_url` identifies the deployment URL when runtime evidence is used.
-`entrypoints` lists repository-relative files where execution starts.
-See [examples/profiles/juiceshop.json](examples/profiles/juiceshop.json) as a starting point.
+`assess` needs a deployment profile: a JSON file that says what ships and how the app starts. To run FVA on a
+new app, copy [examples/profiles/juiceshop.json](examples/profiles/juiceshop.json) and change these fields:
+
+- `profile_id` and `name`: an id and a readable label for this deployment.
+- `source_commit`: the commit that was scanned.
+- `language_packs`: the language rules to apply. Only `node` exists today.
+- `deployed_surfaces`: which kinds of code ship, such as `production_candidate` and `dependency`.
+- `extra_path_rules`: paths in your app that belong to a surface, such as `["test/data/*", "fixture"]`.
+- `entrypoints`: the repository-relative files where the app starts.
+- `base_url`: the local URL of a running copy. Only runtime tests use it.
+
+The field definitions are in `DeploymentProfile` in [fva/schemas.py](fva/schemas.py).
 
 ## How the pieces fit together
 
-A run goes from a Polaris export to an assessment, a worksheet, a score, and an optional human review. The
+A run goes from a Polaris export to an assessment, a worksheet, a triage, and a report. The
 `assess` command pins the source, sets aside findings that rules can close, locates and groups the rest, and asks
 a model about each cluster. Fixed rules in code route each cluster to a model tier, and the model never picks its
 own tier. GPT-6 Luna answers bounded findings such as dead code. GPT-6 Sol answers security-sensitive findings.
