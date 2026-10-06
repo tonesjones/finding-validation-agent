@@ -2,19 +2,6 @@
 
 Last updated: 2026-10-05. Update this file when status changes.
 
-## Lodash template imports precondition (Task D, 2026-10-05)
-
-- CVE-2026-4800 now uses the existing option-precondition evidence and closure
-  mechanism: absent options or literal options without `imports` cannot apply.
-- Dynamic/spread options, opaque calls and any shipped `templateSettings`
-  reference stay reviewable. Settings are checked across shipped files, including
-  files without a local lodash import; test-only settings are excluded.
-- Lodash retains its function scan for other advisories, including CVE-2021-23337.
-  No reason codes or model-code vocabulary changed. No network or private data
-  access was used. Tests use the existing virtualenv and workspace-local temp files.
-- Validation: `python -m pytest -q` with a workspace-local `--basetemp` passed:
-  542 passed, 10 skipped in 32.43s.
-
 ## Integration review and current findings (2026-10-05)
 
 - PR #38 (DAST plan) is merged. PR #39 combines the real-envelope implementation
