@@ -26,8 +26,8 @@ from pathlib import Path
 
 from fva.adapters import polaris
 from fva import reason_codes, runtime_mode, surface
-from fva.correlation import (advisory_applicability, dast_evidence, dependency, grouping, locate, package_link, quality,
-                             reachability, runtime_link)
+from fva.correlation import (advisory_applicability, dast_evidence, dependency, dev_only, grouping, locate,
+                             package_link, quality, reachability, runtime_link)
 from fva.correlation.source_pin import _git, iter_files, pin
 from fva.langpacks import REGISTRY
 from fva.reasoning import assessor, pricing
@@ -71,6 +71,7 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
     if lockfile:
         pack = REGISTRY[profile.language_packs[0]]
         inventory = pack.read_inventory(lockfile)
+    dev_index = dev_only.build_index(source_root, lockfile, inventory, profile)
     direct = set()
     for name in profile.language_packs:
         mf = source_root / "package.json"
@@ -124,6 +125,11 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
                             skip(f, use[1], ev)
                             continue
                         called = advisory_applicability.called_at(f, calls[name][0])
+            dev_ev = dev_index.evidence(d, profile.profile_id)
+            if dev_ev:
+                ev.append(dev_ev)
+                skip(f, "dependency:dev_only_not_shipped", ev)
+                continue
         r = reachability.assess(f, graph, profile, declared_direct=direct)
         ev.append(reachability.to_evidence(r, source_content_sha256=snapshot_sha, profile_id=profile.profile_id))
         if r.status == "imported_only_outside_deployment":

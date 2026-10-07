@@ -18,6 +18,7 @@ SKIP_CODES = {
     "surface:test": "TEST_ONLY", "surface:fixture": "NON_EXECUTABLE_FIXTURE",
     "surface:infrastructure": "UNUSED_DEPLOYMENT_CONFIG", "surface:api_spec": "DOCUMENTATION_ONLY",
     "surface:documentation": "DOCUMENTATION_ONLY", "dependency:version_drift": "VERSION_DRIFT",
+    "dependency:dev_only_not_shipped": "DEV_DEPENDENCY_NOT_SHIPPED",
     "dependency:not_installed": "VERSION_DRIFT",
     "dependency:advisory_version_unaffected": "ADVISORY_VERSION_MISMATCH",
     "dependency:vulnerable_function_not_called": "VULNERABLE_FUNCTION_NOT_CALLED",
@@ -26,7 +27,8 @@ SKIP_CODES = {
 }
 # Rule closures that can miss a use the source scan cannot see stay below high confidence.
 # A quality checker can flag a mistyped security check, so its closure also stays below high.
-SKIP_CONFIDENCE = {"dependency:vulnerable_function_not_called": "medium",
+SKIP_CONFIDENCE = {"dependency:dev_only_not_shipped": "medium",
+                   "dependency:vulnerable_function_not_called": "medium",
                    "dependency:advisory_precondition_absent": "medium",
                    **{f"quality:{name}": "medium" for name in QUALITY_CHECKERS}}
 RULE_CONTEXT = {EvidenceType.static_source, EvidenceType.reachability, EvidenceType.dependency_resolution}
