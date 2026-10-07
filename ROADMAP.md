@@ -22,3 +22,4 @@ See [PLAN.md](PLAN.md) for completed work and the Definition of Done.
 Active runtime probes, SAST-to-DAST linking, Polaris write-back, more advisory call sites,
 other languages, a multi-app benchmark and Jev.
 The company GitHub move and LiteLLM client gate real customer data.
+They come right after done, not before.
