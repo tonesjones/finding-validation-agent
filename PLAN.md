@@ -45,9 +45,8 @@ The clean-machine setup test is deferred to Later (2026-10-07, owner decision). 
 
 ### Specific SAST gap sentences
 
-On `20261005-js-fresh`, 52 of 73 open tickets get the generic SAST sentence.
-37 are CWE-798 hard-coded credentials and 6 are CWE-79 XSS. The other 9 are single CWEs.
-All 52 cite only neutral static, reachability and model evidence.
+Before the CWE mapping, 52 of 73 open tickets in `20261005-js-fresh` used the generic SAST sentence.
+After the mapping, 6 still use it, each for a different CWE. The original 52 cited only neutral static, reachability and model evidence.
 `fva/missing.py` is report-only, so this changes no prompt, cache or verdict.
 
 - [x] **Add a CWE-keyed gap table to the SAST fallback in `fva/missing.py`.**
@@ -64,7 +63,7 @@ All 52 cite only neutral static, reachability and model evidence.
 
 ### Larger real second app
 
-This closes the DoD 3 caveat: Record Desk's 6 findings cannot support a 30-finding sample.
+Record Desk's 6 findings cannot support DoD 3's 30-finding sample. Uptime Kuma is larger, but its run did not meet the 50% auto-share bar.
 
 - [x] **Choose the app.** Uptime Kuma (`louislam/uptime-kuma`), pinned at `2a4d763` (2026-10-05). Chosen 2026-10-07.
   It is a real self-hosted app with 520 non-test source files, an npm v3 lockfile and 18 published advisories.
@@ -83,11 +82,14 @@ This closes the DoD 3 caveat: Record Desk's 6 findings cannot support a 30-findi
   - SAST: 86 open. 45 are "Bad Use Of Null-like Value" (CWE-476), 41 of them in `server/notification-providers`.
     10 model refutations were held as `MODEL_ONLY_REFUTATION`, as the rules require.
   - Any fix tuned on these results must be measured on a third untuned app, not on Uptime Kuma again.
-- [ ] **Export and profile.** Export through the read-only Polaris MCP into `data/` (never committed).
+- [x] **Export and profile.** Export through the read-only Polaris MCP into `data/` (never committed).
   Write a profile file from the README profile section only. Note any README gap found on the way.
   - Profile written to `data/runs/uptime-kuma-2a4d763-profile/profile.json` with no app-specific path rules.
   - README gap: it names `deployed_surfaces` but not the allowed values. They are only in `fva/schemas.py`.
-- [ ] **Fresh-cache run.** Run `assess`, `triage` and `report` with default Luna/Sol routing. Record calls and list-price cost.
+- [x] **Fresh-cache run `20261007-uk-fresh` (2026-10-07).** It auto-decided 56 of 265 findings (21%), below the 50% bar.
+  It used default Luna/Sol routing and cost $2.21 at list price.
+  - The dev-only rule follow-up `20261007-uk-devdep` reached 64 of 265 findings (24%). The rule was tuned on Uptime Kuma.
+    This result does not establish untuned generalization.
 - [ ] **Sample check.** Draw 30 auto-closed findings with a fixed seed. GPT-6.1 Sol checks each against redacted source.
   Claude reviews every disagreement against the pinned source.
 - [ ] **Done when** auto share is at least 50% and 0 of the 30 sampled closures are real problems.
@@ -114,7 +116,7 @@ or SCSS `@import`s, so the rule must not rely on the import graph alone.
   - Stays open: a reference in a shipped `.js`, `.vue` or `.scss` file, or in a build config such as `vite.config.js`.
   - Stays open: a transitive dependency of a referenced dev package, a package with a non-dev installed instance,
     a run with no lockfile, and version drift (which keeps its existing rule).
-- [ ] **Checks.** Juice Shop regression stays at DoD 2 (auto share at least 0.80, 0 incorrect demotions) on cached answers.
+- [x] **Checks.** Juice Shop regression stays at DoD 2 (auto share at least 0.80, 0 incorrect demotions) on cached answers.
   Every new Juice Shop closure agrees with the ledger.
   On Uptime Kuma, Claude checks every new closure against the pinned source; 0 may be bundled or loaded at runtime.
   The 50% bar is not judged on Uptime Kuma, because the rule was tuned on it.
@@ -155,9 +157,11 @@ After that, only bug fixes. Any new feature needs a failing check to justify it.
 2. **Regression.** On Juice Shop, `fva score` shows auto share of at least 80% and 0 incorrect demotions on fresh model answers.
    - Passed 2026-10-05 on `20261005-js-fresh`. Auto share 0.841, auto agreement 0.996, 0 incorrect demotions, 101 calls, $0.86.
 3. **Generalization.** On a Node app the rules were never tuned on, auto-decide at least half the findings and check 30 random auto-closed findings against source with 0 real problems closed.
-   - Passed on Record Desk with the caveat above. All auto-closures held, but 6 findings cannot support a 30-finding sample.
+   - Open. Record Desk's 6 findings cannot support a 30-finding sample.
+     Uptime Kuma reached 21% before tuning and 24% after the dev-only rule. Both results miss the 50% bar.
+     The 30-finding check has not run on a qualifying untuned app. Habitica is next.
 4. **Honest leftovers.** Every open finding in the report says what evidence is missing.
-   - Passed in PR #45. Every open ticket has `missing_evidence`. Of 73 Juice Shop tickets, 50 get a generic SAST sentence.
+   - Passed in PR #45. Every open ticket has `missing_evidence`. Of 73 Juice Shop tickets, 6 still get a generic SAST sentence, each for a different CWE.
 5. **Delivery.** Someone other than you opens SARIF in Polaris or `report.html` and acts on it without explanation.
    - Open. The owner handles delivery.
 6. **Repeatable.** A second run on the same inputs gives the same verdicts and costs $0.
