@@ -65,6 +65,8 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 - The pipeline writes run files in text mode, so their hashes differ between Windows and Linux.
   Don't pin run-file hashes in tests.
 - Python `write_text` on Windows writes CRLF. Normalize touched files to LF before committing.
+- Let pytest use its default temporary directory. If a sandbox requires `--basetemp`, use a run-specific,
+  allowed scratch directory outside `data/`. Never use a shared temporary root. Pytest clears its base directory.
 - `pip install -e .` points at the main checkout. `python -m fva` run from the main checkout uses its code even
   with `PYTHONPATH` set to a worktree. To test a worktree, run from the worktree, then check `fva_commit` in `summary.json`.
 - Stacked PRs: don't run `gh pr merge --delete-branch` on a PR that others are based on, because
