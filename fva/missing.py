@@ -16,6 +16,23 @@ EXCEPTION_GAPS = {
     "HIGH_IMPACT_CLOSURE": "closing this high or critical issue needs high-confidence rule evidence",
     "LOW_CONFIDENCE": "evidence strong enough to meet the automatic decision's confidence requirement is missing",
 }
+_SECRET = "evidence of whether the value is a live secret used by shipped code, or a placeholder, test fixture or public value, is missing"
+_EVAL = "evidence of whether untrusted input reaches dynamic code evaluation is missing"
+SAST_CWE_GAPS = {
+    "CWE-798": _SECRET,
+    "CWE-259": _SECRET,
+    "CWE-321": _SECRET,
+    "CWE-79": "evidence of whether untrusted input reaches the output sink without context-appropriate encoding or sanitizing is missing",
+    "CWE-89": "evidence of whether untrusted input reaches the query without parameterization is missing",
+    "CWE-78": "evidence of whether untrusted input reaches the command without an allowlist or safe argument passing is missing",
+    "CWE-22": "evidence of whether untrusted input reaches the file path without normalization and a base-directory check is missing",
+    "CWE-918": "evidence of whether untrusted input controls the outbound request target without an allowlist is missing",
+    "CWE-601": "evidence of whether untrusted input controls the redirect target without an allowlist is missing",
+    "CWE-476": "evidence of whether a null or undefined value can reach the dereference on a deployed path is missing",
+    "CWE-398": "evidence that this code-quality defect has a security consequence on a deployed path is missing",
+    "CWE-94": _EVAL,
+    "CWE-95": _EVAL,
+}
 DEPENDENCY_CHECKS = {
     "version_drift": "scanner versus installed version",
     "not_installed": "package installation",
@@ -78,7 +95,9 @@ def missing_evidence(verdict: str, reason_codes, exceptions, finding: dict,
         elif finding.get("finding_type") == "sca":
             gaps.append(f"evidence deciding installed-version applicability and deployed use of {_package(finding)} is missing")
         elif finding.get("finding_type") == "sast":
-            gaps.append("source or reachability evidence deciding whether the reported security condition applies is missing")
+            gap = next((SAST_CWE_GAPS[c] for c in finding.get("cwe") or []
+                        if isinstance(c, str) and c in SAST_CWE_GAPS), None)
+            gaps.append(gap or "source or reachability evidence deciding whether the reported security condition applies is missing")
         else:
             gaps.append("evidence sufficient to decide whether this issue applies is missing")
     sentence = "; ".join(gaps)

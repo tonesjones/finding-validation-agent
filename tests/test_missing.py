@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from fva.missing import EXCEPTION_GAPS, missing_evidence
+from fva.missing import EXCEPTION_GAPS, SAST_CWE_GAPS, missing_evidence
 from fva.schemas import EvidenceRecord
 
 
@@ -73,6 +73,32 @@ def test_evidence_and_fallback(cited, finding, expected):
     result = missing_evidence("needs_review", ["INSUFFICIENT_EVIDENCE"], [], finding, cited)
     assert expected in result
     assert "SECRET" not in result and "https://" not in result
+
+
+@pytest.mark.parametrize("cwe,text", SAST_CWE_GAPS.items())
+def test_sast_cwe_gap(cwe, text):
+    result = missing_evidence("needs_review", [], [], {"finding_type": "sast", "cwe": [cwe]}, [ev("static_source")])
+    assert result == text[0].upper() + text[1:] + "."
+
+
+def test_sast_cwe_uses_first_mapped_in_list_order():
+    result = missing_evidence("needs_review", [], [],
+                              {"finding_type": "sast", "cwe": ["CWE-999", "CWE-89", "CWE-79"]}, [ev("static_source")])
+    assert "query without parameterization" in result
+    assert "output sink" not in result
+
+
+@pytest.mark.parametrize("finding", [{"cwe": ["CWE-999"]}, {"cwe": None}, {"cwe": []}, {}])
+def test_sast_unmapped_or_missing_cwe_uses_generic(finding):
+    result = missing_evidence("needs_review", [], [], {"finding_type": "sast", **finding}, [ev("static_source")])
+    assert result == "Source or reachability evidence deciding whether the reported security condition applies is missing."
+
+
+@pytest.mark.parametrize("cwe", ["CWE-79<script>", "https://private.invalid/CWE-79"])
+def test_sast_malicious_cwe_is_not_echoed(cwe):
+    result = missing_evidence("needs_review", [], [], {"finding_type": "sast", "cwe": [cwe]}, [ev("static_source")])
+    assert result == "Source or reachability evidence deciding whether the reported security condition applies is missing."
+    assert cwe not in result
 
 
 @pytest.mark.parametrize("package", ["https://private.invalid/SECRET", "ghp_abcdefghijklmno", "bearer SECRET", "pkg|SECRET"])

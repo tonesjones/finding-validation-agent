@@ -37,13 +37,64 @@ Source: the [FVA scope audit](https://claude.ai/code/artifact/cb497855-cb26-4915
 ### Next, in order
 
 1. Delivery to a security team. The owner handles this.
-2. A larger real second app.
-3. A clean-machine setup test from the README alone.
-4. Specific SAST gap sentences.
+2. Specific SAST gap sentences. Planned below.
+3. A larger real second app. Planned below, blocked on the Uptime Kuma Polaris scan.
+
+The clean-machine setup test is deferred to Later (2026-10-07, owner decision). DoD 1 stays open until it runs.
+
+### Specific SAST gap sentences
+
+On `20261005-js-fresh`, 52 of 73 open tickets get the generic SAST sentence.
+37 are CWE-798 hard-coded credentials and 6 are CWE-79 XSS. The other 9 are single CWEs.
+All 52 cite only neutral static, reachability and model evidence.
+`fva/missing.py` is report-only, so this changes no prompt, cache or verdict.
+
+- [x] **Add a CWE-keyed gap table to the SAST fallback in `fva/missing.py`.**
+  - CWE-798 names the missing evidence: whether the value is a live secret used by shipped code,
+    or a placeholder, test fixture or public value.
+  - CWE-79 names the missing evidence: whether untrusted input reaches the sink without encoding or sanitizing.
+  - Also map the common injection CWEs (89, 78, 22, 918, 601), code eval (94, 95), null dereference (476)
+    and code quality (398). Keep the generic sentence as fallback.
+  - Sentences use only the CWE id from finding metadata. No finding text, paths or code are echoed.
+- [x] **Tests.** `tests/test_missing.py` covers each mapped CWE, a multi-CWE finding, an unmapped CWE and a missing CWE.
+- [x] **Check on Juice Shop.** Passed 2026-10-07: generic sentences fell from 52 to 6, each a different CWE. Rerun `fva report` on `20261005-js-fresh` with no model calls.
+  - Done when no CWE with 2 or more open tickets gets the generic sentence, and the generic count is 10 or fewer.
+  - Ticket count, ranks and closed issues are unchanged. Full pytest passes on Linux and Windows CI.
+
+### Larger real second app
+
+This closes the DoD 3 caveat: Record Desk's 6 findings cannot support a 30-finding sample.
+
+- [x] **Choose the app.** Uptime Kuma (`louislam/uptime-kuma`), pinned at `2a4d763` (2026-10-05). Chosen 2026-10-07.
+  It is a real self-hosted app with 520 non-test source files, an npm v3 lockfile and 18 published advisories.
+  The advisories mean it holds known true positives as well as noise. No FVA rule or doc names it.
+  NodeGoat was rejected because it is deliberately vulnerable, so it would yield too few true closures to sample.
+  Habitica is the fallback.
+- [x] **Polaris scan (owner).** SAST and SCA on commit `2a4d763` exactly. 265 issues: 142 SAST, 123 SCA.
+- [x] **Fresh-cache run `20261007-uk-fresh` (2026-10-07). Fails the 50% bar.**
+  - Auto share 56/265 (21%). 223 model calls (71 Luna, 152 Sol, 48 escalations), $2.21 list price.
+  - All 56 auto-closures are path rules: 51 test files, 5 infrastructure files. Models and dependency rules closed nothing.
+  - 55 of the 56 hold. The doubtful one is a low-severity root-user finding in `extra/docker-latest-warning/Dockerfile.latest-warning`,
+    which builds a published image. It closed because the profile left `infrastructure` out of `deployed_surfaces`.
+    The README does not say a container-shipped app should include it.
+  - SCA: all 122 open. 65 are dev-only dependencies, but Vite bundles ~24 of the dev deps (vue, dompurify, chart.js)
+    into the shipped frontend, so dev-only must not mean "not shipped". Staying open was correct.
+  - SAST: 86 open. 45 are "Bad Use Of Null-like Value" (CWE-476), 41 of them in `server/notification-providers`.
+    10 model refutations were held as `MODEL_ONLY_REFUTATION`, as the rules require.
+  - Any fix tuned on these results must be measured on a third untuned app, not on Uptime Kuma again.
+- [ ] **Export and profile.** Export through the read-only Polaris MCP into `data/` (never committed).
+  Write a profile file from the README profile section only. Note any README gap found on the way.
+  - Profile written to `data/runs/uptime-kuma-2a4d763-profile/profile.json` with no app-specific path rules.
+  - README gap: it names `deployed_surfaces` but not the allowed values. They are only in `fva/schemas.py`.
+- [ ] **Fresh-cache run.** Run `assess`, `triage` and `report` with default Luna/Sol routing. Record calls and list-price cost.
+- [ ] **Sample check.** Draw 30 auto-closed findings with a fixed seed. GPT-6.1 Sol checks each against redacted source.
+  Claude reviews every disagreement against the pinned source.
+- [ ] **Done when** auto share is at least 50% and 0 of the 30 sampled closures are real problems.
+  Any fix needs a failing check first and then a rerun. Record results in STATUS.md, not the app's data.
 
 ### Later (explicitly not now)
 
-Active runtime probes, SAST-to-DAST linking, Polaris write-back, more advisory call sites,
+The clean-machine setup test (DoD 1), active runtime probes, SAST-to-DAST linking, Polaris write-back, more advisory call sites,
 other languages, a multi-app benchmark and Jev.
 The company GitHub move and LiteLLM client gate real customer data.
 They come right after done, not before.

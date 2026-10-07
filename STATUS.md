@@ -1,6 +1,6 @@
 # Status
 
-Updated 2026-10-05.
+Updated 2026-10-07.
 
 ## Current state
 
@@ -20,7 +20,9 @@ DAST is parked. There is no routine human review. Open findings stay open.
 - Both auto-closures held. PR #44 fixed an over-flag on lodash CVE-2026-4800 with an option precondition.
 - After the fix, 3 of 6 are auto-decided. The imports closure stays open with `HIGH_IMPACT_CLOSURE`.
 - Six findings are thin evidence. A larger real app is the stronger test.
-- PR #45 gives every open ticket `missing_evidence`. Of 73 Juice Shop tickets, 50 get a generic SAST sentence.
+- PR #45 gives every open ticket `missing_evidence`. CWE-keyed SAST sentences cut the generic ones from 52 of 73 to 6.
+- Uptime Kuma `2a4d763` (265 findings, untuned) auto-decided 21%, below the 50% bar. $2.21.
+  All 56 auto-closures were path rules; 55 hold. Models and dependency rules closed nothing. See PLAN.md.
 
 ## Standing decisions
 
@@ -32,8 +34,9 @@ DAST is parked. There is no routine human review. Open findings stay open.
 ## Next, in order
 
 1. Delivery to a security team. The owner handles this.
-2. A larger real second app.
-3. A clean-machine setup test from the README alone.
-4. Specific SAST gap sentences.
+2. Specific SAST gap sentences.
+3. A larger real second app: Uptime Kuma `2a4d763`. Blocked on its Polaris scan.
+
+The clean-machine setup test is deferred to Later (2026-10-07). DoD 1 stays open until it runs.
 
 See [PLAN.md](PLAN.md) for each Definition of Done check.
