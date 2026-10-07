@@ -18,7 +18,7 @@ Copy `data/`, excluding `data/coverage/`, to a private folder on a separate driv
 
 The initial drive check showed only C:. The user chose a same-drive backup for this cleanup. It does not protect against failure of the source drive.
 
-Pause any process that writes to `data/` while copying. Compare the source and backup file lists, sizes, and SHA-256 hashes. Keep the verified backup after cleanup. The backup contains private scanner data and credentials, so keep it private.
+Pause any process that writes to `data/` while copying. Compare regular-file paths, sizes, and SHA-256 hashes. If the copy expands symbolic links, preserve and verify a manifest of their paths and targets. Keep the verified backup after cleanup. The backup contains private scanner data and credentials, so keep it private.
 
 Coverage is the sole backup exclusion. Preserve it in the verified ZIP described below before deleting its original files.
 
