@@ -14,9 +14,9 @@ The code cleanup in PR #42 removed the blind pilot, coverage, loaded-module, and
 
 ## Back up before any move or delete
 
-Copy `data/`, excluding `data/coverage/`, to the private same-drive backup (doesn't protect against drive failure). The regular files outside coverage use about 156 MB. The verified copy uses about 175 MB because it expands symbolic links in generated test workspaces. Include hidden files, model caches, the PoC ledger, and complete run folders.
+Copy `data/`, excluding `data/coverage/`, to the private same-drive backup. The regular files outside coverage use about 156 MB. The verified copy uses about 175 MB because it expands symbolic links in generated test workspaces. Include hidden files, model caches, the PoC ledger, and complete run folders.
 
-The initial drive check showed only C:, so the selected same-drive backup (doesn't protect against drive failure) is on C:.
+The initial drive check showed only C:, so the selected same-drive backup is on C:.
 
 Pause any process that writes to `data/` while copying. Compare regular-file paths, sizes, and SHA-256 hashes. If the copy expands symbolic links, preserve and verify a manifest of their paths and targets. Keep the verified backup after cleanup. The backup contains private scanner data and credentials, so keep it private.
 
@@ -112,7 +112,7 @@ Changes to `data/LOCAL-NOTES.md` and the old session prompt remain local data wo
 
 1. Refresh the inventory and compare it with this plan.
 2. Confirm the retained runs, inputs, profiles, caches, and source checkouts.
-3. Create and verify the same-drive backup (doesn't protect against drive failure), excluding coverage.
+3. Create and verify the same-drive backup, excluding coverage.
 4. Save the current `20261005-js-fresh` score and report outputs for comparison.
 5. Check references before archiving any old run or export folder.
 6. Create `data/archive/20261007.zip` from the reviewed candidates.
@@ -146,7 +146,7 @@ Get-ChildItem -LiteralPath data -Recurse -Force -File |
 ## Review decisions
 
 - [x] Keep the listed inputs, complete runs, profiles, and model caches.
-- [x] Create and verify the same-drive backup (doesn't protect against drive failure) before cleanup.
+- [x] Create and verify the same-drive backup before cleanup.
 - [x] Compress the reviewed experiments into `data/archive/20261007.zip`, verify every entry, and delete the uncompressed originals.
 - [ ] Delete reviewed generated test workspaces.
 - [x] Verify retained scoring and report outputs against the saved baseline. `score.md` and `score.json` match. The other outputs differ only in the newer `missing_evidence` text.
