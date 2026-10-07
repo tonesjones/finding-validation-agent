@@ -37,8 +37,8 @@ Source: the [FVA scope audit](https://claude.ai/code/artifact/cb497855-cb26-4915
 ### Next, in order
 
 1. Delivery to a security team. The owner handles this.
-2. Specific SAST gap sentences. Planned below.
-3. A larger real second app. Planned below, blocked on the Uptime Kuma Polaris scan.
+2. Dev-only dependency rule (fix 1) and README profile guidance (fix 2). Planned below.
+3. Third untuned app, Habitica. Blocked on its Polaris scan.
 
 The clean-machine setup test is deferred to Later (2026-10-07, owner decision). DoD 1 stays open until it runs.
 
@@ -91,6 +91,44 @@ This closes the DoD 3 caveat: Record Desk's 6 findings cannot support a 30-findi
   Claude reviews every disagreement against the pinned source.
 - [ ] **Done when** auto share is at least 50% and 0 of the 30 sampled closures are real problems.
   Any fix needs a failing check first and then a rerun. Record results in STATUS.md, not the app's data.
+
+### Dev-only dependency rule (fix 1)
+
+On Uptime Kuma, 65 open SCA findings are dev-only in the lockfile. About 24 of them (vue, dompurify, chart.js)
+are bundled into the shipped frontend, so a lockfile `dev` flag alone must never close a finding.
+The Node import scan reads only `.js/.ts`-family files. It cannot see imports in Uptime Kuma's 182 `.vue` files
+or SCSS `@import`s, so the rule must not rely on the import graph alone.
+
+- [ ] **Rule.** A new skip disposition `dependency:dev_only_not_shipped` closes an SCA finding as `not_applicable`
+  with a new appended reason code `DEV_DEPENDENCY_NOT_SHIPPED`, at medium confidence, only when all of these hold:
+  - A lockfile is given. The scanned version is present, and every installed instance of the package is `dev`.
+  - No non-test file references the package name as a module specifier or path (`'pkg'`, `"pkg/..."`, `~pkg`).
+    This text scan covers every file type, `.vue`, `.scss`, `.html` and config files included.
+    It skips `node_modules`, package manifests, lockfiles, and test, fixture and documentation surfaces.
+  - No dev package referenced by a non-test file has the package in its lockfile dependency closure.
+  - Medium confidence means high and critical closures stay open with `HIGH_IMPACT_CLOSURE`.
+  - The new code stays out of `MODEL_CODES`, so prompts and the model cache are unchanged.
+- [ ] **Tests.** A failing test first for each case.
+  - Closes: dev package referenced nowhere, or only in test files, docs, `package.json` or the lockfile.
+  - Stays open: a reference in a shipped `.js`, `.vue` or `.scss` file, or in a build config such as `vite.config.js`.
+  - Stays open: a transitive dependency of a referenced dev package, a package with a non-dev installed instance,
+    a run with no lockfile, and version drift (which keeps its existing rule).
+- [ ] **Checks.** Juice Shop regression stays at DoD 2 (auto share at least 0.80, 0 incorrect demotions) on cached answers.
+  Every new Juice Shop closure agrees with the ledger.
+  On Uptime Kuma, Claude checks every new closure against the pinned source; 0 may be bundled or loaded at runtime.
+  The 50% bar is not judged on Uptime Kuma, because the rule was tuned on it.
+
+### README profile guidance (fix 2)
+
+- [ ] **README.** The profile section lists the allowed `deployed_surfaces` values and says what each one means.
+  It tells container-shipped apps to include `infrastructure`, because their Dockerfiles ship.
+  It says which lockfile to pass: the npm v2 or v3 `package-lock.json` at the scanned commit, for the shipped app.
+  It says the dev-only rule needs that lockfile. Written with the technical-writing skill.
+
+### Third untuned app
+
+- [ ] **Habitica (owner scan).** Polaris SAST and SCA on one pinned commit. Then a fresh-cache run, the 30-closure
+  sample check, and the 50% bar from "Larger real second app". No rule changes may be tuned on it before the run.
 
 ### Later (explicitly not now)
 
