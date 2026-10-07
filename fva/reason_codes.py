@@ -69,6 +69,9 @@ _CODES = [
     # advisory call sites (v1 append, written 2026-10-03, merged 2026-10-04)
     ReasonCode("VULNERABLE_FUNCTION_CALLED", V.likely, "Shipped code calls a function the advisory names, on an affected version; not executed."),
     ReasonCode("VULNERABLE_FUNCTION_NOT_CALLED", V.not_applicable, "No shipped code or installed package calls the functions the advisory names."),
+    # dev-only dependency closure (v1 append, 2026-10-07)
+    ReasonCode("DEV_DEPENDENCY_NOT_SHIPPED", V.not_applicable,
+               "Installed only as a dev dependency, and no shipped, build or config file references it or a dev package that depends on it."),
 ]
 
 CODES: dict[str, ReasonCode] = {c.code: c for c in _CODES}

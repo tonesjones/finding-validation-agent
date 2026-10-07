@@ -23,6 +23,8 @@ DAST is parked. There is no routine human review. Open findings stay open.
 - PR #45 gives every open ticket `missing_evidence`. CWE-keyed SAST sentences cut the generic ones from 52 of 73 to 6.
 - Uptime Kuma `2a4d763` (265 findings, untuned) auto-decided 21%, below the 50% bar. $2.21.
   All 56 auto-closures were path rules; 55 hold. Models and dependency rules closed nothing. See PLAN.md.
+- The dev-only dependency rule closes a lockfile `dev` package only when no non-test file references it
+  or a package that depends on it. Uptime Kuma: 16 more closures (8 auto), all correct. Juice Shop unchanged.
 
 ## Standing decisions
 
@@ -34,8 +36,8 @@ DAST is parked. There is no routine human review. Open findings stay open.
 ## Next, in order
 
 1. Delivery to a security team. The owner handles this.
-2. Specific SAST gap sentences.
-3. A larger real second app: Uptime Kuma `2a4d763`. Blocked on its Polaris scan.
+2. Third untuned app, Habitica. Needs an owner Polaris scan on one pinned commit.
+3. A CWE-476 code-quality rule, only if Habitica shows the same null-value noise.
 
 The clean-machine setup test is deferred to Later (2026-10-07). DoD 1 stays open until it runs.
 

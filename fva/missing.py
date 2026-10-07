@@ -34,6 +34,7 @@ SAST_CWE_GAPS = {
     "CWE-95": _EVAL,
 }
 DEPENDENCY_CHECKS = {
+    "dev_only_not_shipped": "dev-only source references and dependency closure",
     "version_drift": "scanner versus installed version",
     "not_installed": "package installation",
     "unresolved_name": "package-name resolution",

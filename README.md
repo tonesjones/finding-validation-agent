@@ -30,13 +30,35 @@ Flat files use the Polaris field mapping in `fva/adapters/polaris.py`.
 Set `profile_id` and `name` for your deployment.
 Set `source_commit` to the revision that was scanned.
 Set `language_packs` to `["node"]`. Only Node rules exist today.
-Set `deployed_surfaces` to the surfaces that ship.
+Set `deployed_surfaces` to the surfaces that ship. The values are in the table below.
 Set `extra_path_rules` for app-specific test, fixture or deployment paths.
 Set `entrypoints` to the repository-relative files where your app starts.
 `base_url` is optional and applies to runtime evidence.
 See `DeploymentProfile` in [fva/schemas.py](fva/schemas.py) for the fields.
 
-Pass `--lockfile <resolved-lockfile>` for installed-version checks.
+Path rules put each finding on one surface.
+If you leave `test`, `fixture`, `infrastructure`, `api_spec` or `documentation` out of `deployed_surfaces`,
+FVA closes findings on that surface as not shipped. Leaving a surface out is a closure decision.
+Findings on `production_candidate`, `dependency` and `unknown` stay open even when the surface is left out.
+
+| Surface | Covers | Include it when |
+| --- | --- | --- |
+| `production_candidate` | Source files no other rule matches | Always. |
+| `dependency` | SCA findings with no source location | Always. |
+| `infrastructure` | `Dockerfile*`, `docker-compose*`, Terraform, `k8s/`, `helm/`, `.github/workflows/` | The app ships as a container image, or these files deploy it. |
+| `test` | `test/`, `tests/`, `__tests__/`, `*.spec.*`, `*.test.*`, Cypress and e2e folders | Test code ships with the app. |
+| `fixture` | Non-executable sample or teaching code, set through `extra_path_rules` | The samples ship and run. |
+| `api_spec` | `swagger.*` and `openapi.*` files | The spec drives shipped behavior. |
+| `documentation` | `*.md` and `docs/` | Rarely. |
+| `unknown` | Findings with no location | Optional. They stay open either way. |
+
+An app that ships as a container image needs `infrastructure`, because its Dockerfile builds what ships.
+Without it, FVA closes Dockerfile findings such as running as root.
+
+Pass `--lockfile` with the npm `package-lock.json` at the scanned commit, for the app that ships.
+FVA reads lockfile versions 2 and 3, and rejects version 1.
+Installed-version checks and the dev-only dependency rule need the lockfile.
+Without it, those SCA findings stay open.
 There is no default lockfile. Missing SAST paths produce a warning.
 See [assess options](docs/operations.md#assess-options) for other clients and flags.
 
