@@ -150,10 +150,10 @@ Get-ChildItem -LiteralPath data -Recurse -Force -File |
 - [x] Compress the reviewed experiments into `data/archive/20261007.zip`, verify every entry, and delete the uncompressed originals.
 - [ ] Delete reviewed generated test workspaces.
 - [x] Verify retained scoring and report outputs against the saved baseline. `score.md` and `score.json` match. The other outputs differ only in the newer `missing_evidence` text.
-- [ ] Handle tracked documentation and test-location guidance in a separate branch and PR.
+- [x] Handle tracked documentation and test-location guidance in a separate branch and PR. PR #49 is open.
 
 ## Execution status
 
 The archive, baseline outputs, and backup were verified before any archived originals were removed. The shortened local note and archived session prompt remain local data changes.
 
-The generated test workspaces remain in place because Windows denied the Modify permission needed to remove them. The separate documentation PR is in progress.
+The generated test workspaces remain in place because Windows denied the Modify permission needed to remove them. PR #49 is open for review.
