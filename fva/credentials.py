@@ -1,6 +1,6 @@
 """Where FVA finds the Polaris token and the gateway key, and how a user stores or removes them.
 
-Lookup order: the environment variable, then the operating system's credential store (Windows Credential
+Lookup order: the environment variable, then a value entered this session, then the operating system's credential store (Windows Credential
 Manager, macOS Keychain, Secret Service on Linux; needs `pip install keyring`), then, for the Polaris token
 only, the plain-text file `data/.polaris-token` kept for older setups. Values are never printed, logged,
 written to the settings file, or sent anywhere except the service they belong to.

@@ -55,9 +55,12 @@ DAST is parked. There is no routine human review. Open findings stay open.
 
 ## Next, in order
 
-1. Node-RED 5.0.8 untuned run (DoD 3). Needs an owner Polaris Bridge scan on `935b8d3e`.
-2. Owner decision: the Codex read-only sandbox can read files (see PLAN.md, "Open after F3").
-3. Delivery to a security team. The owner handles this.
+1. Work-machine test of the guided start (PR #59): `pip install -e .[secure]`, then `python -m fva`.
+   Check the Polaris project/branch lists fill in, the token lands in Windows Credential Manager, and the
+   quick check writes a report. Then a quality check per gateway model and gateway prices (PLAN.md).
+2. Node-RED 5.0.8 untuned run (DoD 3). Needs an owner Polaris Bridge scan on `935b8d3e`.
+3. Owner decision: the Codex read-only sandbox can read files (see PLAN.md, "Open after F3").
+4. Delivery to a security team. The owner handles this.
 
 The clean-machine setup test is deferred to Later (2026-10-07). DoD 1 stays open until it runs.
 

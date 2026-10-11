@@ -1,7 +1,7 @@
 """`python -m fva setup`: choose a model gateway and a model per tier, test them, save the settings.
 
-Flags answer the questions up front; anything missing is asked interactively. The key stays in an environment
-variable and is never written or printed.
+Flags answer the questions up front; anything missing is asked interactively. The key is never written to the
+settings file or printed; fva/credentials.py keeps it where the user chooses.
 """
 from __future__ import annotations
 

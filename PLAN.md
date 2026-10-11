@@ -169,6 +169,10 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
     `assess` uses it by default. A gateway client is an API client, so `--private-source` allows it.
   - [x] Guided start, `python -m fva` with no arguments: models, Polaris (token, project and branch pick,
     export), source (path, commit, profile from a few questions), quick check, run, report.
+  - [x] Credentials: hidden input, user picks OS credential store (`pip install -e .[secure]`), session
+    only, or env var. `python -m fva credentials [--forget ...]` shows where, never values.
+  - [ ] Owner's work-machine test: `python -m fva` end to end; token lands in Windows Credential Manager;
+    smoke run produces a report.
   - [ ] Check the Polaris project and branch lists against a live tenant (shapes are guessed).
   - [ ] Quality check per new model: a Juice Shop run against the answer key before trusting it.
   - [ ] Prices for gateway models (cost shows as unknown today).
