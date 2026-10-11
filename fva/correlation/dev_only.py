@@ -15,7 +15,7 @@ from fva.schemas import DeploymentProfile, EvidenceRecord, EvidenceType, Stance,
 from fva.surface import classify_path
 
 _NS = uuid.UUID("c40f893a-25e2-41bd-b937-673939796a94")
-_SKIP = {"package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml"}
+_SKIP = {"package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml"}
 _SURFACES = {Surface.test, Surface.fixture, Surface.documentation, Surface.api_spec}
 
 
@@ -51,6 +51,7 @@ def build_index(root: Path, lockfile: Path | None, inventory: list[InstalledPack
     for p in inventory:
         by_name.setdefault(p.name, []).append(p)
     index.dev_names = {name for name, instances in by_name.items() if all(p.dev for p in instances)}
+    bins = {}  # bin name -> package names, from lockfile "bin" fields
     try:
         packages = json.loads(lockfile.read_text(encoding="utf-8"))["packages"]
         if not isinstance(packages, dict):
@@ -63,6 +64,12 @@ def build_index(root: Path, lockfile: Path | None, inventory: list[InstalledPack
                 continue
             name = meta.get("name") or path.rsplit("node_modules/", 1)[-1]
             deps = edges.setdefault(name, set())
+            bin_meta = meta.get("bin")
+            if isinstance(bin_meta, dict):
+                for bin_name in bin_meta:
+                    bins.setdefault(bin_name, set()).add(name)
+            elif isinstance(bin_meta, str):  # npm names a string bin after the unscoped package name
+                bins.setdefault(name.rsplit("/", 1)[-1], set()).add(name)
             for key in ("dependencies", "optionalDependencies", "peerDependencies"):
                 values = meta.get(key, {})
                 if not isinstance(values, dict):
@@ -94,6 +101,22 @@ def build_index(root: Path, lockfile: Path | None, inventory: list[InstalledPack
                 raw = path.read_bytes()
             except OSError:
                 index.complete = False
+                continue
+            if filename == "package.json":
+                # Only npm scripts count: dependency lists must not mark a package as shipped.
+                index.scanned_files += 1
+                try:
+                    data = json.loads(raw.decode("utf-8-sig"))
+                except (UnicodeError, ValueError):
+                    index.complete = False
+                    continue
+                scripts = data.get("scripts") if isinstance(data, dict) else None
+                for script in scripts.values() if isinstance(scripts, dict) else ():
+                    if not isinstance(script, str):
+                        continue
+                    index.referenced.update(m.group() for m in pattern.finditer(script))
+                    for token in re.split(r"\s|&&|;|\|", script):
+                        index.referenced.update(bins.get(token.rsplit("/", 1)[-1], ()))
                 continue
             if b"\0" in raw:
                 continue
