@@ -17,7 +17,7 @@ from fva.schemas import EvidenceRecord, EvidenceType, Stance, Verdict, VerdictVa
 SKIP_CODES = {
     "surface:test": "TEST_ONLY", "surface:fixture": "NON_EXECUTABLE_FIXTURE",
     "surface:infrastructure": "UNUSED_DEPLOYMENT_CONFIG", "surface:api_spec": "DOCUMENTATION_ONLY",
-    "surface:documentation": "DOCUMENTATION_ONLY", "dependency:version_drift": "VERSION_DRIFT",
+    "surface:documentation": "DOCUMENTATION_ONLY",
     "dependency:dev_only_not_shipped": "DEV_DEPENDENCY_NOT_SHIPPED",
     "dependency:not_installed": "VERSION_DRIFT",
     "dependency:advisory_version_unaffected": "ADVISORY_VERSION_MISMATCH",
