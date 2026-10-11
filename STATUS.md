@@ -34,8 +34,12 @@ DAST is parked. There is no routine human review. Open findings stay open.
 - Juice Shop cache-only check `20261010-js-phasea2` (all four PRs, $0, cached Codex answers): auto share 0.808,
   auto agreement 0.994, 0 incorrect demotions, queue reduction 0.789, 74 open issues.
   - Current main on the same basis (`20261010-js-main`) is 0.843.
-  - The drop is the 20 findings the old drift rule closed. Their 19 clusters still need fresh Codex answers,
-    so this is not a DoD 2 result yet.
+  - The drop is the 20 findings the old drift rule closed.
+- DoD 2 rerun `20261011-js-dod2` (2026-10-11, main `84279a6`, fresh Codex answers for the 19 drift clusters):
+  auto share 0.808, auto agreement 0.994, 0 incorrect demotions, queue reduction 0.789. 112 clusters,
+  19 fresh calls, 0 errors, $0.46 list price. DoD 2 still passes. The drift findings stayed open.
+- F6 (PR #56): a `no_effect` finding closes only on an explicit discard (`void`, `??=`). All 32 Juice Shop
+  closures match, so the numbers above are unchanged.
 - Node-RED 5.0.8 (`935b8d3e`) fits DoD 3: npm v3 lockfile, no workspaces, `red.js` entry, and `adminAuth`
   roles `*`, `read` and `default`. Profile drafted in private `data/`.
 
@@ -48,10 +52,9 @@ DAST is parked. There is no routine human review. Open findings stay open.
 
 ## Next, in order
 
-1. When Codex resets, rerun Juice Shop to answer the 19 drift clusters and record DoD 2.
-2. Owner decision on Astra F6 (`QUALITY_NOT_SECURITY`, 32 Juice Shop closures). See PLAN.md.
-3. Node-RED 5.0.8 untuned run (DoD 3). Needs an owner Polaris Bridge scan on `935b8d3e`.
-4. Delivery to a security team. The owner handles this.
+1. Node-RED 5.0.8 untuned run (DoD 3). Needs an owner Polaris Bridge scan on `935b8d3e`.
+2. Owner decision: the Codex read-only sandbox can read files (see PLAN.md, "Open after F3").
+3. Delivery to a security team. The owner handles this.
 
 The clean-machine setup test is deferred to Later (2026-10-07). DoD 1 stays open until it runs.
 
