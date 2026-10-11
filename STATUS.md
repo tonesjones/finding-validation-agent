@@ -33,8 +33,7 @@ DAST is parked. There is no routine human review. Open findings stay open.
   - model CLIs with tools off and a minimal environment.
 - Juice Shop cache-only check `20261010-js-phasea2` (all four PRs, $0, cached Codex answers): auto share 0.808,
   auto agreement 0.994, 0 incorrect demotions, queue reduction 0.789, 74 open issues.
-  - Current main on the same basis (`20261010-js-main`) is 0.843.
-  - The drop is the 20 findings the old drift rule closed.
+  - Main before the fixes (`20261010-js-main`) was 0.843. The drop is the 20 old drift closures.
 - DoD 2 rerun `20261011-js-dod2` (2026-10-11, main `84279a6`, fresh Codex answers for the 19 drift clusters):
   auto share 0.808, auto agreement 0.994, 0 incorrect demotions, queue reduction 0.789. 112 clusters,
   19 fresh calls, 0 errors, $0.46 list price. DoD 2 still passes. The drift findings stayed open.
