@@ -207,10 +207,23 @@ def versions(router: Router, snap) -> dict:
             "source_dirty": snap.vcs_dirty, "cli": dict(sorted(cli.items()))}
 
 
-def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, client, out_dir: Path,
-        lockfile: Path | None = None, cache_dir: Path | None = None, limit: int | None = None,
-        dry_run: bool = False, workers: int = 1, credential_model: str = "ask", prices: dict | None = None,
-        log=print) -> dict:
+def run(**kwargs) -> dict:
+    """Run the pipeline (arguments of `_run`). summary.json is removed at the start and written last, with a
+    `status` of complete or partial; if anything escapes after files were started it holds status failed."""
+    started: list[bool] = []
+    try:
+        return _run(_started=started, **kwargs)
+    except BaseException as e:
+        if started:
+            (kwargs["out_dir"] / "summary.json").write_text(
+                json.dumps({"status": "failed", "error": type(e).__name__}), encoding="utf-8")
+        raise
+
+
+def _run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, client, out_dir: Path,
+         lockfile: Path | None = None, cache_dir: Path | None = None, limit: int | None = None,
+         dry_run: bool = False, workers: int = 1, credential_model: str = "ask", prices: dict | None = None,
+         log=print, _started: list[bool]) -> dict:
     """`credential_model="skip"`: clusters made only of hard-coded-credential findings get no model call; only a
     runtime test can tell whether a credential is active, and their rule evidence is still recorded."""
     t0 = time.time()
@@ -236,6 +249,8 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
         f"(skipped: {batch.skipped}); scanners {'+'.join(mix)}, runtime mode {mode.value}, "
         f"{len(issues)} grouped issues from {len(links)} links")
     out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "summary.json").unlink(missing_ok=True)  # a crashed rerun must not sit beside an old summary
+    _started.append(True)
     with open(out_dir / "groups.jsonl", "w", encoding="utf-8") as fh:
         for g in issues:
             fh.write(g.model_dump_json() + "\n")
@@ -341,7 +356,8 @@ def run(*, findings_spec: str, source_root: Path, profile: DeploymentProfile, cl
     finally:
         ev_out.close()
         as_out.close()
-    summary = {"run_at": datetime.now(timezone.utc).isoformat(), "model": router.model_id,
+    summary = {"status": "complete" if not stats["errors"] else "partial",
+               "run_at": datetime.now(timezone.utc).isoformat(), "model": router.model_id,
                "prompt_version": assessor.PROMPT_VERSION, "profile": profile.profile_id,
                "source_content_sha256": snap.content_sha256, "findings_total": len(findings),
                "scanner_mix": mix, "scanner_counts": counts, "runtime_mode": mode.value,

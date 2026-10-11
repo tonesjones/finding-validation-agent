@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import html
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 
@@ -35,7 +36,14 @@ def load(run_dir: Path, *, warnings: list[str] | None = None
     if not findings:
         raise SystemExit(f"{run_dir}/findings.jsonl missing: re-run `python -m fva assess` with this version")
     summary_path = run_dir / "summary.json"
-    profile = json.loads(summary_path.read_text(encoding="utf-8")).get("profile") if summary_path.exists() else None
+    summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
+    status = summary.get("status", "complete")  # runs from before the status field count as complete
+    if status == "failed":
+        raise SystemExit(f"{run_dir} is a failed run ({summary.get('error', 'unknown error')}); rerun `python -m fva assess`")
+    if status == "partial":
+        print(f"warning: {run_dir} is a partial run ({summary.get('errors', '?')} cluster errors); "
+              "results are incomplete", file=sys.stderr)
+    profile = summary.get("profile")
     by_finding: dict[str, list[EvidenceRecord]] = {}
     all_evidence = []
     for d in _read_jsonl(run_dir / "evidence.jsonl"):

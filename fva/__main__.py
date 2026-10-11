@@ -168,6 +168,10 @@ def main(argv=None):
                            limit=args.limit, dry_run=args.dry_run, workers=args.workers,
                            credential_model=args.credential_model,
                            prices=pricing.load_prices(Path(args.prices)) if args.prices else None)
+    if summary.get("status") == "partial":
+        print(f"partial -> {out} ({summary['errors']} cluster errors; rerun to retry, cached answers are reused)",
+              file=sys.stderr)
+        sys.exit(2)
     print(f"done -> {out}\n{summary}")
 
 
