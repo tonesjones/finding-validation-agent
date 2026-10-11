@@ -51,7 +51,8 @@ def redact_lines(lines: list[str], *, all_strings: bool = False) -> list[str]:
     (fail closed). The line count never changes, so line numbers stay valid."""
     out, inside = [], False
     for line in lines:
-        if not inside and _KEY_BEGIN.search(line):
+        # a block that closes on its own line is left to the single-line pattern, which keeps the code around it
+        if not inside and (m := _KEY_BEGIN.search(line)) and not _KEY_END.search(line, m.end()):
             inside = True
         if inside:
             out.append(MASK)

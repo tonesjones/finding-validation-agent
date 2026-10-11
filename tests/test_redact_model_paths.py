@@ -51,6 +51,11 @@ def test_redact_lines_missing_end_masks_to_eof():
     assert redact_lines(["a", KEY[0], "FVAFAKEKEYBODYAAAA", "tail"]) == ["a", MASK, MASK, MASK]
 
 
+def test_redact_lines_single_line_key_keeps_code():
+    line = "const k = '-----BEGIN RSA PRIVATE KEY-----\\r\\nFVAFAKE\\r\\n-----END RSA PRIVATE KEY-----'"
+    assert redact_lines([line, "next"]) == [f"const k = '{MASK}'", "next"]
+
+
 def test_secret_free_prompt_is_unchanged(tmp_path):
     f, idx, _ = _env(tmp_path, [], description="plain description")
     prompt = build_prompt(f, idx, [_ev("plain summary")], [])
