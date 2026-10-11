@@ -37,7 +37,7 @@ Source: the [FVA scope audit](https://claude.ai/code/artifact/cb497855-cb26-4915
 ### Next, in order
 
 1. Delivery to a security team. The owner handles this.
-2. Third untuned app, Habitica. Blocked on its Polaris scan.
+2. Third untuned app, Node-RED 5.0.8. Blocked on its Polaris Bridge scan.
 
 Done 2026-10-07: the dev-only dependency rule (fix 1) and README profile guidance (fix 2).
 
@@ -134,16 +134,79 @@ or SCSS `@import`s, so the rule must not rely on the import graph alone.
   It says which lockfile to pass: the npm v2 or v3 `package-lock.json` at the scanned commit, for the shipped app.
   It says the dev-only rule needs that lockfile. Written with the technical-writing skill.
 
+### Astra review safety fixes (2026-10-10)
+
+Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommitted.
+
+- [x] **F1, version drift.** Drift evidence is neutral. The advisory is checked against the installed
+  version. PR #50.
+- [x] **F2, redaction.** Covers title, description, fix guidance, evidence summaries, multiline PEM keys,
+  cached replies and CLI failure logs. A single-line PEM literal keeps its surrounding code. PR #51.
+- [x] **F5, dev-only scripts.** `package.json` scripts and lockfile `bin` names count as references. PR #52.
+- [x] **F3, CLI isolation.** Claude Code runs with `--tools ""`. Codex runs with `--ignore-user-config` and a
+  read-only sandbox. Both get an allowlisted environment. Live check on Windows: Claude can't read a file in
+  its working directory. PR #53.
+- [ ] **Juice Shop DoD 2 with fresh answers.** The cache-only check gave 0.808 auto share and 0 incorrect
+  demotions. The 19 drift clusters need Codex.
+- [ ] **F6, decide (owner).** `no_effect` closures (32 on Juice Shop) skip the model, at medium confidence.
+  Making them open hints would drop auto share by about 0.056, to about 0.75, below the DoD 2 bar.
+  The choices:
+  - keep them as they are;
+  - send them to the model (32 calls);
+  - lower the bar for this rule.
+- [ ] **Deferred from Astra:**
+  - F4, scoped-assumption labels;
+  - F7, a run manifest;
+  - F8, effective-output metrics;
+  - F9, an independent challenge corpus, which needs an adjudicator;
+  - F10, DAST confirmation limits, before DAST is unparked;
+  - `not_installed` closure completeness.
+
 ### Third untuned app
 
-- [ ] **Habitica (owner scan).** Polaris SAST and SCA on one pinned commit. Then a fresh-cache run, the 30-closure
-  sample check, and the 50% bar from "Larger real second app". No rule changes may be tuned on it before the run.
+- [ ] **Node-RED 5.0.8 (owner scan).** Replaces Habitica. Pinned at `935b8d3e12ec8be064f3a72ac6547131f778a7b1`.
+  Checked 2026-10-10:
+  - npm v3 lockfile, no workspaces;
+  - entry `packages/node_modules/node-red/red.js`;
+  - `adminAuth` users with `"*"` and `"read"` permissions, plus `default` for anonymous users
+    ([securing Node-RED](https://nodered.org/docs/user-guide/runtime/securing-node-red)).
+
+  Its own code sits under `packages/node_modules/`, which the Node pack maps to `dependency`. The 30-closure check
+  must catch any first-party finding closed that way. Run it on the post-Astra rules, with a fresh cache and no tuning.
+  Then do the 30-closure sample check and apply the 50% bar from "Larger real second app".
 
 ### Later (explicitly not now)
 
 The clean-machine setup test (DoD 1), active runtime probes, SAST-to-DAST linking, Polaris write-back, more advisory call sites,
 other languages, a multi-app benchmark and Jev.
 The company GitHub move and LiteLLM client gate real customer data.
+
+- **Auth-level runtime evidence (design only, owner decision, 2026-10-10).** Today FVA can't say
+  whether a finding is reachable without logging in. `fva/runtime.py` `fetch` sends no cookies, auth
+  headers or body, and plans hold at most 8 exact localhost GET pairs.
+  - **Smallest extension:** a new oracle, `role_access`. The plan names one finding, one exact
+    localhost GET URL, and an expected status per role: `anonymous`, `read` and `admin`.
+    Credentials are local test users only (for example, Node-RED `adminAuth` users with `"read"` and
+    `"*"` permissions). They're stored in a private `data/` file the plan points to, never in the plan,
+    approval, receipt, evidence or logs. A receipt records only the role name, status code and source
+    binding.
+  - **Evidence:** a new append-only evidence method, `runtime:role_access`, that yields "reachable
+    unauthenticated" (supports exposure) or "admin-only" (neutral, ranks lower). It never closes a
+    finding by itself, and it never produces `confirmed` unless `fva/invariants.py` is deliberately
+    extended later.
+  - **Limits:** GET only, no request body, no redirects, localhost hosts only, no token minting
+    beyond the app's own login. POST login, if the app needs it, is a separately approved fixed
+    request outside the probe list.
+  - **Gate tests first:**
+    - a plan with a non-localhost URL, a non-GET method or an unknown role is rejected;
+    - credential values never appear in the plan, approval, receipt, evidence, report or log files;
+    - receipts tie to `source_content_sha256` and `findings_sha256`;
+    - `runtime approve` can't be run by an agent;
+    - a `role_access` record alone never makes a verdict `confirmed` or `not_applicable`.
+  - **Files:** `fva/runtime.py` (oracle, role credential loading, fetch with an auth header),
+    `fva/schemas.py` (role field), `fva/invariants.py` (no confirm from `role_access`),
+    `fva/reason_codes.py` (only if a code is needed), `tests/test_runtime.py`.
+  - **Not before** DoD 3 passes on Node-RED, and only with Tony's go-ahead.
 They come right after done, not before.
 
 ## Definition of Done
@@ -159,7 +222,7 @@ After that, only bug fixes. Any new feature needs a failing check to justify it.
 3. **Generalization.** On a Node app the rules were never tuned on, auto-decide at least half the findings and check 30 random auto-closed findings against source with 0 real problems closed.
    - Open. Record Desk's 6 findings cannot support a 30-finding sample.
      Uptime Kuma reached 21% before tuning and 24% after the dev-only rule. Both results miss the 50% bar.
-     The 30-finding check has not run on a qualifying untuned app. Habitica is next.
+     The 30-finding check has not run on a qualifying untuned app. Node-RED 5.0.8 is next.
 4. **Honest leftovers.** Every open finding in the report says what evidence is missing.
    - Passed in PR #45. Every open ticket has `missing_evidence`. Of 73 Juice Shop tickets, 6 still get a generic SAST sentence, each for a different CWE.
 5. **Delivery.** Someone other than you opens SARIF in Polaris or `report.html` and acts on it without explanation.
