@@ -5,7 +5,7 @@ range when there is no lockfile). The inventory is what the tested runtime uses.
 
 Status -> evidence stance:
   scanned_version_present   neutral  (present is not the same as exploitable)
-  version_drift             refutes  (name installed, scanned version is not)
+  version_drift             neutral  (name installed, scanned version is not; both may be affected)
   not_installed             refutes
   unresolved_name           neutral  (can't map the scanner's component name)
 """
@@ -67,7 +67,7 @@ def reconcile(f: Finding, inventory: list[InstalledPackage]) -> DependencyResult
     return DependencyResult(f.finding_id, status, name, f.package.version, versions, dev_only)
 
 
-_STANCE = {"scanned_version_present": Stance.neutral, "version_drift": Stance.refutes,
+_STANCE = {"scanned_version_present": Stance.neutral, "version_drift": Stance.neutral,
            "not_installed": Stance.refutes, "unresolved_name": Stance.neutral}
 
 

@@ -28,7 +28,7 @@ def test_inventory_parsing():
 
 @pytest.mark.parametrize("component,version,status,stance", [
     ("Auth0_node-jsonwebtoken", "0.4.0", "scanned_version_present", Stance.neutral),  # alias
-    ("multer", "1.4.5-lts.1", "version_drift", Stance.refutes),
+    ("multer", "1.4.5-lts.1", "version_drift", Stance.neutral),
     ("expressjsmorgan", "1.10.0", "not_installed", Stance.refutes),  # aliased name absent
     ("SomeVendorName", "1.0", "unresolved_name", Stance.neutral),  # unknown spelling: no claim
 ])

@@ -88,6 +88,28 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
         disp[f.finding_id] = why
         pre[f.finding_id] = ev
 
+    def advisory_check(f: Finding, version: str, ev: list) -> tuple[bool, list]:
+        """Advisory range, call-site and option evidence for the installed version: (finding skipped, call sites)."""
+        applies = advisory_applicability.applicable(f, version)
+        if applies is None:
+            return False, []
+        ev.append(advisory_applicability.to_evidence(f, version, applies, profile.profile_id))
+        if not applies:
+            skip(f, "dependency:advisory_version_unaffected", ev)
+            return True, []
+        name = f.package.name.lower()
+        if name not in calls:  # one source scan and lockfile read per package per run
+            calls[name] = (advisory_applicability.scan(source_root, sorted(graph.files), profile, name),
+                           REGISTRY["node"].dependents(lockfile, f.package.name))
+        use = advisory_applicability.use_evidence(f, *calls[name], profile.profile_id)
+        if not use:
+            return False, []
+        ev.append(use[0])
+        if use[1]:
+            skip(f, use[1], ev)
+            return True, []
+        return False, advisory_applicability.called_at(f, calls[name][0])
+
     for f in findings:
         surf = classify_finding(f, profile)
         if not is_deployed(surf, profile):
@@ -103,28 +125,14 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
         if f.package and inventory is not None:
             d = dependency.reconcile(f, inventory)
             ev.append(dependency.to_evidence(d, inventory_ref=str(lockfile.name), profile_id=profile.profile_id))
-            if d.status in ("version_drift", "not_installed"):
+            if d.status == "not_installed":
                 skip(f, f"dependency:{d.status}", ev)
                 continue
-            if d.status == "scanned_version_present" and len(d.installed_versions) == 1:
-                applies = advisory_applicability.applicable(f, d.installed_versions[0])
-                if applies is not None:
-                    ev.append(advisory_applicability.to_evidence(
-                        f, d.installed_versions[0], applies, profile.profile_id))
-                    if not applies:
-                        skip(f, "dependency:advisory_version_unaffected", ev)
-                        continue
-                    name = f.package.name.lower()
-                    if name not in calls:  # one source scan and lockfile read per package per run
-                        calls[name] = (advisory_applicability.scan(source_root, sorted(graph.files), profile, name),
-                                       REGISTRY["node"].dependents(lockfile, f.package.name))
-                    use = advisory_applicability.use_evidence(f, *calls[name], profile.profile_id)
-                    if use:
-                        ev.append(use[0])
-                        if use[1]:
-                            skip(f, use[1], ev)
-                            continue
-                        called = advisory_applicability.called_at(f, calls[name][0])
+            if d.status in ("scanned_version_present", "version_drift") and len(d.installed_versions) == 1:
+                # the advisory is checked against what is installed, even when the scanner saw another version
+                stop, called = advisory_check(f, d.installed_versions[0], ev)
+                if stop:
+                    continue
             dev_ev = dev_index.evidence(d, profile.profile_id)
             if dev_ev:
                 ev.append(dev_ev)

@@ -40,7 +40,7 @@ def test_pipeline_end_to_end(tmp_path):
     assert rows["C"]["fva_verdict"] == "not_applicable" and rows["C"]["evidence_ids"] == b["evidence_id"]
 
 
-def test_version_drift_closure_cites_dependency_evidence(tmp_path):
+def test_version_drift_does_not_close_and_keeps_neutral_evidence(tmp_path):
     from pathlib import Path
     from fva.export import worksheet
     src = tmp_path / "src"
@@ -52,15 +52,80 @@ def test_version_drift_closure_cites_dependency_evidence(tmp_path):
     fj.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     prof = DeploymentProfile(profile_id="p", name="t", language_packs=("node",), entrypoints=("server.ts",))
     out = tmp_path / "out"
-    s = pipeline.run(findings_spec=str(fj), source_root=src, profile=prof, client=ScriptedClient([]), out_dir=out,
-                     lockfile=Path(__file__).parent / "fixtures" / "package-lock.min.json", log=lambda *_: None)
-    assert s["skipped"] == {"dependency:version_drift": 1} and s["clusters"] == 0
+    reply = json.dumps({"claims": [], "confidence": "low"})
+    s = pipeline.run(findings_spec=str(fj), source_root=src, profile=prof, client=ScriptedClient([reply]),
+                     out_dir=out, lockfile=Path(__file__).parent / "fixtures" / "package-lock.min.json",
+                     log=lambda *_: None)
+    assert s["skipped"] == {} and s["clusters"] == 1
     ev = [json.loads(l) for l in (out / "evidence.jsonl").read_text().splitlines()]
     (d,) = [e for e in ev if e["evidence_type"] == "dependency_resolution"]
-    assert d["stance"] == "refutes" and d["method"] == "inventory:version_drift"
+    assert d["stance"] == "neutral" and d["method"] == "inventory:version_drift"
     (r,) = worksheet.build(out)
-    assert r["fva_verdict"] == "not_applicable" and r["reason_codes"] == "VERSION_DRIFT"
-    assert d["evidence_id"] in r["evidence_ids"].split()
+    assert r["fva_verdict"] != "not_applicable" and "VERSION_DRIFT" not in r["reason_codes"]
+
+
+def _lodash_run(tmp_path, installed, advisory):
+    """Scanner saw lodash 4.17.19 (raw MCP shape); the lockfile installs `installed`; template() is called."""
+    import copy
+    from pathlib import Path
+    raw = json.loads((Path(__file__).parent / "fixtures" / "polaris_mcp_sca.json").read_text())
+    data = json.loads(raw["content"][0]["text"])
+    props = {"component-name": "lodash", "component-version-name": "4.17.19", "vulnerability-id": advisory,
+             "component-origin-external-id": "lodash/4.17.19", "location": "lodash 4.17.19"}
+    data["data"]["occurrenceProperties"] = [
+        {"key": p["key"], "value": props.get(p["key"], p["value"])} for p in data["data"]["occurrenceProperties"]]
+    raw = copy.deepcopy(raw)
+    raw["content"][0]["text"] = json.dumps(data)
+    inp = tmp_path / "in"
+    inp.mkdir()
+    (inp / "polaris_mcp_sca.json").write_text(json.dumps(raw))
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "server.js").write_text("const _ = require('lodash')\n_.template(userInput)\n")
+    lock = tmp_path / "package-lock.json"
+    lock.write_text(json.dumps({"lockfileVersion": 3, "packages": {
+        "": {"dependencies": {"lodash": installed}}, "node_modules/lodash": {"version": installed}}}))
+    prof = DeploymentProfile(profile_id="p", name="t", language_packs=("node",), entrypoints=("server.js",))
+    out = tmp_path / "out"
+    reply = json.dumps({"claims": [], "confidence": "low"})
+    s = pipeline.run(findings_spec=str(inp / "*.json"), source_root=src, profile=prof,
+                     client=ScriptedClient([reply]), out_dir=out, lockfile=lock, log=lambda *_: None)
+    return s, out
+
+
+def test_drift_between_affected_versions_stays_open_through_exports(tmp_path):
+    from fva.export import report, sarif_export, triage_report, worksheet
+    s, out = _lodash_run(tmp_path, "4.17.20", "CVE-2021-23337")  # 4.17.19 and 4.17.20 are both affected
+    assert s["skipped"] == {} and s["clusters"] == 1
+    ev = [json.loads(l) for l in (out / "evidence.jsonl").read_text().splitlines()]
+    assert {"inventory:version_drift", "advisory_range:affected"} <= {e["method"] for e in ev}
+    (row,) = worksheet.build(out)
+    assert row["fva_verdict"] != "not_applicable"
+    triage_report.write(out)
+    (t,) = [json.loads(l) for l in (out / "triage.jsonl").read_text().splitlines()]
+    assert t["verdict"] != "not_applicable"  # open: likely (template is called) or needs_review
+    report.write(out)
+    tickets = [json.loads(l) for l in (out / "tickets.jsonl").read_text().splitlines()]
+    assert tickets and "EEEE5555FFFF6666AAAA7777BBBB8888" in json.dumps(tickets)
+    sarif_export.write(out)
+    results = json.loads((out / "sca.sarif").read_text())["runs"][0]["results"]
+    assert [r["guid"] for r in results] == ["EEEE5555FFFF6666AAAA7777BBBB8888"]
+
+
+def test_drift_to_unaffected_installed_version_closes_by_advisory_range(tmp_path):
+    from fva.export import worksheet
+    s, out = _lodash_run(tmp_path, "4.17.21", "CVE-2021-23337")  # fixed in 4.17.21
+    assert s["skipped"] == {"dependency:advisory_version_unaffected": 1} and s["clusters"] == 0
+    (row,) = worksheet.build(out)
+    assert row["fva_verdict"] == "not_applicable" and row["reason_codes"] == "ADVISORY_VERSION_MISMATCH"
+
+
+def test_drift_with_unknown_advisory_stays_open(tmp_path):
+    from fva.export import worksheet
+    s, out = _lodash_run(tmp_path, "4.17.20", "CVE-2099-0001")
+    assert s["skipped"] == {} and s["clusters"] == 1
+    (row,) = worksheet.build(out)
+    assert row["fva_verdict"] != "not_applicable"
 
 
 def _mcp_run(tmp_path, names):
