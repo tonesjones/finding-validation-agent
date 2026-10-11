@@ -5,6 +5,7 @@ covers checkers such as copy_paste_error whose defect can carry security impact.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 from fva.schemas import EvidenceRecord, EvidenceType, Finding, FindingType, Stance
@@ -13,6 +14,17 @@ QUALITY_CHECKERS = {
     # Coverity NO_EFFECT ("Unreachable, Unused or Dead Code"): a statement or expression that changes nothing.
     "no_effect": "a statement or expression with no effect",
 }
+
+
+# A no_effect finding closes only on an explicit discard, which is harmless by construction: `void call()` (also after
+# a bare `if (cond)`) or `x ??= y`. Any other no-effect statement can be a mistyped security check (`isAdmin == true`).
+_DISCARD = re.compile(r"^\s*(?:if\s*\([^()]*\)\s*)?void\s+\S|^\s*[\w$.]+\s*\?\?=")
+
+
+def discard_idiom(f: Finding, lines: list[str]) -> bool:
+    """Whether the finding's line is an explicit discard idiom."""
+    line = f.location.start_line if f.location else None
+    return bool(line and 0 < line <= len(lines) and _DISCARD.match(lines[line - 1]))
 
 
 def checker(f: Finding) -> str | None:
@@ -28,7 +40,8 @@ def to_evidence(f: Finding, name: str, profile_id: str | None = None) -> Evidenc
         evidence_type=EvidenceType.static_source,
         method=f"quality_checker:{name}",
         stance=Stance.non_security,
-        summary=f"Checker {f.rule_id} reports {QUALITY_CHECKERS[name]}: a code-quality defect, not a vulnerability.",
+        summary=f"Checker {f.rule_id} reports {QUALITY_CHECKERS[name]} on an explicit discard (`void` or `??=`): "
+                "a code-quality defect, not a vulnerability.",
         deployment_profile_id=profile_id,
         collected_at=datetime.now(timezone.utc),
     )

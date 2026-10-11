@@ -118,7 +118,8 @@ def prepare(findings: list[Finding], source_root: Path, profile: DeploymentProfi
         ev, called = [], []
         if f.location:
             ev.append(locate.to_evidence(locate.locate(f, idx), source_content_sha256=snapshot_sha))
-        if name := quality.checker(f):
+        if (name := quality.checker(f)) and f.location.path in idx.files and quality.discard_idiom(
+                f, idx.lines(f.location.path)):
             ev.append(quality.to_evidence(f, name, profile.profile_id))
             skip(f, f"quality:{name}", ev)
             continue
