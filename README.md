@@ -21,6 +21,11 @@ Polaris and lets you pick the project and branch, asks for the source checkout a
 runs a quick one-group check, then the full run, and opens the report. Answers are saved, so the next run
 offers them as defaults. The steps below do the same by hand.
 
+You choose where the Polaris token and gateway key are kept: your OS credential store
+(`pip install -e .[secure]`), this session only, or your own environment variables. They go only to Polaris
+and your gateway, never to a model or a log. `python -m fva credentials` shows where each one is, and
+`--forget` removes them. See [Credentials](docs/operations.md#credentials).
+
 ```bash
 python -m fva setup     # gateway URL, key variable name, model per tier
 cp examples/profiles/juiceshop.json app-profile.json

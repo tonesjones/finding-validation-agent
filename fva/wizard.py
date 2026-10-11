@@ -2,12 +2,10 @@
 
 Walks through models, Polaris, the source checkout and the run, then opens the report. Every answer is saved in
 the settings file, so a second run offers the same choices as defaults and can go straight to the run. Tokens and
-keys are never saved there: the Polaris token stays in POLARIS_ACCESS_TOKEN or data/.polaris-token, the gateway
-key in its environment variable.
+keys are never saved there; see fva/credentials.py.
 """
 from __future__ import annotations
 
-import getpass
 import json
 import os
 import re
@@ -18,7 +16,6 @@ from types import SimpleNamespace
 
 from fva import config
 
-TOKEN_FILE = Path("data/.polaris-token")
 ENTRYPOINT_GUESSES = ("server.ts", "server.js", "app.ts", "app.js", "index.ts", "index.js", "src/index.ts",
                       "src/index.js", "src/main.ts", "src/main.js", "frontend/src/main.ts")
 
@@ -83,18 +80,6 @@ def _describe_models(cfg: dict) -> str:
 # ------------------------------------------------------------------ polaris
 
 
-def ensure_token() -> None:
-    if os.environ.get("POLARIS_ACCESS_TOKEN") or TOKEN_FILE.exists():
-        return
-    token = getpass.getpass("Polaris access token (input hidden): ").strip()
-    if not token:
-        raise SystemExit("a Polaris access token is required")
-    os.environ["POLARIS_ACCESS_TOKEN"] = token
-    if yes(f"Save it to {TOKEN_FILE} for next time (git-ignored)?"):
-        TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-        TOKEN_FILE.write_text(token, encoding="utf-8")
-
-
 def _payload(result: dict):
     """The JSON a Polaris MCP tool returned in its first text block."""
     text = result.get("content", [{}])[0].get("text", "")
@@ -139,7 +124,8 @@ def polaris_step(cfg: dict, make_client=None) -> dict:
         return cfg
     if url := ask("Polaris URL", p.get("url") or os.environ.get("POLARIS_URL") or "https://poc.polaris.blackduck.com"):
         os.environ["POLARIS_URL"] = p["url"] = url
-    ensure_token()
+    from fva import credentials
+    credentials.ensure(credentials.polaris())
     if make_client is None:
         from fva.polaris_mcp import PolarisMCP as make_client
     client = make_client()
@@ -256,7 +242,9 @@ def run_step(cfg: dict, cli_main=None, open_report=True) -> Path | None:
 
 
 def main() -> None:
-    print("FVA guided start. Press Enter to keep the value in [brackets]. Ctrl+C stops at any point.")
+    from fva import credentials
+    print("FVA guided start. Press Enter to keep the value in [brackets]. Ctrl+C stops at any point.\n")
+    print(credentials.EXPLAINER)
     try:
         cfg = models_step(config.load() or {})
         cfg = polaris_step(cfg)

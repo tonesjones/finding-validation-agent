@@ -162,6 +162,8 @@ def main(argv=None):
     a.add_argument("--private-source", action="store_true",
                    help="refuse model CLIs whose tool boundary isn't enforced (Codex needs a passing check-isolation)")
     sub.add_parser("start", help="guided start: models, Polaris, source, run, report (same as no arguments)")
+    cr = sub.add_parser("credentials", help="show where the Polaris token and gateway key are kept (never the values)")
+    cr.add_argument("--forget", choices=["polaris", "gateway", "all"], help="remove the copies FVA saved")
     su = sub.add_parser("setup", help="choose a model gateway (LiteLLM or any OpenAI-compatible URL) and models")
     su.add_argument("--url", help="gateway base URL")
     su.add_argument("--key-env", default=None, help="environment variable that holds the gateway key "
@@ -211,6 +213,19 @@ def main(argv=None):
     if args.cmd == "preview":
         from fva.export import preview
         print(preview.write(Path(args.run_dir)))
+        return
+
+    if args.cmd == "credentials":
+        from fva import config, credentials
+        cfg = config.load() or {}
+        items = {"polaris": credentials.polaris(),
+                 "gateway": credentials.gateway(cfg.get("key_env", config.DEFAULT_KEY_ENV))}
+        for name, c in items.items():
+            if args.forget in (name, "all"):
+                removed = credentials.forget(c)
+                print(f"{c.label}: removed from {', '.join(removed)}" if removed else f"{c.label}: nothing saved by FVA")
+            print(credentials.describe(c))
+        print(f"OS credential store: {credentials.store_name() or 'not available (pip install keyring)'}")
         return
 
     if args.cmd == "setup":

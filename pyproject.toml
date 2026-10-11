@@ -11,6 +11,7 @@ dependencies = ["pydantic>=2.11"]  # Field(exclude_if=...)
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+secure = ["keyring>=25"]  # OS credential store for the Polaris token and gateway key
 
 [tool.setuptools.packages.find]
 include = ["fva*"]

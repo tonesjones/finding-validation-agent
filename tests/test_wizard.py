@@ -59,15 +59,6 @@ def test_polaris_step_reuses_a_saved_export(workdir, monkeypatch):
     assert wizard.polaris_step(cfg, make_client=lambda: pytest.fail("no Polaris call")) == cfg
 
 
-def test_token_is_asked_hidden_and_saved_only_on_yes(workdir, monkeypatch):
-    monkeypatch.delenv("POLARIS_ACCESS_TOKEN")
-    monkeypatch.setattr(wizard.getpass, "getpass", lambda _: "secret")
-    _answers(monkeypatch, "n")
-    wizard.ensure_token()
-    assert not wizard.TOKEN_FILE.exists()
-    assert wizard.os.environ["POLARIS_ACCESS_TOKEN"] == "secret"
-
-
 def test_source_step_builds_a_valid_profile(workdir, monkeypatch):
     app = workdir / "shop"
     (app / "src").mkdir(parents=True)

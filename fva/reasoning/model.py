@@ -48,7 +48,8 @@ class OpenAICompatibleClient:
         base = base_url.rstrip("/")
         self._base = base if base.endswith("/v1") else base + "/v1"
         self._url = self._base + "/chat/completions"
-        self._key = api_key or os.environ.get(key_env, "")
+        from fva import credentials
+        self._key = api_key or credentials.get(credentials.gateway(key_env)) or ""
 
     def _headers(self) -> dict:
         return {"content-type": "application/json", **({"authorization": f"Bearer {self._key}"} if self._key else {})}

@@ -18,6 +18,7 @@ python -m fva assess --client codex --no-route --source "<juice-shop-checkout>" 
 python -m fva assess --dry-run --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json                  # prompts only
 python -m fva assess --client codex --workers 4 --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json   # parallel model calls
 python -m fva                                            # guided start: models, Polaris, source, run, report
+python -m fva credentials [--forget all]                 # where the token/key are kept, never the values
 python -m fva setup                                      # gateway URL + model per tier -> data/fva-config.json
 python -m fva check-isolation --client codex             # canary: Codex can't read local files (per version)
 python -m fva assess --private-source --client codex ...   # refuses Codex without a passing check

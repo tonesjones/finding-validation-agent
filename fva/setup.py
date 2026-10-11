@@ -6,9 +6,8 @@ variable and is never written or printed.
 from __future__ import annotations
 
 import json
-import os
 
-from fva import config
+from fva import config, credentials
 from fva.reasoning.model import OpenAICompatibleClient
 
 TEST_SYSTEM = "Reply with JSON only."
@@ -18,6 +17,10 @@ TEST_USER = 'Return exactly this JSON object: {"ok": true}'
 def _ask(prompt: str, default: str | None = None) -> str:
     answer = input(f"{prompt}{f' [{default}]' if default else ''}: ").strip()
     return answer or (default or "")
+
+
+def yes_no(prompt: str) -> bool:
+    return not _ask(prompt + " (Y/n)").lower().startswith("n")
 
 
 def _pick(prompt: str, models: list[str], default: str | None, optional: bool = False) -> str | None:
@@ -55,8 +58,13 @@ def run(args) -> dict:
     default_env = old.get("key_env", config.DEFAULT_KEY_ENV)
     key_env = args.key_env or (default_env if args.url else _ask("Environment variable that holds the gateway key",
                                                                   default_env))
-    if not os.environ.get(key_env):
+    key = credentials.gateway(key_env)
+    if credentials.source(key):
+        print(f"  {credentials.describe(key)}")
+    elif args.url:  # flags only: no questions
         print(f"warning: {key_env} is not set; calls go out without a key")
+    elif yes_no("Does the gateway need a key?"):
+        credentials.prompt(key)
 
     probe = OpenAICompatibleClient("", url, key_env=key_env)
     models: list[str] = []
