@@ -26,6 +26,7 @@ def test_cluster_error_makes_run_partial(tmp_path):
 def test_cli_exits_2_on_partial(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(pipeline, "run", lambda **kw: {"status": "partial", "errors": 2})
     monkeypatch.setattr(pipeline, "load_findings", lambda _: [])
+    monkeypatch.setattr(cli, "_client", lambda *_: FakeClient())  # CI has no model CLI on PATH
     with pytest.raises(SystemExit) as e:
         cli.main(["assess", "--source", str(tmp_path), "--profile-file", PROFILE, "--out", str(tmp_path / "o")])
     cap = capsys.readouterr()
@@ -36,6 +37,7 @@ def test_cli_exits_2_on_partial(tmp_path, monkeypatch, capsys):
 def test_cli_prints_done_when_complete(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(pipeline, "run", lambda **kw: {"status": "complete", "errors": 0})
     monkeypatch.setattr(pipeline, "load_findings", lambda _: [])
+    monkeypatch.setattr(cli, "_client", lambda *_: FakeClient())  # CI has no model CLI on PATH
     cli.main(["assess", "--source", str(tmp_path), "--profile-file", PROFILE, "--out", str(tmp_path / "o")])
     assert "done ->" in capsys.readouterr().out
 
