@@ -48,9 +48,10 @@ def test_unreferenced_and_verdict(tmp_path):
 
 
 def test_excluded_files(tmp_path):
-    files = {p: "require('pkg')" for p in ("test/a.js", "README.md", "package.json", "package-lock.json",
+    files = {p: "require('pkg')" for p in ("test/a.js", "README.md", "package-lock.json",
                                           "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml",
                                           "node_modules/a/x.js", ".git/x", "openapi.json")}
+    files["package.json"] = json.dumps({"dependencies": {"pkg": "1"}})
     assert evidence(setup_case(tmp_path, files))
 
 
@@ -181,3 +182,29 @@ def test_closure_from_referenced_non_dev_package(tmp_path):
 
 def test_large_file_is_scanned(tmp_path):
     assert evidence(setup_case(tmp_path, {"dist/bundle.js": "x" * (3 * 1024 * 1024) + "\nrequire('pkg')"})) is None
+
+
+def test_package_json_script_keeps_open(tmp_path):
+    files = {"package.json": json.dumps({"scripts": {"start": "node node_modules/pkg/server.js"}})}
+    assert evidence(setup_case(tmp_path, files)) is None
+
+
+def test_package_json_bin_alias_keeps_open(tmp_path):
+    packages = {"": {}, "node_modules/pkg": {"version": "1.0.0", "dev": True, "bin": {"pkgcli": "cli.js"}}}
+    files = {"package.json": json.dumps({"scripts": {"build": "pkgcli --x"}})}
+    assert evidence(setup_case(tmp_path, files, packages)) is None
+
+
+def test_package_json_bin_path_and_scoped_string_bin_keep_open(tmp_path):
+    packages = {"": {}, "node_modules/@s/pkg": {"version": "1.0.0", "dev": True, "bin": "cli.js"}}
+    files = {"package.json": json.dumps({"scripts": {"build": "./node_modules/.bin/pkg --x"}})}
+    assert evidence(setup_case(tmp_path, files, packages, target="@s/pkg")) is None
+
+
+def test_package_json_dev_dependency_still_closes(tmp_path):
+    files = {"package.json": json.dumps({"devDependencies": {"pkg": "1.0.0"}})}
+    assert evidence(setup_case(tmp_path, files)) is not None
+
+
+def test_malformed_package_json_keeps_open(tmp_path):
+    assert evidence(setup_case(tmp_path, {"package.json": "{bad"})) is None

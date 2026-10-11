@@ -20,7 +20,7 @@ from pathlib import Path
 
 from fva import reason_codes
 from fva.correlation.locate import SourceIndex
-from fva.redact import CREDENTIAL_CWES, redact
+from fva.redact import CREDENTIAL_CWES, redact, redact_lines, redact_value
 from fva.schemas import EvidenceRecord, EvidenceType, Finding, FindingType, Stance, VerdictValue
 
 PROMPT_VERSION = "assess-v2"
@@ -72,24 +72,33 @@ class AssessmentResult:
     usage: dict | None = None  # exact token usage of the call that made the answer (from cache meta on a hit)
 
 
+def _redacted_lines(idx: SourceIndex, path: str, redact_all: bool) -> list[str]:
+    """Redacted lines of one file, memoized on the index (multiline key blocks need whole-file context)."""
+    cache = idx.__dict__.setdefault("_fva_redacted", {})
+    key = (path, redact_all)
+    if key not in cache:
+        cache[key] = redact_lines([x.rstrip() for x in idx.lines(path)], all_strings=redact_all)
+    return cache[key]
+
+
 def _window(idx: SourceIndex, path: str, line: int, redact_all: bool) -> str:
-    lines = idx.lines(path)
+    lines = _redacted_lines(idx, path, redact_all)
     lo, hi = max(1, line - CONTEXT_LINES), min(len(lines), line + CONTEXT_LINES)
-    return "\n".join(f"{n:5d}| {redact(lines[n - 1].rstrip(), all_strings=redact_all)}" for n in range(lo, hi + 1))
+    return "\n".join(f"{n:5d}| {lines[n - 1]}" for n in range(lo, hi + 1))
 
 
 def build_prompt(f: Finding, idx: SourceIndex, evidence: list[EvidenceRecord], sites: list[tuple[str, int]]) -> str:
     redact_all = bool(set(f.cwe) & CREDENTIAL_CWES)
-    parts = [f"FINDING\n  tool: {f.source_tool}\n  rule: {f.rule_id}\n  title: {f.title}\n  cwe: {', '.join(f.cwe) or '-'}\n"
+    parts = [f"FINDING\n  tool: {f.source_tool}\n  rule: {f.rule_id}\n  title: {redact(f.title)}\n  cwe: {', '.join(f.cwe) or '-'}\n"
              f"  severity: {f.severity.value}\n  type: {f.finding_type.value}"]
     if f.description:
-        parts.append("DESCRIPTION\n" + f.description[:2000])
+        parts.append("DESCRIPTION\n" + redact(f.description[:2000]))
     if f.package:
         m = f.scanner_metadata
         parts.append(f"PACKAGE {f.package.name} {f.package.version} ({f.package.ecosystem or '?'}) advisory {f.package.advisory_id}"
-                     + (f"\n  fix: {m['fix_guidance']}" if m.get("fix_guidance") else ""))
+                     + (f"\n  fix: {redact(str(m['fix_guidance']))}" if m.get("fix_guidance") else ""))
     if evidence:
-        parts.append("EXISTING EVIDENCE\n" + "\n".join(f"- [{e.evidence_type.value}/{e.stance.value}] {e.summary[:600]}"
+        parts.append("EXISTING EVIDENCE\n" + "\n".join(f"- [{e.evidence_type.value}/{e.stance.value}] {redact(e.summary[:600])}"
                                                         for e in evidence))
     shown = []
     if f.finding_type is FindingType.sast and f.location and f.location.start_line and f.location.path in idx.files:
@@ -99,7 +108,7 @@ def build_prompt(f: Finding, idx: SourceIndex, evidence: list[EvidenceRecord], s
         parts.append(f"CODE {path} (around line {line})\n" + _window(idx, path, line, redact_all))
     allowed = ", ".join(MODEL_CODES)
     parts.append(f"ALLOWED REASON CODES\n{allowed}")
-    return "\n\n".join(parts)
+    return redact("\n\n".join(parts))  # backstop over the assembled prompt
 
 
 def _norm(s: str) -> str:
@@ -110,11 +119,11 @@ def verify_citation(c: dict, idx: SourceIndex, redact_all: bool) -> bool:
     path, line, quote = c.get("path"), c.get("line"), _norm(str(c.get("quote", "")))
     if not isinstance(path, str) or path not in idx.files or not isinstance(line, int) or line < 1 or len(quote) < 3:
         return False
-    lines = idx.lines(path)
+    lines = _redacted_lines(idx, path, redact_all)
     if line > len(lines):
         return False
     for n in range(max(1, line - 2), min(len(lines), line + 2) + 1):
-        if quote in _norm(redact(lines[n - 1], all_strings=redact_all)):
+        if quote in _norm(lines[n - 1]):
             return True
     return False
 
@@ -161,6 +170,15 @@ def _aggregate(accepted: list[dict], sink: tuple[str, int] | None = None) -> Sta
     return Stance.neutral  # none, or conflicting directions
 
 
+def _safe_response(text: str) -> str:
+    """Redact a model reply before it is cached or parsed. A JSON reply is redacted value by value so a
+    masked span can never swallow structure; anything else is redacted as plain text."""
+    try:
+        return json.dumps(redact_value(json.loads(text)))
+    except ValueError:
+        return redact(text)
+
+
 def _parse(text: str) -> dict:
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
@@ -187,11 +205,11 @@ def assess(f: Finding, idx: SourceIndex, client, *, source_content_sha256: str, 
     meta_file = cache_dir / f"{key}.meta.json" if cache_dir else None
     meta = {"agent_model": client.model_id, "tokens": None, "usage": None}
     if cache_file and cache_file.exists():
-        text, cached = cache_file.read_text(encoding="utf-8"), True
+        text, cached = _safe_response(cache_file.read_text(encoding="utf-8")), True
         if meta_file.exists():
             meta.update({k: v for k, v in json.loads(meta_file.read_text(encoding="utf-8")).items() if v})
     else:
-        text = client.complete(SYSTEM, prompt)
+        text = _safe_response(client.complete(SYSTEM, prompt))
         meta = {"agent_model": getattr(client, "last_reported_model", None) or client.model_id,
                 "tokens": getattr(client, "last_tokens", None), "usage": getattr(client, "last_usage", None)}
         if cache_file:

@@ -160,6 +160,18 @@ outcome, sorted by outcome).
 Without supporting runtime evidence, runtime-only verdicts can only reach `agree_static` or `unresolved`. A different app needs
 its own key in the same format (`candidate_id`, `classification`).
 
+## Model client isolation
+
+FVA enforces these limits on the model CLIs itself; the prompt only repeats them. Each call runs in an empty temp
+directory with a minimal environment (an allowlist in `fva/reasoning/model.py`: PATH, home and temp dirs, proxy and
+cert variables, the CLI config dirs, and the model API keys). `POLARIS_*`, `FVA_*` and other tokens are not passed.
+
+- Claude Code: `--tools ""` (no built-in tools), `--strict-mcp-config` (no MCP servers), `--permission-prompts none`.
+- Codex: `--sandbox read-only` and `--ignore-user-config`. Codex has no flag to turn its shell tool off, so the
+  limit is the read-only sandbox, the empty temp directory and the minimal environment.
+- A command set through `FVA_CODEX_CMD`, `FVA_CLAUDE_CMD` or `command=` replaces these flags. The client then sets
+  `isolation = "unverified"` (the default command sets `"enforced"`). This is not yet written to `summary.json`.
+
 ## Which AI model handles each finding
 
 The tool sends each group of findings (findings on the same code line or advisory) to one of
