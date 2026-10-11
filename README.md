@@ -13,7 +13,16 @@ install and sign in to the Codex CLI (the default when nothing is set up).
 
 ```bash
 pip install -e .
-python -m fva setup     # optional: gateway URL, key variable name, model per tier
+python -m fva
+```
+
+`python -m fva` with no arguments is a guided start. It asks for the model gateway and models, connects to
+Polaris and lets you pick the project and branch, asks for the source checkout and builds the app profile,
+runs a quick one-group check, then the full run, and opens the report. Answers are saved, so the next run
+offers them as defaults. The steps below do the same by hand.
+
+```bash
+python -m fva setup     # gateway URL, key variable name, model per tier
 cp examples/profiles/juiceshop.json app-profile.json
 # Edit app-profile.json for your app before running assess.
 python -m fva assess --findings "<export>/page-*.json" --source "<checkout>" --profile-file app-profile.json --out runs/app --cache runs/cache

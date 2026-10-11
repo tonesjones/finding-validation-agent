@@ -1,5 +1,6 @@
 """fva command line.
 
+  python -m fva                             # guided start: models, Polaris, source, run, report
   python -m fva setup                       # pick a model gateway and a model per tier
   python -m fva assess --client codex --source "C:\\TestCode\\Juiceshop 20.2.0"
   python -m fva assess --client claude-code ...
@@ -128,7 +129,10 @@ def check_private_source(client_name: str, model: str | None) -> None:
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
-    if argv and argv[0] in DELEGATED:
+    if not argv or argv == ["start"]:
+        from fva import wizard
+        return wizard.main()
+    if argv[0] in DELEGATED:
         return importlib.import_module(DELEGATED[argv[0]][0]).main(argv[1:])
     ap = argparse.ArgumentParser(prog="python -m fva")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -157,6 +161,7 @@ def main(argv=None):
                    help="send the cluster containing this scanner finding id to GPT-6 Astra (repeatable; needs routing)")
     a.add_argument("--private-source", action="store_true",
                    help="refuse model CLIs whose tool boundary isn't enforced (Codex needs a passing check-isolation)")
+    sub.add_parser("start", help="guided start: models, Polaris, source, run, report (same as no arguments)")
     su = sub.add_parser("setup", help="choose a model gateway (LiteLLM or any OpenAI-compatible URL) and models")
     su.add_argument("--url", help="gateway base URL")
     su.add_argument("--key-env", default=None, help="environment variable that holds the gateway key "

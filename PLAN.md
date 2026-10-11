@@ -167,9 +167,9 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
   - [x] Model setup. `python -m fva setup` saves a LiteLLM (or any OpenAI-compatible) URL, the key's
     environment variable name and a model per tier, after a test call to each model.
     `assess` uses it by default. A gateway client is an API client, so `--private-source` allows it.
-  - [ ] Polaris step in the same flow (token, project and branch pick, export).
-  - [ ] Source step (checkout path, commit pin, deployment profile from a few questions).
-  - [ ] One `fva run` that chains setup checks, export, assess, triage and report.
+  - [x] Guided start, `python -m fva` with no arguments: models, Polaris (token, project and branch pick,
+    export), source (path, commit, profile from a few questions), quick check, run, report.
+  - [ ] Check the Polaris project and branch lists against a live tenant (shapes are guessed).
   - [ ] Quality check per new model: a Juice Shop run against the answer key before trusting it.
   - [ ] Prices for gateway models (cost shows as unknown today).
 - [x] **Astra PR 6, recovery (smallest slice).** A run ends `complete`, `partial` or `failed`. A partial run

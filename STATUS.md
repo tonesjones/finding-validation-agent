@@ -28,7 +28,8 @@ DAST is parked. There is no routine human review. Open findings stay open.
 
 - Codex tool features are now off and canary-checked (`check-isolation`, passed on codex-cli 0.157.1).
   Codex stays for personal testing. Company use goes through a model gateway: `fva setup` (LiteLLM URL,
-  model per tier) is done; Polaris, source and a one-command run are next (PLAN.md, "Work setup").
+  model per tier) and a guided start (`python -m fva`: models, Polaris, source, run, report) are built,
+  not yet tried on a work machine (PLAN.md, "Work setup").
 - Astra review (2026-10-10) safety fixes, PRs #50-#53:
   - version drift no longer closes;
   - full prompt, cache and log redaction;

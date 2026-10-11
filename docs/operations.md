@@ -160,6 +160,22 @@ outcome, sorted by outcome).
 Without supporting runtime evidence, runtime-only verdicts can only reach `agree_static` or `unresolved`. A different app needs
 its own key in the same format (`candidate_id`, `classification`).
 
+## Guided start
+
+`python -m fva` (or `python -m fva start`) runs four steps and saves each answer to the settings file:
+
+1. **Models.** A gateway through `setup` (below), or the Codex CLI for personal testing.
+2. **Polaris.** URL and token (asked with hidden input, saved to `data/.polaris-token` only if you say so),
+   then a project and branch picked from the portfolio, then a read-only export to
+   `data/polaris-export/<project>-<timestamp>/`. A saved export can be reused.
+3. **Source.** The checkout path, then an app profile guessed from it (commit, Node from `package.json`,
+   start files) and confirmed in a few questions. Saved to `data/profiles/<name>.json`.
+4. **Run.** An optional one-group check, then `assess --private-source`, `triage` and `report`. The report
+   opens in the browser.
+
+The project and branch lists use `get_portfolio_id`, `get_portfolio_projects` and `get_branches`. Their
+response shapes are not yet checked against a live tenant; if a list comes back empty, paste the id.
+
 ## Model setup (gateway)
 
 `python -m fva setup` configures a LiteLLM gateway or any OpenAI-compatible endpoint. It asks for the URL,
