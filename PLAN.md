@@ -146,14 +146,11 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
 - [x] **F3, CLI isolation.** Claude Code runs with `--tools ""`. Codex runs with `--ignore-user-config` and a
   read-only sandbox. Both get an allowlisted environment. Live check on Windows: Claude can't read a file in
   its working directory. PR #53.
-- [ ] **Juice Shop DoD 2 with fresh answers.** The cache-only check gave 0.808 auto share and 0 incorrect
-  demotions. The 19 drift clusters need Codex.
-- [ ] **F6, decide (owner).** `no_effect` closures (32 on Juice Shop) skip the model, at medium confidence.
-  Making them open hints would drop auto share by about 0.056, to about 0.75, below the DoD 2 bar.
-  The choices:
-  - keep them as they are;
-  - send them to the model (32 calls);
-  - lower the bar for this rule.
+- [x] **Juice Shop DoD 2 with fresh answers.** Passed 2026-10-11 on `20261011-js-dod2`: auto share 0.808,
+  0 incorrect demotions, 19 fresh calls, $0.46.
+- [x] **F6, middle bar (owner decision 2026-10-11).** A `no_effect` finding closes only when its line is an
+  explicit discard (`void call()` or `x ??= y`). Any other goes to assessment. All 32 Juice Shop closures
+  match, so DoD 2 is unchanged. The idiom list came from Juice Shop, so Node-RED is its untuned test. PR #56.
 - [ ] **Open after F3 (Astra revision, 2026-10-10):**
   - Codex has no flag that turns its tools off. Its read-only sandbox can still read files outside the
     empty working directory, so the boundary for the default client is unknown. Owner decision: accept
@@ -162,9 +159,8 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
   - Cache keys don't include the CLI flags. Answers cached before PR #53 still hit. That's acceptable
     because the flags limit tools and don't change the model or prompt, but Astra PR 5 asks for this to
     be written down.
-- [ ] **Astra PR 6, recovery.** A run ends `complete`, `partial` or `failed`. Today a run with cluster
-  errors still prints `done`; the 2026-10-10 cache-only check printed it with 33 errors. Smallest slice in
-  progress.
+- [x] **Astra PR 6, recovery (smallest slice).** A run ends `complete`, `partial` or `failed`. A partial run
+  exits 2. Readers warn on partial runs and refuse failed ones. PR #55. Retry policy is still open.
 - [ ] **Deferred from Astra:**
   - F4, scoped-assumption labels;
   - F7, a run manifest;
@@ -230,6 +226,7 @@ After that, only bug fixes. Any new feature needs a failing check to justify it.
    - Open. The clean-machine test remains.
 2. **Regression.** On Juice Shop, `fva score` shows auto share of at least 80% and 0 incorrect demotions on fresh model answers.
    - Passed 2026-10-05 on `20261005-js-fresh`. Auto share 0.841, auto agreement 0.996, 0 incorrect demotions, 101 calls, $0.86.
+   - Passed again 2026-10-11 after the Astra fixes, on `20261011-js-dod2`. Auto share 0.808, 0 incorrect demotions, $0.46.
 3. **Generalization.** On a Node app the rules were never tuned on, auto-decide at least half the findings and check 30 random auto-closed findings against source with 0 real problems closed.
    - Open. Record Desk's 6 findings cannot support a 30-finding sample.
      Uptime Kuma reached 21% before tuning and 24% after the dev-only rule. Both results miss the 50% bar.
