@@ -152,10 +152,12 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
   explicit discard (`void call()` or `x ??= y`). Any other goes to assessment. All 32 Juice Shop closures
   match, so DoD 2 is unchanged. The idiom list came from Juice Shop, so Node-RED is its untuned test. PR #56.
 - [ ] **Open after F3 (Astra revision, 2026-10-10):**
-  - Codex has no flag that turns its tools off. Its read-only sandbox can still read files outside the
-    empty working directory, so the boundary for the default client is unknown. Owner decision: accept
-    and document this, block Codex for private source, or make a tool-free client (Claude Code with
-    `--tools ""`, or an API client) the default for private source.
+  - Codex tools are now off (`CODEX_DISABLED_FEATURES`), tool use rejects the answer, and
+    `check-isolation` canary-checks each Codex version. Live on codex-cli 0.157.1 (Windows): the old flags
+    let the model read a file outside its workdir; `--ignore-user-config` blocked it only through a Windows
+    default; Codex still offered connected Atlassian apps (create Jira issue) until `--disable apps`; the
+    check passed with the new flags. Owner decision pending: A) Codex for private source with a passing
+    per-version check, or B) Claude Code only for private source.
   - Cache keys don't include the CLI flags. Answers cached before PR #53 still hit. That's acceptable
     because the flags limit tools and don't change the model or prompt, but Astra PR 5 asks for this to
     be written down.

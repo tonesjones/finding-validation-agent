@@ -167,10 +167,21 @@ directory with a minimal environment (an allowlist in `fva/reasoning/model.py`: 
 cert variables, the CLI config dirs, and the model API keys). `POLARIS_*`, `FVA_*` and other tokens are not passed.
 
 - Claude Code: `--tools ""` (no built-in tools), `--strict-mcp-config` (no MCP servers), `--permission-prompts none`.
-- Codex: `--sandbox read-only` and `--ignore-user-config`. Codex has no flag to turn its shell tool off, so the
-  limit is the read-only sandbox, the empty temp directory and the minimal environment.
+- Codex: `--sandbox read-only`, `--ignore-user-config`, and `--disable <feature>` for every name in
+  `CODEX_DISABLED_FEATURES` (`fva/reasoning/model.py`): shell, unified and code-mode exec, apps and plugins,
+  browser and computer use, image tools, memories, multi-agent and others. Codex has no single tools-off flag.
+  An unknown feature name makes Codex exit 1, so a rename fails loudly instead of leaving a tool on.
+- Any tool use reported in the `--json` events (anything other than a message, reasoning, error or todo list)
+  raises `ToolUseError`. The answer is discarded and not cached.
+- `python -m fva check-isolation --client codex` writes a random marker to a file outside the CLI's working
+  directory, asks the model to read it, and fails if the marker comes back or a tool is used. The result is
+  stored per CLI and version in `data/isolation/`.
+- `assess --private-source` refuses a custom CLI command, and refuses Codex unless a passing check exists for
+  the installed version. Use it for any source that must not leave the redacted prompt.
+- Residual risk: the check shows that these probes failed on this machine with this Codex version. It is not a
+  guarantee that no tool exists. Rerun it after every Codex upgrade.
 - A command set through `FVA_CODEX_CMD`, `FVA_CLAUDE_CMD` or `command=` replaces these flags. The client then sets
-  `isolation = "unverified"` (the default command sets `"enforced"`). This is not yet written to `summary.json`.
+  `isolation = "unverified"` (the default command sets `"enforced"`). `summary.json` records it under `isolation`.
 
 ## Which AI model handles each finding
 

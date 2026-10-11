@@ -119,6 +119,8 @@ See [STATUS.md](STATUS.md) for validation status.
 - Delivery to a security team and setup from the README on a clean machine remain unverified.
 - Polaris SARIF import remains unverified. `preview` does not write to Polaris.
 - Keep private exports, source content, tokens and run output out of this public repository.
+- For private code, run `python -m fva check-isolation` once per Codex version, then `assess --private-source`.
+  It refuses a model CLI whose tool boundary is not enforced and checked.
 
 ## Links
 

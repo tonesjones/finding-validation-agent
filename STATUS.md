@@ -1,6 +1,6 @@
 # Status
 
-Updated 2026-10-10.
+Updated 2026-10-11.
 
 ## Current state
 
@@ -26,6 +26,8 @@ DAST is parked. There is no routine human review. Open findings stay open.
 - The dev-only dependency rule closes a lockfile `dev` package only when no non-test file references it
   or a package that depends on it. Uptime Kuma: 16 more closures (8 auto), all correct. Juice Shop unchanged.
 
+- Codex tool features are now off and canary-checked (`check-isolation`, passed on codex-cli 0.157.1).
+  Owner decision pending: A) Codex with a passing per-version check, or B) Claude Code only.
 - Astra review (2026-10-10) safety fixes, PRs #50-#53:
   - version drift no longer closes;
   - full prompt, cache and log redaction;
