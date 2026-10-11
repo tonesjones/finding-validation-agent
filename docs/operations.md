@@ -160,6 +160,20 @@ outcome, sorted by outcome).
 Without supporting runtime evidence, runtime-only verdicts can only reach `agree_static` or `unresolved`. A different app needs
 its own key in the same format (`candidate_id`, `classification`).
 
+## Model setup (gateway)
+
+`python -m fva setup` configures a LiteLLM gateway or any OpenAI-compatible endpoint. It asks for the URL,
+the name of the environment variable that holds the key (default `FVA_GATEWAY_KEY`), and a model per tier
+from the gateway's model list: senior (security-sensitive findings), junior (bulk, bounded findings; blank
+sends everything to senior), and optionally astra. It sends each model a test call that must answer JSON,
+then saves `data/fva-config.json` (`FVA_CONFIG` overrides the path). The key itself is never saved.
+Flags (`--url`, `--key-env`, `--senior`, `--junior`, `--astra`, `--no-test`) skip the questions.
+
+After setup, `assess` uses `--client gateway` by default, with the same junior/senior routing rules as
+Codex. `--model` or `--no-route` sends every cluster to one model. Gateway calls are plain API calls, so the
+model has no tools and `--private-source` allows them. Where the redacted code goes is the gateway's data
+policy. Cost shows as unknown until the gateway's models have prices (`--prices`).
+
 ## Model client isolation
 
 FVA enforces these limits on the model CLIs itself; the prompt only repeats them. Each call runs in an empty temp

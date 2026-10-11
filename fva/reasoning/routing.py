@@ -86,10 +86,12 @@ class RoutedResult:
 
 
 class Router:
-    """Holds one client per tier. `clients` maps tier -> ModelClient; missing tiers are built lazily by `make`."""
+    """Holds one client per tier. `clients` maps tier -> ModelClient; missing tiers are built lazily by `make`,
+    with the model from `models` (tier -> name) or else `model_name`."""
 
-    def __init__(self, clients: dict, make=None, astra_ids=frozenset()):
+    def __init__(self, clients: dict, make=None, astra_ids=frozenset(), models: dict | None = None):
         self._clients, self._make, self.astra_ids = dict(clients), make, frozenset(astra_ids)
+        self._models = dict(models or {})
         self._lock = threading.Lock()  # lazy client creation can race across pipeline worker threads
 
     @classmethod
@@ -115,7 +117,7 @@ class Router:
                 if tier not in self._clients:
                     if self._make is None:
                         raise SystemExit(f"no client configured for tier {tier}")
-                    self._clients[tier] = self._make(model_name(tier))
+                    self._clients[tier] = self._make(self._models.get(tier) or model_name(tier))
         return self._clients[tier]
 
     def plan(self, group: list[Finding]) -> tuple[str, str]:

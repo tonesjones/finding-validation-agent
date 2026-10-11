@@ -1,5 +1,6 @@
 """fva command line.
 
+  python -m fva setup                       # pick a model gateway and a model per tier
   python -m fva assess --client codex --source "C:\\TestCode\\Juiceshop 20.2.0"
   python -m fva assess --client claude-code ...
   python -m fva assess --dry-run ...        # write prompts only, no model calls
@@ -54,6 +55,11 @@ def _client(name: str, model: str | None):
         return m.ClaudeCodeClient(model=model)
     if name == "anthropic":
         return m.AnthropicClient(model_id=model or "claude-sonnet-5")
+    if name == "gateway":
+        from fva import config
+        cfg = _gateway_config(config.load())
+        return m.OpenAICompatibleClient(model_id=model or cfg["models"]["senior"], base_url=cfg["url"],
+                                        key_env=cfg.get("key_env", config.DEFAULT_KEY_ENV))
     if name == "local":
         import os
         return m.OpenAICompatibleClient(model_id=model or os.environ.get("FVA_LOCAL_MODEL", "local"),
@@ -63,21 +69,41 @@ def _client(name: str, model: str | None):
     raise SystemExit(f"unknown client {name}")
 
 
+def _gateway_config(cfg: dict | None) -> dict:
+    if not cfg or cfg.get("client") != "gateway" or not cfg.get("url") or not cfg.get("models", {}).get("senior"):
+        raise SystemExit("no gateway configured; run `python -m fva setup` first")
+    return cfg
+
+
+def default_client() -> str:
+    from fva import config
+    cfg = config.load()
+    return cfg["client"] if cfg and cfg.get("client") else "codex"
+
+
 def _router(args):
-    """Luna/Sol routing for codex by default; one model with --model or --no-route (codex: GPT-6 Sol).
-    Routing costs about 42-44% of Sol-only at list prices (measured 2026-09-28), see STATUS.md."""
+    """Junior/senior routing for codex, and for a gateway with a junior model; one model with --model or
+    --no-route (the senior model). Codex routing costs about 42-44% of Sol-only at list prices (measured
+    2026-09-28), see STATUS.md."""
     from fva.reasoning.routing import JUNIOR, SENIOR, Router, model_name
-    routed = args.client == "codex" and not args.model and not args.no_route
+    models = {}
+    if args.client == "gateway":
+        from fva import config
+        models = _gateway_config(config.load())["models"]
+    tiered = args.client == "codex" or bool(models.get("junior"))
+    routed = tiered and not args.model and not args.no_route
     astra = set(args.astra or ())
     if astra and not routed:
-        raise SystemExit("--astra needs routing: --client codex without --model/--no-route")
+        raise SystemExit("--astra needs routing: codex or a gateway with tier models, without --model/--no-route")
     if args.dry_run:  # no model calls; a routed plan needs only the policy
         return Router({}, astra_ids=astra) if routed else Router.single(_client("none", None))
     if not routed:
         model = args.model or (model_name(SENIOR) if args.client == "codex" else None)
         return Router.single(_client(args.client, model))
-    make = lambda m: _client("codex", m)
-    return Router({JUNIOR: make(model_name(JUNIOR)), SENIOR: make(model_name(SENIOR))}, make=make, astra_ids=astra)
+    make = lambda m: _client(args.client, m)
+    name = lambda tier: models.get(tier) or model_name(tier)
+    return Router({JUNIOR: make(name(JUNIOR)), SENIOR: make(name(SENIOR))}, make=make, astra_ids=astra,
+                  models=models)
 
 
 def _cli_name(client) -> str:
@@ -87,7 +113,7 @@ def _cli_name(client) -> str:
 def check_private_source(client_name: str, model: str | None) -> None:
     """Refuse a private-source run on a CLI whose tool boundary isn't enforced, or (Codex) not canary-checked."""
     if client_name not in ("codex", "claude-code"):
-        return  # API and local clients get no tools
+        return  # API, gateway and local clients get no tools
     from fva import pipeline
     from fva.reasoning import isolation
     client = _client(client_name, model)
@@ -109,7 +135,8 @@ def main(argv=None):
     for name, (_, text) in DELEGATED.items():
         sub.add_parser(name, help=text, add_help=False)
     a = sub.add_parser("assess", help="collect evidence and model assessments for findings")
-    a.add_argument("--client", default="codex", choices=["codex", "claude-code", "anthropic", "local", "none"])
+    a.add_argument("--client", choices=["codex", "claude-code", "anthropic", "gateway", "local", "none"],
+                   help="default: the client saved by `setup`, else codex")
     a.add_argument("--model", help="model to use (passed to the codex/claude CLI, or the API/local client)")
     a.add_argument("--profile-file", required=True, help="DeploymentProfile JSON")
     a.add_argument("--source", required=True, help="path to the pinned source checkout")
@@ -130,6 +157,14 @@ def main(argv=None):
                    help="send the cluster containing this scanner finding id to GPT-6 Astra (repeatable; needs routing)")
     a.add_argument("--private-source", action="store_true",
                    help="refuse model CLIs whose tool boundary isn't enforced (Codex needs a passing check-isolation)")
+    su = sub.add_parser("setup", help="choose a model gateway (LiteLLM or any OpenAI-compatible URL) and models")
+    su.add_argument("--url", help="gateway base URL")
+    su.add_argument("--key-env", default=None, help="environment variable that holds the gateway key "
+                    "(default FVA_GATEWAY_KEY); the key itself is never saved")
+    su.add_argument("--junior", help="model for bulk, bounded findings (blank: senior model for everything)")
+    su.add_argument("--senior", help="model for security-sensitive findings")
+    su.add_argument("--astra", help="model for clusters named with assess --astra (optional)")
+    su.add_argument("--no-test", action="store_true", help="skip the test call to each chosen model")
     ci = sub.add_parser("check-isolation", help="canary check that a model CLI can't read local files")
     ci.add_argument("--client", default="codex", choices=["codex", "claude-code"])
     ci.add_argument("--model", help="model to probe (codex default: the junior model)")
@@ -173,6 +208,11 @@ def main(argv=None):
         print(preview.write(Path(args.run_dir)))
         return
 
+    if args.cmd == "setup":
+        from fva import setup
+        setup.run(args)
+        return
+
     if args.cmd == "check-isolation":
         from fva import pipeline
         from fva.reasoning import isolation
@@ -192,6 +232,7 @@ def main(argv=None):
 
     from fva import pipeline
     from fva.reasoning import pricing
+    args.client = args.client or default_client()
     out = Path(args.out or f"data/runs/{datetime.now():%Y%m%d-%H%M%S}-{args.client}")
     if args.private_source and not args.dry_run:
         check_private_source(args.client, args.model)

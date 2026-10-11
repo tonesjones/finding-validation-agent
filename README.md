@@ -8,10 +8,12 @@ This is a working prototype with no routine human review step.
 ## Quick start
 
 You need Python 3.10 or newer, Git for a source checkout, and a Polaris export.
-The default model client needs an installed and authenticated Codex CLI.
+For models, either run `python -m fva setup` to use a LiteLLM gateway or any OpenAI-compatible URL, or
+install and sign in to the Codex CLI (the default when nothing is set up).
 
 ```bash
 pip install -e .
+python -m fva setup     # optional: gateway URL, key variable name, model per tier
 cp examples/profiles/juiceshop.json app-profile.json
 # Edit app-profile.json for your app before running assess.
 python -m fva assess --findings "<export>/page-*.json" --source "<checkout>" --profile-file app-profile.json --out runs/app --cache runs/cache
