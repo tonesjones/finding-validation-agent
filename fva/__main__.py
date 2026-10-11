@@ -80,6 +80,26 @@ def _router(args):
     return Router({JUNIOR: make(model_name(JUNIOR)), SENIOR: make(model_name(SENIOR))}, make=make, astra_ids=astra)
 
 
+def _cli_name(client) -> str:
+    return Path(client._argv[0]).stem.lower()
+
+
+def check_private_source(client_name: str, model: str | None) -> None:
+    """Refuse a private-source run on a CLI whose tool boundary isn't enforced, or (Codex) not canary-checked."""
+    if client_name not in ("codex", "claude-code"):
+        return  # API and local clients get no tools
+    from fva import pipeline
+    from fva.reasoning import isolation
+    client = _client(client_name, model)
+    if client.isolation != "enforced":
+        raise SystemExit(f"--private-source: a custom {client.env_var} command is not allowed")
+    if client_name == "codex":
+        version = pipeline._cli_version(client._argv[0])
+        if not isolation.passed_for(_cli_name(client), version):
+            raise SystemExit(f"--private-source: no passing isolation check for {version or 'codex'}; "
+                             "run `python -m fva check-isolation --client codex` first")
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv and argv[0] in DELEGATED:
@@ -108,6 +128,11 @@ def main(argv=None):
     a.add_argument("--prices", help="JSON file of per-1M-token prices by model name (overrides the built-in table)")
     a.add_argument("--astra", action="append", metavar="SOURCE_FINDING_ID",
                    help="send the cluster containing this scanner finding id to GPT-6 Astra (repeatable; needs routing)")
+    a.add_argument("--private-source", action="store_true",
+                   help="refuse model CLIs whose tool boundary isn't enforced (Codex needs a passing check-isolation)")
+    ci = sub.add_parser("check-isolation", help="canary check that a model CLI can't read local files")
+    ci.add_argument("--client", default="codex", choices=["codex", "claude-code"])
+    ci.add_argument("--model", help="model to probe (codex default: the junior model)")
     w = sub.add_parser("worksheet", help="write worksheet.csv/.html for a run (suggestions only, nothing sent to Polaris)")
     w.add_argument("run_dir")
     t = sub.add_parser("triage", help="write triage.jsonl/triage.md: auto vs review routing for a run")
@@ -148,6 +173,18 @@ def main(argv=None):
         print(preview.write(Path(args.run_dir)))
         return
 
+    if args.cmd == "check-isolation":
+        from fva import pipeline
+        from fva.reasoning import isolation
+        from fva.reasoning.routing import JUNIOR, model_name
+        client = _client(args.client, args.model or (model_name(JUNIOR) if args.client == "codex" else None))
+        result = isolation.check(client, _cli_name(client), pipeline._cli_version(client._argv[0]))
+        out = isolation.save(result)
+        print(f"{'passed' if result['passed'] else 'FAILED'}: {result['version']} -> {out}")
+        if not result["passed"]:
+            sys.exit(1)
+        return
+
     if args.cmd == "worksheet":
         from fva.export import worksheet
         print(worksheet.write(Path(args.run_dir)))
@@ -156,6 +193,8 @@ def main(argv=None):
     from fva import pipeline
     from fva.reasoning import pricing
     out = Path(args.out or f"data/runs/{datetime.now():%Y%m%d-%H%M%S}-{args.client}")
+    if args.private_source and not args.dry_run:
+        check_private_source(args.client, args.model)
     client = _router(args)
     source_root = Path(args.source)
     warn_missing_sast_paths(pipeline.load_findings(args.findings), source_root)

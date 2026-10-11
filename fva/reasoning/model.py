@@ -227,6 +227,10 @@ class _CliClient:
         if self.last_tokens is None and usage and {"input_tokens", "output_tokens"} <= usage.keys():
             # `--json` drops the footer; rebuild its figure (uncached input plus output) from the usage event
             self.last_tokens = usage["input_tokens"] - usage.get("cached_input_tokens", 0) + usage["output_tokens"]
+        used = sorted({e["item"].get("type", "unknown") for e in events if isinstance(e.get("item"), dict)
+                       and e["item"].get("type") not in _CODEX_NON_TOOL_ITEMS})
+        if used:
+            raise ToolUseError(f"{Path(argv[0]).name} used tools during assessment: {', '.join(used)}")
         if self.audit:
             tools, unknown = [], []
             for event in rows:
@@ -258,13 +262,31 @@ class _CliClient:
             return self._run(prompt, Path(d))
 
 
+# Codex has no single tools-off flag. Without these, `codex exec` still offers a shell, a code-mode exec and the
+# account's connected apps (Atlassian create/edit tools among them), even with --ignore-user-config.
+# Checked on codex-cli 0.157.1; an unknown name makes Codex exit 1, so a rename fails loudly.
+CODEX_DISABLED_FEATURES = ("apps", "plugins", "remote_plugin", "shell_tool", "unified_exec", "code_mode_host",
+                           "browser_use", "computer_use", "in_app_browser", "in_app_local_automation", "view_image",
+                           "image_generation", "memories", "goals", "multi_agent", "sleep_tool", "tool_suggest",
+                           "skill_search", "workspace_dependencies")
+
+# `codex exec --json` item types that are not tool use. Anything else (command_execution, mcp_tool_call,
+# collab_tool_call, file_change, web_search, a new type) rejects the answer.
+_CODEX_NON_TOOL_ITEMS = {"agent_message", "reasoning", "error", "todo_list"}
+
+
+class ToolUseError(RuntimeError):
+    """The CLI reported tool use during an assessment. The answer is discarded and never cached."""
+
+
 class CodexCliClient(_CliClient):
-    """OpenAI Codex CLI on a ChatGPT/Codex subscription login: `codex exec`, read-only sandbox,
-    final reply constrained to the assessment JSON schema."""
+    """OpenAI Codex CLI on a ChatGPT/Codex subscription login: `codex exec`, read-only sandbox, tool features
+    off, final reply constrained to the assessment JSON schema."""
 
     env_var = "FVA_CODEX_CMD"
     default_cmd = ("codex exec --skip-git-repo-check --sandbox read-only --output-schema {schema} "
-                   "--output-last-message {out} --json --ignore-user-config -")
+                   "--output-last-message {out} --json --ignore-user-config "
+                   + " ".join(f"--disable {name}" for name in CODEX_DISABLED_FEATURES) + " -")
     model_id = "codex-cli"
 
     @property
