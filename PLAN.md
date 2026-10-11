@@ -154,6 +154,17 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
   - keep them as they are;
   - send them to the model (32 calls);
   - lower the bar for this rule.
+- [ ] **Open after F3 (Astra revision, 2026-10-10):**
+  - Codex has no flag that turns its tools off. Its read-only sandbox can still read files outside the
+    empty working directory, so the boundary for the default client is unknown. Owner decision: accept
+    and document this, block Codex for private source, or make a tool-free client (Claude Code with
+    `--tools ""`, or an API client) the default for private source.
+  - Cache keys don't include the CLI flags. Answers cached before PR #53 still hit. That's acceptable
+    because the flags limit tools and don't change the model or prompt, but Astra PR 5 asks for this to
+    be written down.
+- [ ] **Astra PR 6, recovery.** A run ends `complete`, `partial` or `failed`. Today a run with cluster
+  errors still prints `done`; the 2026-10-10 cache-only check printed it with 33 errors. Smallest slice in
+  progress.
 - [ ] **Deferred from Astra:**
   - F4, scoped-assumption labels;
   - F7, a run manifest;
