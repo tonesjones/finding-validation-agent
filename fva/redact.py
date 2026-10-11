@@ -40,6 +40,29 @@ def redact(text: str, *, all_strings: bool = False) -> str:
     return text
 
 
+_KEY_BEGIN = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")
+_KEY_END = re.compile(r"-----END [A-Z ]*PRIVATE KEY-----")
+
+
+def redact_lines(lines: list[str], *, all_strings: bool = False) -> list[str]:
+    """Redact source lines one by one, first masking whole PEM private-key blocks.
+
+    A block runs from its BEGIN line through its END line; with no END it runs to the end of the file
+    (fail closed). The line count never changes, so line numbers stay valid."""
+    out, inside = [], False
+    for line in lines:
+        # a block that closes on its own line is left to the single-line pattern, which keeps the code around it
+        if not inside and (m := _KEY_BEGIN.search(line)) and not _KEY_END.search(line, m.end()):
+            inside = True
+        if inside:
+            out.append(MASK)
+            if _KEY_END.search(line):
+                inside = False
+        else:
+            out.append(redact(line, all_strings=all_strings))
+    return out
+
+
 def redact_http(text: str) -> str:
     """Mask complete credential headers in HTTP evidence, preserving source syntax elsewhere."""
     return redact(_HEADERS.sub(lambda m: f"{m.group(1)} {MASK}", text))

@@ -8,6 +8,8 @@ import threading
 import urllib.request
 from typing import Protocol
 
+from fva.redact import redact_http
+
 
 class ModelClient(Protocol):
     model_id: str
@@ -187,9 +189,9 @@ class _CliClient:
             log_dir = Path(os.environ.get("FVA_CLI_LOG_DIR", "data/logs"))
             log_dir.mkdir(parents=True, exist_ok=True)
             log = log_dir / f"{Path(argv[0]).stem}-{workdir.name}.log"
-            log.write_text(f"argv: {argv}\nexit: {r.returncode}\n--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}",
+            log.write_text(redact_http(f"argv: {argv}\nexit: {r.returncode}\n--- stdout ---\n{r.stdout}\n--- stderr ---\n{r.stderr}"),
                            encoding="utf-8")
-            tail = "\n".join(((r.stderr or "") + "\n" + (r.stdout or "")).strip().splitlines()[-12:])
+            tail = redact_http("\n".join(((r.stderr or "") + "\n" + (r.stdout or "")).strip().splitlines()[-12:]))
             raise RuntimeError(f"{Path(argv[0]).name} exited {r.returncode} (full log: {log}):\n{tail}")
         log = _ANSI.sub("", f"{r.stderr}\n{r.stdout}")
         m = re.search(r"^model:\s*(\S+)", log, re.M)
