@@ -39,18 +39,31 @@ class AnthropicClient:
 
 
 class OpenAICompatibleClient:
-    """Any OpenAI-compatible chat endpoint (vLLM, Ollama, LM Studio...) for local/self-hosted models."""
+    """Any OpenAI-compatible chat endpoint: a LiteLLM gateway, vLLM, Ollama, LM Studio. An API client, so the
+    model has no tools. `base_url` may end in `/v1` or not."""
 
-    def __init__(self, model_id: str, base_url: str, api_key: str | None = None):
+    def __init__(self, model_id: str, base_url: str, api_key: str | None = None,
+                 key_env: str = "FVA_LOCAL_MODEL_KEY"):
         self.model_id = model_id
-        self._url = base_url.rstrip("/") + "/v1/chat/completions"
-        self._key = api_key or os.environ.get("FVA_LOCAL_MODEL_KEY", "")
+        base = base_url.rstrip("/")
+        self._base = base if base.endswith("/v1") else base + "/v1"
+        self._url = self._base + "/chat/completions"
+        from fva import credentials
+        self._key = api_key or credentials.get(credentials.gateway(key_env)) or ""
+
+    def _headers(self) -> dict:
+        return {"content-type": "application/json", **({"authorization": f"Bearer {self._key}"} if self._key else {})}
+
+    def list_models(self) -> list[str]:
+        with urllib.request.urlopen(urllib.request.Request(self._base + "/models", headers=self._headers()),
+                                    timeout=30) as r:
+            return sorted(m["id"] for m in json.loads(r.read()).get("data", []))
 
     def complete(self, system: str, user: str, *, max_tokens: int = 2000) -> str:
         body = {"model": self.model_id, "max_tokens": max_tokens, "temperature": 0,
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
-        h = {"content-type": "application/json", **({"authorization": f"Bearer {self._key}"} if self._key else {})}
-        with urllib.request.urlopen(urllib.request.Request(self._url, json.dumps(body).encode(), h), timeout=300) as r:
+        req = urllib.request.Request(self._url, json.dumps(body).encode(), self._headers())
+        with urllib.request.urlopen(req, timeout=300) as r:
             return json.loads(r.read())["choices"][0]["message"]["content"]
 
 

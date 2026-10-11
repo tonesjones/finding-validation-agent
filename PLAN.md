@@ -156,11 +156,26 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
     `check-isolation` canary-checks each Codex version. Live on codex-cli 0.157.1 (Windows): the old flags
     let the model read a file outside its workdir; `--ignore-user-config` blocked it only through a Windows
     default; Codex still offered connected Atlassian apps (create Jira issue) until `--disable apps`; the
-    check passed with the new flags. Owner decision pending: A) Codex for private source with a passing
-    per-version check, or B) Claude Code only for private source.
+    check passed with the new flags. Owner decision (2026-10-11): not A or B. Codex plus the canary
+    stays for personal testing; company use goes through a model gateway (below), which has no tools.
   - Cache keys don't include the CLI flags. Answers cached before PR #53 still hit. That's acceptable
     because the flags limit tools and don't change the model or prompt, but Astra PR 5 asks for this to
     be written down.
+- [ ] **Work setup: run FVA end to end through a company model gateway.** The owner will test this
+  from a work machine. Flow: run fva, set up models, pull findings from Polaris, point at the codebase,
+  get results.
+  - [x] Model setup. `python -m fva setup` saves a LiteLLM (or any OpenAI-compatible) URL, the key's
+    environment variable name and a model per tier, after a test call to each model.
+    `assess` uses it by default. A gateway client is an API client, so `--private-source` allows it.
+  - [x] Guided start, `python -m fva` with no arguments: models, Polaris (token, project and branch pick,
+    export), source (path, commit, profile from a few questions), quick check, run, report.
+  - [x] Credentials: hidden input, user picks OS credential store (`pip install -e .[secure]`), session
+    only, or env var. `python -m fva credentials [--forget ...]` shows where, never values.
+  - [ ] Owner's work-machine test: `python -m fva` end to end; token lands in Windows Credential Manager;
+    smoke run produces a report.
+  - [ ] Check the Polaris project and branch lists against a live tenant (shapes are guessed).
+  - [ ] Quality check per new model: a Juice Shop run against the answer key before trusting it.
+  - [ ] Prices for gateway models (cost shows as unknown today).
 - [x] **Astra PR 6, recovery (smallest slice).** A run ends `complete`, `partial` or `failed`. A partial run
   exits 2. Readers warn on partial runs and refuse failed ones. PR #55. Retry policy is still open.
 - [ ] **Deferred from Astra:**

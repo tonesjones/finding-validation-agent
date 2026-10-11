@@ -3,7 +3,7 @@
 Credentials come from the environment (never from code or committed config):
   POLARIS_URL            e.g. https://poc.polaris.blackduck.com   (default)
   POLARIS_ACCESS_TOKEN   Polaris access token
-Falls back to data/.polaris-token (git-ignored) if the variable is unset.
+Falls back to the OS credential store, then data/.polaris-token (fva/credentials.py).
 
 Capture raw sample responses (for adapter fixtures):
   python -m fva.polaris_mcp sample --project <projectId> --issue <sastIssueId> --issue <scaIssueId>
@@ -27,12 +27,10 @@ READ_ONLY_TOOLS = {"list_issues", "list_component_versions", "get_issue", "get_p
 class PolarisMCP:
     def __init__(self, base_url: str | None = None, token: str | None = None):
         self.url = (base_url or os.environ.get("POLARIS_URL") or "https://poc.polaris.blackduck.com").rstrip("/") + "/api/mcp"
-        tok = token or os.environ.get("POLARIS_ACCESS_TOKEN")
+        from fva import credentials
+        tok = token or credentials.get(credentials.polaris())
         if not tok:
-            f = Path("data/.polaris-token")
-            tok = f.read_text(encoding="utf-8").strip() if f.exists() else None
-        if not tok:
-            raise SystemExit("Set POLARIS_ACCESS_TOKEN (or put the token in data/.polaris-token)")
+            raise SystemExit("No Polaris token: run `python -m fva`, or set POLARIS_ACCESS_TOKEN")
         self._token, self._sid, self._id = tok, None, 0
         self._rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                                  "clientInfo": {"name": "fva", "version": "0.2"}})

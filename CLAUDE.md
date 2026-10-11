@@ -17,6 +17,9 @@ python -m fva assess --client codex --source "<juice-shop-checkout>" --profile-f
 python -m fva assess --client codex --no-route --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json  # GPT-6 Sol for every cluster
 python -m fva assess --dry-run --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json                  # prompts only
 python -m fva assess --client codex --workers 4 --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json   # parallel model calls
+python -m fva                                            # guided start: models, Polaris, source, run, report
+python -m fva credentials [--forget all]                 # where the token/key are kept, never the values
+python -m fva setup                                      # gateway URL + model per tier -> data/fva-config.json
 python -m fva check-isolation --client codex             # canary: Codex can't read local files (per version)
 python -m fva assess --private-source --client codex ...   # refuses Codex without a passing check
 python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
@@ -32,7 +35,7 @@ Roles: you (Claude) act as VP of engineering and own final review; Codex does th
 GPT-6 Luna (junior, bulk) and GPT-6 Sol (senior, security-sensitive judgment), routed per cluster by
 default (about 42-44% of Sol-only cost at list prices). Routing policy and results: `STATUS.md`.
 
-Clients: `--client codex | claude-code | anthropic | local`; `--model` passes a model name through.
+Clients: `--client codex | claude-code | anthropic | gateway | local` (default: the one `setup` saved, else codex); `--model` passes a model name through.
 Operator detail (routing rules, scoring internals, assess options): `docs/operations.md`.
 Runs write to `data/runs/<timestamp>-<client>/` (`summary.json`, `assessments.jsonl`, `evidence.jsonl`,
 `findings.jsonl`, `groups.jsonl`, `links.jsonl`). DAST is optional: SAST+SCA-only runs use runtime mode `none`.

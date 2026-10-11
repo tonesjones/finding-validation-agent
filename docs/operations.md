@@ -160,6 +160,56 @@ outcome, sorted by outcome).
 Without supporting runtime evidence, runtime-only verdicts can only reach `agree_static` or `unresolved`. A different app needs
 its own key in the same format (`candidate_id`, `classification`).
 
+## Guided start
+
+`python -m fva` (or `python -m fva start`) runs four steps and saves each answer to the settings file:
+
+1. **Models.** A gateway through `setup` (below), or the Codex CLI for personal testing.
+2. **Polaris.** URL and token (see [Credentials](#credentials)),
+   then a project and branch picked from the portfolio, then a read-only export to
+   `data/polaris-export/<project>-<timestamp>/`. A saved export can be reused.
+3. **Source.** The checkout path, then an app profile guessed from it (commit, Node from `package.json`,
+   start files) and confirmed in a few questions. Saved to `data/profiles/<name>.json`.
+4. **Run.** An optional one-group check, then `assess --private-source`, `triage` and `report`. The report
+   opens in the browser.
+
+The project and branch lists use `get_portfolio_id`, `get_portfolio_projects` and `get_branches`. Their
+response shapes are not yet checked against a live tenant; if a list comes back empty, paste the id.
+
+## Credentials
+
+FVA needs two secrets: the Polaris access token and, for most gateways, the gateway key. `fva/credentials.py`
+finds each one in this order and the guided start says which one it used:
+
+1. An environment variable you set yourself (`POLARIS_ACCESS_TOKEN`, or the gateway key's variable,
+   default `FVA_GATEWAY_KEY`). FVA never saves it.
+2. The OS credential store (Windows Credential Manager, macOS Keychain, Secret Service), under the service
+   name `fva`. Needs `pip install -e .[secure]` (the `keyring` package).
+3. Polaris token only: the plain-text file `data/.polaris-token`, kept for older setups. Git-ignored.
+
+When a secret is missing, the guided start asks for it with hidden input and offers: the credential store,
+this session only (nothing saved), or, for the Polaris token, the plain-text file. Each option says what it
+means. Secrets are sent only to Polaris and to the gateway. They are never printed, logged, written to the
+settings file, put in run output, or sent to a model.
+
+`python -m fva credentials` shows where each one is kept, never the value. `--forget polaris|gateway|all`
+removes the copies FVA saved (credential store and file). Environment variables are yours to unset.
+
+## Model setup (gateway)
+
+`python -m fva setup` configures a LiteLLM gateway or any OpenAI-compatible endpoint. It asks for the URL,
+the name of the environment variable that holds the key (default `FVA_GATEWAY_KEY`), and a model per tier
+from the gateway's model list: senior (security-sensitive findings), junior (bulk, bounded findings; blank
+sends everything to senior), and optionally astra. It sends each model a test call that must answer JSON,
+then saves `data/fva-config.json` (`FVA_CONFIG` overrides the path). The key is handled as in
+[Credentials](#credentials), never in this file.
+Flags (`--url`, `--key-env`, `--senior`, `--junior`, `--astra`, `--no-test`) skip the questions.
+
+After setup, `assess` uses `--client gateway` by default, with the same junior/senior routing rules as
+Codex. `--model` or `--no-route` sends every cluster to one model. Gateway calls are plain API calls, so the
+model has no tools and `--private-source` allows them. Where the redacted code goes is the gateway's data
+policy. Cost shows as unknown until the gateway's models have prices (`--prices`).
+
 ## Model client isolation
 
 FVA enforces these limits on the model CLIs itself; the prompt only repeats them. Each call runs in an empty temp
