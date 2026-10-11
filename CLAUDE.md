@@ -17,6 +17,8 @@ python -m fva assess --client codex --source "<juice-shop-checkout>" --profile-f
 python -m fva assess --client codex --no-route --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json  # GPT-6 Sol for every cluster
 python -m fva assess --dry-run --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json                  # prompts only
 python -m fva assess --client codex --workers 4 --source "<juice-shop-checkout>" --profile-file examples/profiles/juiceshop.json   # parallel model calls
+python -m fva check-isolation --client codex             # canary: Codex can't read local files (per version)
+python -m fva assess --private-source --client codex ...   # refuses Codex without a passing check
 python -m fva worksheet data\runs\<run>                     # triage worksheet.csv/.html (suggestions only)
 python -m fva score data\runs\<run>                         # automatic scoring vs the PoC ledger -> score.md
 python -m fva triage data\runs\<run>                        # auto vs review routing -> triage.jsonl, triage.md
@@ -59,7 +61,10 @@ Model answers are cached in `data/cache/model/`; CLI failures log to `data/logs/
 
 ## Gotchas
 
-- Pipe `< /dev/null` into a background `codex exec`, or it hangs waiting on stdin.
+- Pipe `< /dev/null` into a bare background `codex exec`, or it hangs waiting on stdin. Never add it to a
+  heredoc-fed command: it replaces the heredoc as stdin.
+- Never link `data/` into a worktree. On 2026-10-10 `git worktree remove` on Windows followed the junction
+  and emptied `data/`.
 - Adding reason codes changes the assess prompt and empties the model cache, unless the new codes
   are left out of `MODEL_CODES` in `fva/reasoning/assessor.py`.
 - The pipeline writes run files in text mode, so their hashes differ between Windows and Linux.

@@ -205,15 +205,17 @@ def versions(router: Router, snap) -> dict:
         fva_version = metadata.version("fva")
     except metadata.PackageNotFoundError:
         fva_version = None
-    cli = {}
+    cli, isolation = {}, {}
     for c in router.built:
         argv = getattr(c, "_argv", None)
         if argv:
             cli[Path(argv[0]).stem] = _cli_version(argv[0])
+            isolation[Path(argv[0]).stem] = getattr(c, "isolation", None)
     return {"fva": fva_version, "fva_commit": head, "fva_dirty": None if changes is None else bool(changes),
             "python": platform.python_version(), "platform": platform.system(),
             "reason_codes": reason_codes.VOCABULARY_VERSION, "source_commit": snap.vcs_commit,
-            "source_dirty": snap.vcs_dirty, "cli": dict(sorted(cli.items()))}
+            "source_dirty": snap.vcs_dirty, "cli": dict(sorted(cli.items())),
+            "isolation": dict(sorted(isolation.items()))}
 
 
 def run(**kwargs) -> dict:
