@@ -81,6 +81,19 @@ SCHEMA_FILE = Path(__file__).with_name("assessment.schema.json")  # reply shape,
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
+# Environment passed to model CLIs; everything else (POLARIS_*, FVA_*, GITHUB_TOKEN, ...) is dropped.
+CLI_ENV_ALLOWLIST = frozenset({
+    "PATH", "PATHEXT", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "TEMP", "TMP", "TMPDIR", "HOME",
+    "USERPROFILE", "APPDATA", "LOCALAPPDATA", "HOMEDRIVE", "HOMEPATH", "LANG", "LC_ALL", "CODEX_HOME",
+    "CLAUDE_CONFIG_DIR", "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS",
+    "ANTHROPIC_API_KEY", "OPENAI_API_KEY"})
+
+
+def _minimal_env() -> dict[str, str]:
+    fold = (lambda k: k.upper()) if os.name == "nt" else (lambda k: k)
+    return {k: v for k, v in os.environ.items() if fold(k) in CLI_ENV_ALLOWLIST}
+
+
 def _jsonl(text: str) -> list[dict | None]:
     """One entry per stdout line: the parsed event, or None when the line is not a JSON object."""
     rows = []
@@ -156,8 +169,12 @@ class _CliClient:
         self._local = threading.local()
         self.schema_file = schema_file or SCHEMA_FILE
         self.audit = audit
-        cmd = command or os.environ.get(self.env_var) or self.default_cmd
-        self._argv = shlex.split(cmd, posix=(os.name != "nt"))
+        override = command or os.environ.get(self.env_var)
+        cmd = override or self.default_cmd
+        # "enforced": FVA's own default command (tools off / read-only sandbox). "unverified": caller-supplied.
+        self.isolation = "unverified" if override else "enforced"
+        # non-posix shlex keeps the quote characters, so turn a bare "" / '' token into an empty argument
+        self._argv = ["" if a in ('""', "''") else a for a in shlex.split(cmd, posix=(os.name != "nt"))]
         if audit and isinstance(self, CodexCliClient):
             if "exec" not in self._argv:
                 raise ValueError("audited Codex command must contain the exec subcommand")
@@ -184,7 +201,7 @@ class _CliClient:
         self.last_reported_model = self.last_tokens = self.last_usage = None
         self._local.last_audit = None
         r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           cwd=workdir, timeout=self._timeout)
+                           cwd=workdir, timeout=self._timeout, env=_minimal_env())
         if r.returncode != 0:
             log_dir = Path(os.environ.get("FVA_CLI_LOG_DIR", "data/logs"))
             log_dir.mkdir(parents=True, exist_ok=True)
@@ -247,7 +264,7 @@ class CodexCliClient(_CliClient):
 
     env_var = "FVA_CODEX_CMD"
     default_cmd = ("codex exec --skip-git-repo-check --sandbox read-only --output-schema {schema} "
-                   "--output-last-message {out} --json -")
+                   "--output-last-message {out} --json --ignore-user-config -")
     model_id = "codex-cli"
 
     @property
@@ -268,6 +285,6 @@ class ClaudeCodeClient(_CliClient):
     """Claude Code on a Claude subscription login: `claude -p` (print mode), no tools."""
 
     env_var = "FVA_CLAUDE_CMD"
-    default_cmd = "claude -p --output-format text"
+    default_cmd = 'claude -p --output-format text --tools "" --strict-mcp-config --permission-prompts none'
     model_id = "claude-code-cli"
     model_flag = "--model"
