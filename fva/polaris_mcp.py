@@ -111,12 +111,12 @@ def fetch_types(client: PolarisMCP, out: Path, **scope) -> int:
     types = {}
     for wid, iid in first_issue.items():
         res = client.call("get_issue", issueId=iid, includeType=True, includeOccurrenceProperties=False,
-                          includeFirstDetectedOn=False, **{k: v for k, v in scope.items() if k != "branchId"})
+                          includeFirstDetectedOn=False, **scope)
         types[wid] = json.loads(res["content"][0]["text"]).get("data", {}).get("type")
     dast_types = {}
     for issue_id in dast_issues:
         res = client.call("get_issue", issueId=issue_id, includeType=True, includeOccurrenceProperties=False,
-                          includeFirstDetectedOn=False, **{k: v for k, v in scope.items() if k != "branchId"})
+                          includeFirstDetectedOn=False, **scope)
         dast_types[issue_id] = json.loads(res["content"][0]["text"]).get("data", {}).get("type")
     (out / "types.json").write_text(json.dumps(types, indent=1), encoding="utf-8")
     (out / "dast-types.json").write_text(json.dumps(dast_types, indent=1), encoding="utf-8")

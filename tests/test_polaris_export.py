@@ -51,6 +51,21 @@ def test_export_keeps_static_weakness_dedup_and_dast_issue_identity(tmp_path):
     }
     assert [call["issueId"] for call in client.calls] == ["static-1", "dast-1", "dast-2"]
     assert all(call["includeType"] is True for call in client.calls)
+    assert all(call["projectId"] == "synthetic-project" and call["branchId"] == "synthetic-branch"
+               for call in client.calls)
+
+
+def test_fetch_types_omits_branch_when_scope_has_none(tmp_path):
+    issues = [
+        {"id": "static-1", "weaknessId": "weakness-1", "context": {"toolType": "sca"}},
+        {"id": "dast-1", "weaknessId": "weakness-2", "context": {"toolType": "dast"}},
+    ]
+    page = {"content": [{"text": json.dumps({"data": {"_items": issues}})}]}
+    (tmp_path / "page-0001.json").write_text(json.dumps(page), encoding="utf-8")
+    client = StubClient({"static-1": {"name": "Static"}, "dast-1": {"name": "DAST"}})
+
+    assert fetch_types(client, tmp_path, projectId="synthetic-project") == 2
+
     assert all(call["projectId"] == "synthetic-project" and "branchId" not in call for call in client.calls)
 
 
