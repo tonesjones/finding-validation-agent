@@ -19,8 +19,8 @@ def test_ranking_and_score_math(run):
     assert [x["rank"] for x in t] == [1, 2, 3, 4]
     # confirmed 1.0 * high 0.8 * default reach 0.6 * dast-supported runtime 1.0
     assert t[0]["score"] == 0.48 and t[0]["verdict"] == "confirmed"
-    # likely 0.7 * 0.8 * 0.6 * 0.8 ; needs_review 0.4 * 0.8 * 0.6 * 0.8
-    assert t[1]["score"] == 0.269 and t[2]["score"] == 0.154
+    # likely 0.7 * 0.8 * entrypoint reach 1.0 * 0.8 ; needs_review 0.4 * 0.8 * 0.6 * 0.8
+    assert t[1]["score"] == 0.448 and t[2]["score"] == 0.154
     assert t[0]["members"] == ["POL-d"] and t[0]["location"] == "a.ts:1"
     assert {e["id"] for e in t[1]["evidence"]} >= {"e1", "e2"}
     assert all(set(e) == {"id", "type", "stance", "method"} for x in t for e in x["evidence"])

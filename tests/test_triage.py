@@ -10,8 +10,8 @@ from fva.verdicts import check_suggestion
 NOW = datetime(2026, 10, 3, tzinfo=timezone.utc)
 
 
-def _ev(eid, et, stance, profile="p", fid="f"):
-    return EvidenceRecord(evidence_id=eid, finding_ids=(fid,), evidence_type=et, method="m", stance=stance,
+def _ev(eid, et, stance, profile="p", fid="f", method="m"):
+    return EvidenceRecord(evidence_id=eid, finding_ids=(fid,), evidence_type=et, method=method, stance=stance,
                           summary="s", collected_at=NOW, deployment_profile_id=profile)
 
 
@@ -101,7 +101,8 @@ def test_build_auto_rows_pass_invariants(tmp_path):
     (tmp_path / "findings.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     (tmp_path / "summary.json").write_text(json.dumps({"profile": "p"}))
     evs = [_ev("e0", T.deployment_boundary, S.refutes, fid="t"),
-           _ev("e1", T.model_assessment, S.supports, fid="l"), _ev("e2", T.reachability, S.neutral, fid="l"),
+           _ev("e1", T.model_assessment, S.supports, fid="l"), _ev("e2", T.reachability, S.neutral, fid="l",
+               method="static_import_graph:in_entrypoint_graph"),
            _ev("e3", T.model_assessment, S.refutes, fid="m"),
            _ev("e4", T.model_assessment, S.non_security, fid="q")]
     (tmp_path / "evidence.jsonl").write_text("\n".join(e.model_dump_json() for e in evs) + "\n")

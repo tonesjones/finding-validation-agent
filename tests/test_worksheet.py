@@ -10,8 +10,8 @@ from fva.schemas import EvidenceRecord, EvidenceType, Stance
 NOW = datetime(2026, 10, 1, tzinfo=timezone.utc)
 
 
-def _ev(eid, fid, et, stance, profile="p"):
-    return EvidenceRecord(evidence_id=eid, finding_ids=(fid,), evidence_type=et, method="m", stance=stance,
+def _ev(eid, fid, et, stance, profile="p", method="m"):
+    return EvidenceRecord(evidence_id=eid, finding_ids=(fid,), evidence_type=et, method=method, stance=stance,
                           summary="s", collected_at=NOW, deployment_profile_id=profile).model_dump_json()
 
 
@@ -29,7 +29,7 @@ def run(tmp_path):
     (tmp_path / "summary.json").write_text(json.dumps({"profile": "p"}))
     evs = [_ev("e0", "t", EvidenceType.deployment_boundary, Stance.refutes),  # rule skip cites its boundary record
            _ev("e1", "l", EvidenceType.model_assessment, Stance.supports),
-           _ev("e2", "l", EvidenceType.reachability, Stance.neutral),
+           _ev("e2", "l", EvidenceType.reachability, Stance.neutral, method="static_import_graph:in_entrypoint_graph"),
            _ev("e3", "m", EvidenceType.model_assessment, Stance.supports),  # model only
            _ev("e4", "d", EvidenceType.dast_observation, Stance.supports),
            _ev("e6", "q", EvidenceType.static_source, Stance.neutral, profile=None),  # real runs: no profile id

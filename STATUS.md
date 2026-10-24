@@ -1,6 +1,6 @@
 # Status
 
-Updated 2026-10-11.
+Updated 2026-10-23.
 
 ## Current state
 
@@ -43,6 +43,12 @@ DAST is parked. There is no routine human review. Open findings stay open.
   19 fresh calls, 0 errors, $0.46 list price. DoD 2 still passes. The drift findings stayed open.
 - F6 (PR #56): a `no_effect` finding closes only on an explicit discard (`void`, `??=`). All 32 Juice Shop
   closures match, so the numbers above are unchanged.
+- `likely` now needs a rule record that shows what its reason code claims. `VULNERABLE_VERSION_IMPORTED` needs
+  an `imported_by_reachable_code` or `imported_by_shipped_code` reachability record. `STATIC_REACHABLE_SINK`
+  needs `in_entrypoint_graph`. A model `supports` with only neutral reach (`not_imported_directly`, `not_code`,
+  or a run with no language pack) stays `needs_review`. Juice Shop cache-only rescore `20261023-js-likelyfix`
+  ($0; 19 drift clusters missed the cache and errored): 0 of 573 verdicts changed against main. Auto share 0.808,
+  auto agreement 0.994, 0 incorrect demotions, matching DoD 2. All 14 `likely` findings already cited real reach.
 - Node-RED 5.0.8 (`935b8d3e`) fits DoD 3: npm v3 lockfile, no workspaces, `red.js` entry, and `adminAuth`
   roles `*`, `read` and `default`. Profile drafted in private `data/`.
 
