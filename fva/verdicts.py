@@ -32,6 +32,8 @@ SKIP_CONFIDENCE = {"dependency:dev_only_not_shipped": "medium",
                    "dependency:advisory_precondition_absent": "medium",
                    **{f"quality:{name}": "medium" for name in QUALITY_CHECKERS}}
 RULE_CONTEXT = {EvidenceType.static_source, EvidenceType.reachability, EvidenceType.dependency_resolution}
+SCA_IMPORTED = {"static_import_graph:imported_by_reachable_code", "static_import_graph:imported_by_shipped_code"}
+SAST_REACHABLE = "static_import_graph:in_entrypoint_graph"
 
 
 def check_suggestion(fid: str, verdict: V, codes: tuple[str, ...], evs: list[EvidenceRecord], conf: str,
@@ -95,14 +97,15 @@ def suggest_verdict(row: dict, evs: list[EvidenceRecord], *,
         if check_suggestion(row["finding_id"], V.valid_non_security, ("QUALITY_NOT_SECURITY",), evs, "medium", profile):
             return V.valid_non_security, ("QUALITY_NOT_SECURITY",), "medium", evs
     if Stance.supports in stances and any(e.evidence_type in RULE_CONTEXT for e in evs):
-        if any(e.method == "advisory_call_site:called" for e in evs):
-            codes = ["VULNERABLE_FUNCTION_CALLED"]
+        # each code claims import or reachability, so a rule record must have shown it
+        methods = {e.method for e in evs if e.evidence_type in RULE_CONTEXT}
+        if "advisory_call_site:called" in methods:
+            code = "VULNERABLE_FUNCTION_CALLED"
         elif row["finding_type"] == "sca":
-            codes = ["VULNERABLE_VERSION_IMPORTED"]
+            code = "VULNERABLE_VERSION_IMPORTED" if methods & SCA_IMPORTED else None
         else:
-            codes = ["STATIC_REACHABLE_SINK"]
-        for code in codes:
-            if check_suggestion(row["finding_id"], V.likely, (code,), evs, "medium", profile):
-                return V.likely, (code,), "medium", evs
+            code = "STATIC_REACHABLE_SINK" if SAST_REACHABLE in methods else None
+        if code and check_suggestion(row["finding_id"], V.likely, (code,), evs, "medium", profile):
+            return V.likely, (code,), "medium", evs
     # A model refutation alone stays needs_review here: which not_applicable reason applies is a reviewer call.
     return V.needs_review, ("INSUFFICIENT_EVIDENCE",), "low", evs
