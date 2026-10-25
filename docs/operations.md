@@ -59,7 +59,10 @@ See [Assess options](#assess-options). The steps follow.
    tool checks every quoted line against the real source and drops it if it doesn't match.
 
 Files: `findings.jsonl` (every finding, its disposition and issue), `evidence.jsonl`, `assessments.jsonl`,
-`groups.jsonl`, `links.jsonl`, `summary.json`.
+`groups.jsonl`, `links.jsonl`, `summary.json`. SCA rows in `findings.jsonl` carry `advisory` (the Polaris
+`vulnerability-id`, usually a CVE, copied byte-for-byte) and `linked_advisories` (BDSA ids). Other rows have `null`
+and `[]`. A scan with no findings writes an empty `findings.jsonl`, and `worksheet`, `triage` and `report` then write
+empty outputs. Only a missing `findings.jsonl` is an error.
 
 **Optional worksheet.** `python -m fva worksheet <run_dir>` writes one suggested verdict per Polaris issue id to
 `worksheet.csv` (Excel) and `worksheet.html` (grouped by issue). Every suggestion passes the verdict rules in
@@ -79,7 +82,9 @@ See [Automatic scoring](#automatic-scoring).
 **Report.** `python -m fva report <run_dir>` writes ranked open issues to `tickets.jsonl`, a text summary to
 `report.md`, and a self-contained `report.html`. The HTML page shows the raw finding count, issue counts for
 closures, fix tickets and findings that stay open, closures by reason code with cited evidence metadata, and every original Polaris
-ID in its grouped issue. Every open ticket has `missing_evidence`. It uses inline CSS and makes no external requests. Evidence summaries, receipt details
+ID in its grouped issue. Every open ticket has `missing_evidence`. SCA tickets also carry `advisory` and
+`linked_advisories` from the primary finding. `report.md` shows them in an Advisory column, and `report.html` puts
+them before the ticket title, because Polaris SCA titles rarely name the CVE. It uses inline CSS and makes no external requests. Evidence summaries, receipt details
 and run summary fields other than the profile id are excluded.
 
 **SARIF export.** `python -m fva sarif <run_dir>` writes `sast.sarif` and `sca.sarif`, plus `dast.sarif` only
