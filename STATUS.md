@@ -1,6 +1,6 @@
 # Status
 
-Updated 2026-10-23.
+Updated 2026-10-24.
 
 ## Current state
 
@@ -49,6 +49,9 @@ DAST is parked. There is no routine human review. Open findings stay open.
   or a run with no language pack) stays `needs_review`. Juice Shop cache-only rescore `20261023-js-likelyfix`
   ($0; 19 drift clusters missed the cache and errored): 0 of 573 verdicts changed against main. Auto share 0.808,
   auto agreement 0.994, 0 incorrect demotions, matching DoD 2. All 14 `likely` findings already cited real reach.
+- SCA rows in `findings.jsonl` and tickets now carry `advisory` (Polaris `vulnerability-id`, byte-for-byte)
+  and `linked_advisories` (BDSA ids). `report.md`/`report.html` show them beside the title. A run with 0
+  findings now gets empty triage and report outputs. Juice Shop cache-only rerun: 0 of 573 verdicts changed.
 - Node-RED 5.0.8 (`935b8d3e`) fits DoD 3: npm v3 lockfile, no workspaces, `red.js` entry, and `adminAuth`
   roles `*`, `read` and `default`. Profile drafted in private `data/`.
 

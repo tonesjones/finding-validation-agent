@@ -32,9 +32,9 @@ def load(run_dir: Path, *, warnings: list[str] | None = None
          ) -> tuple[list[dict], dict[str, list[EvidenceRecord]], str | None, frozenset[str]]:
     """(findings, evidence by finding id, run profile id, verified runtime ids) for one run."""
     run_dir = Path(run_dir)
-    findings = _read_jsonl(run_dir / "findings.jsonl")
-    if not findings:
+    if not (run_dir / "findings.jsonl").exists():
         raise SystemExit(f"{run_dir}/findings.jsonl missing: re-run `python -m fva assess` with this version")
+    findings = _read_jsonl(run_dir / "findings.jsonl")  # empty when the scan had no findings
     summary_path = run_dir / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8")) if summary_path.exists() else {}
     status = summary.get("status", "complete")  # runs from before the status field count as complete

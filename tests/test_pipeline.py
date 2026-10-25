@@ -107,6 +107,9 @@ def test_drift_between_affected_versions_stays_open_through_exports(tmp_path):
     report.write(out)
     tickets = [json.loads(l) for l in (out / "tickets.jsonl").read_text().splitlines()]
     assert tickets and "EEEE5555FFFF6666AAAA7777BBBB8888" in json.dumps(tickets)
+    (f,) = [json.loads(l) for l in (out / "findings.jsonl").read_text().splitlines()]
+    assert f["advisory"] == "CVE-2021-23337" and f["linked_advisories"] == ["BDSA-2023-4469"]
+    assert tickets[0]["advisory"] == "CVE-2021-23337"
     sarif_export.write(out)
     results = json.loads((out / "sca.sarif").read_text())["runs"][0]["results"]
     assert [r["guid"] for r in results] == ["EEEE5555FFFF6666AAAA7777BBBB8888"]

@@ -107,6 +107,7 @@ def build(run_dir: Path) -> tuple[list[dict], list[dict]]:
         tickets.append({
             "issue_id": iid, "score": score, "verdict": _effective(prim),
             "severity": _sev_max([m["severity"] for m in members]), "title": prim["title"], "location": loc,
+            "advisory": f.get("advisory"), "linked_advisories": f.get("linked_advisories") or [],
             "route": triage.REVIEW if any(m["route"] == triage.REVIEW for m in members) else triage.AUTO,
             "exceptions": sorted({e for m in members for e in m["exceptions"]}),
             "missing_evidence": " ".join(dict.fromkeys(gaps)),
@@ -130,6 +131,11 @@ def write(run_dir: Path) -> dict:
     with open(run_dir / "report.html", "w", encoding="utf-8", newline="\n") as fh:
         fh.write(_html(tickets, closed))
     return {"open": len(tickets), "closed": len(closed), "by_verdict": dict(sorted(by_verdict.items()))}
+
+
+def _advisories(ticket: dict) -> str:
+    """Scanner advisory ids (CVE first, then linked BDSA/GHSA) as written in findings.jsonl."""
+    return ", ".join(([ticket["advisory"]] if ticket.get("advisory") else []) + ticket.get("linked_advisories", []))
 
 
 def _html(tickets: list[dict], closed: list[dict]) -> str:
@@ -166,7 +172,9 @@ def _html(tickets: list[dict], closed: list[dict]) -> str:
     for label, issues in (("Fix tickets", fix), ("Needs review", review)):
         lines.append(f"<section><h2>{label} ({len(issues)})</h2>")
         for issue in issues:
-            lines.extend((f"<article><h4>#{h(issue['rank'])} · {h(issue['severity'])} · {h(issue['title'])}</h4>",
+            adv = _advisories(issue)
+            lines.extend((f"<article><h4>#{h(issue['rank'])} · {h(issue['severity'])} · "
+                          f"{h(adv) + ' · ' if adv else ''}{h(issue['title'])}</h4>",
                           f"<p>{h(issue['location'])} · issue {h(issue['issue_id'])} · "
                           f"verdict {h(issue['verdict'])}</p>",
                           f"<p>Missing evidence: {h(issue['missing_evidence'])}</p>",
@@ -197,12 +205,13 @@ def _report(tickets, closed, by_verdict) -> str:
     L += [f"| {v} | {n} |" for v, n in sorted(by_verdict.items())]
     L += ["", "## Open issues (ranked)", "",
           "Open issues stay open until evidence decides them; nobody needs to grade them.", "",
-          "| Rank | Score | Issue | Severity | Verdict | Status | Title | Location | Exceptions | Missing evidence |",
-          "|---|---|---|---|---|---|---|---|---|---|"]
+          ("| Rank | Score | Issue | Severity | Verdict | Status | Advisory | Title | Location | Exceptions "
+           "| Missing evidence |"),
+          "|---|---|---|---|---|---|---|---|---|---|---|"]
     for t in tickets:
         L.append("| " + " | ".join(_cell(x) for x in (
-            t["rank"], f"{t['score']:.3f}", t["issue_id"], t["severity"], t["verdict"], STATUS[t["route"]], t["title"],
-            t["location"], " ".join(t["exceptions"]), t["missing_evidence"])) + " |")
+            t["rank"], f"{t['score']:.3f}", t["issue_id"], t["severity"], t["verdict"], STATUS[t["route"]],
+            _advisories(t), t["title"], t["location"], " ".join(t["exceptions"]), t["missing_evidence"])) + " |")
     L += ["", "## Closed", "", "| Issue | Verdict | Members | Reason codes | Evidence |", "|---|---|---|---|---|"]
     for c in closed:
         L.append("| " + " | ".join(_cell(x) for x in (
