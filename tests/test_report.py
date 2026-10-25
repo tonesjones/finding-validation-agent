@@ -132,3 +132,44 @@ def test_html_report_is_static_complete_and_excludes_private_fields(run):
     assert all(finding["source_finding_id"] in page for finding in findings[1:])
     assert "POL-&lt;t&amp;&gt;" in page and "POL-<t&>" not in page
     assert not any(value in page for value in (token, tenant, "http://", "https://", "<script", "<link"))
+
+
+def test_tickets_and_reports_name_the_advisory(tmp_path):
+    """Two advisories on one package version stay apart: each ticket names its own CVE."""
+    from tests.test_worksheet import _row
+    rows = [{**_row(fid, "sca", "assess"), "path": None, "line": None, "package": "php@8.4.26", "cwe": [],
+             "title": "PHP Vulnerable to RCE", "advisory": cve, "linked_advisories": linked}
+            for fid, cve, linked in (("a", "CVE-2099-0001", ["BDSA-2099-0001"]), ("b", "CVE-2099-0002", []))]
+    (tmp_path / "findings.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    (tmp_path / "summary.json").write_text(json.dumps({"profile": "p"}))
+    report.write(tmp_path)
+    t = {x["issue_id"]: x for x in _tickets(tmp_path)}
+    assert t["i-a"]["advisory"] == "CVE-2099-0001" and t["i-a"]["linked_advisories"] == ["BDSA-2099-0001"]
+    assert t["i-b"]["advisory"] == "CVE-2099-0002" and t["i-b"]["linked_advisories"] == []
+    md = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert "| CVE-2099-0001, BDSA-2099-0001 | PHP Vulnerable to RCE |" in md
+    assert "| CVE-2099-0002 | PHP Vulnerable to RCE |" in md
+    page = (tmp_path / "report.html").read_text(encoding="utf-8")
+    assert "CVE-2099-0001, BDSA-2099-0001 · PHP Vulnerable to RCE</h4>" in page
+
+
+def test_ticket_without_advisory(run):
+    """Rows from runs made before the advisory field, and SAST rows, carry none."""
+    report.write(run)
+    assert all(x["advisory"] is None and x["linked_advisories"] == [] for x in _tickets(run))
+
+
+def test_empty_run_writes_empty_outputs(tmp_path):
+    from fva.export import triage_report
+    (tmp_path / "findings.jsonl").write_text("")
+    (tmp_path / "summary.json").write_text(json.dumps({"profile": "p", "status": "complete"}))
+    assert triage_report.write(tmp_path)["rows"] == 0
+    assert report.write(tmp_path) == {"open": 0, "closed": 0, "by_verdict": {}}
+    assert (tmp_path / "triage.jsonl").read_text() == "" and (tmp_path / "tickets.jsonl").read_text() == ""
+    assert "Open issues: 0" in (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert "Raw findings: 0" in (tmp_path / "report.html").read_text(encoding="utf-8")
+
+
+def test_missing_findings_file_still_fails(tmp_path):
+    with pytest.raises(SystemExit, match="findings.jsonl missing"):
+        report.build(tmp_path)

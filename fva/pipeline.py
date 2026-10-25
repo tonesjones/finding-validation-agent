@@ -180,6 +180,8 @@ def write_findings_index(out_dir: Path, findings: list[Finding], batch: Batch, i
                 "finding_type": f.finding_type.value, "title": f.title, "severity": f.severity.value,
                 "cwe": list(f.cwe), "path": loc.path if loc else None, "line": loc.start_line if loc else None,
                 "package": f"{f.package.name}@{f.package.version}" if f.package else None,
+                "advisory": f.package.advisory_id if f.package else None,
+                "linked_advisories": list(f.package.linked_advisory_ids) if f.package else [],
                 "endpoint": f"{f.endpoint.method} {f.endpoint.path}" if getattr(f, "endpoint", None) else None,
                 "disposition": batch.disposition.get(f.finding_id, "runtime_only" if f.finding_type is FindingType.dast
                                                      else "assess"),

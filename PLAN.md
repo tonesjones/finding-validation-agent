@@ -186,6 +186,16 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
   - F10, DAST confirmation limits, before DAST is unparked;
   - `not_installed` closure completeness.
 
+### PHP lab support (2026-10-24)
+
+The PHP lab (`C:\TestCode\fva-php-lab`, separate repo) scores FVA runs against a gold set keyed by CVE.
+- [x] **Advisory id in outputs.** `findings.jsonl`, `tickets.jsonl`, `report.md` and `report.html` name the CVE and
+  linked BDSA ids, so two advisories on one package version stay apart. Assess prompt and model cache unchanged.
+  Juice Shop cache-only rerun: 0 of 573 verdicts changed. PR #62.
+- [x] **Empty runs.** A run with 0 findings writes empty triage and report outputs instead of exiting. PR #62.
+- [ ] **Rescore M3 by CVE.** Rerun `assess` on the lab's M3 cases (cached answers, $0) so `findings.jsonl` has the
+  advisory field, then rescore SCA against `gold.jsonl`. Done in the lab.
+
 ### Third untuned app
 
 - [ ] **Node-RED 5.0.8 (owner scan).** Replaces Habitica. Pinned at `935b8d3e12ec8be064f3a72ac6547131f778a7b1`.
