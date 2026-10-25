@@ -188,7 +188,7 @@ Source: the Astra review of `b377b5d` (findings F1-F10), kept local and uncommit
 
 ### PHP lab support (2026-10-24)
 
-The PHP lab (`C:\TestCodeva-php-lab`, separate repo) scores FVA runs against a gold set keyed by CVE.
+The PHP lab (`C:\TestCode\fva-php-lab`, separate repo) scores FVA runs against a gold set keyed by CVE.
 - [x] **Advisory id in outputs.** `findings.jsonl`, `tickets.jsonl`, `report.md` and `report.html` name the CVE and
   linked BDSA ids, so two advisories on one package version stay apart. Assess prompt and model cache unchanged.
   Juice Shop cache-only rerun: 0 of 573 verdicts changed. PR #62.
